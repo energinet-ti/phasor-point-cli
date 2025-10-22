@@ -1,0 +1,161 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "phasor-point-cli"
+version = "1.0.0"
+description = "A comprehensive CLI for extracting, processing, and analyzing PMU data from PhasorPoint databases"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "Apache-2.0"}
+authors = [
+    {name = "Frederik Fast", email = "ffb@energinet.dk"}
+]
+keywords = ["pmu", "phasor", "power-systems", "data-extraction", "cli"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Utilities",
+]
+
+dependencies = [
+    "numpy",
+    "pandas",
+    "scipy",
+    "matplotlib",
+    "plotly",
+    "pyodbc",
+    "sqlalchemy",
+    "pyarrow",
+    "fastparquet",
+    "seaborn",
+    "python-dotenv",
+    "openpyxl",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.11.1",
+    "freezegun>=1.2.2",
+    "ruff>=0.1.0",
+]
+
+[project.scripts]
+phasor-cli = "phasor_point_cli.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/energinet-ti/phasor-point-cli"
+Documentation = "https://github.com/energinet-ti/phasor-point-cli/blob/main/README.md"
+Repository = "https://github.com/energinet-ti/phasor-point-cli"
+Issues = "https://github.com/energinet-ti/phasor-point-cli/issues"
+
+[tool.setuptools]
+packages = ["phasor_point_cli"]
+
+[tool.setuptools.package-dir]
+phasor_point_cli = "src/phasor_point_cli"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--verbose",
+    "--strict-markers",
+    "--tb=short",
+    "--cov=src/phasor_point_cli",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
+
+[tool.ruff]
+# Exclude common directories
+exclude = [
+    ".git",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "build",
+    "dist",
+    "*.egg-info",
+    "htmlcov",
+]
+
+# Target Python 3.8+
+target-version = "py38"
+
+# Line length
+line-length = 100
+
+[tool.ruff.lint]
+# Enable comprehensive rule sets
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes (unused imports, undefined names, etc.)
+    "I",      # isort (import sorting)
+    "N",      # pep8-naming
+    "UP",     # pyupgrade (modern Python syntax)
+    "B",      # flake8-bugbear (common bugs)
+    "C4",     # flake8-comprehensions
+    "SIM",    # flake8-simplify
+    "ARG",    # flake8-unused-arguments
+    "PTH",    # flake8-use-pathlib
+    "RET",    # flake8-return
+    "PIE",    # flake8-pie
+    "PL",     # pylint
+]
+
+# Ignore specific rules
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "PLR0913", # too many arguments
+    "PLR2004", # magic value comparison
+]
+
+# Allow autofix for all enabled rules
+fixable = ["ALL"]
+unfixable = []
+
+[tool.ruff.lint.per-file-ignores]
+# Test files can have additional flexibility
+"tests/**/*.py" = [
+    "ARG001",  # unused function arguments (fixtures)
+    "ARG002",  # unused method arguments in tests
+    "PLR2004", # magic values in comparisons
+    "S101",    # use of assert
+    "SIM117",  # nested with statements in tests
+    "PLC0415", # imports not at top in tests
+    "N806",    # variable naming in tests (MockTableManager etc.)
+    "ARG005",  # unused lambda args in tests
+]
+
+[tool.ruff.format]
+# Use double quotes for strings
+quote-style = "double"
+
+# Indent with spaces
+indent-style = "space"
+
+# Use Unix line endings
+line-ending = "auto"
+

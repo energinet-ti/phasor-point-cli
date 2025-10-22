@@ -1,0 +1,23 @@
+numpy
+pandas
+scipy
+matplotlib
+plotly
+pyodbc
+sqlalchemy
+pyarrow
+fastparquet
+pathlib
+seaborn
+python-dotenv
+openpyxl
+dotenv
+
+# Testing dependencies
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-mock>=3.11.1
+freezegun>=1.2.2
+
+# Code quality tools
+ruff>=0.1.0
