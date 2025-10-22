@@ -36,42 +36,18 @@ COMMAND GROUPS:
             description=description,
             formatter_class=argparse.RawDescriptionHelpFormatter,
             epilog="""
-Examples:
-  # Set up configuration files (first time setup - user-level)
-  phasor-cli setup
+Quick Start:
+  phasor-cli setup                    # First time setup (interactive)
+  phasor-cli list-tables              # See available PMU tables
+  phasor-cli about                    # Show version and features
 
-  # Interactive setup with credential prompts
-  phasor-cli setup --interactive
+Common Examples:
+  phasor-cli extract --pmu 45022 --hours 1                    # Last hour
+  phasor-cli extract --pmu 45022 --start "2025-08-01 10:00:00" --end "2025-08-01 11:00:00"
+  phasor-cli batch-extract --pmus "45022,45028" --hours 24    # Multiple PMUs
+  phasor-cli table-info --pmu 45022                           # Table details
 
-  # Set up project-specific configuration
-  phasor-cli setup --local
-
-  # Show configuration file locations
-  phasor-cli config-path
-
-  # Clean up configuration files
-  phasor-cli config-clean
-
-  # List all PMU tables
-  phasor-cli list-tables
-
-  # Get info about PMU 45022
-  phasor-cli table-info --pmu 45022
-
-  # Extract last 30 minutes of data
-  phasor-cli extract --pmu 45022 --minutes 30
-
-  # Extract raw data for last 24 hours
-  phasor-cli extract --pmu 45022 --hours 24
-
-  # Extract processed data with power calculations (default)
-  phasor-cli extract --pmu 45022 --start "2025-08-01 00:00:00" --end "2025-08-01 01:00:00"
-
-  # Extract raw data without processing
-  phasor-cli extract --pmu 45022 --start "2025-08-01 00:00:00" --end "2025-08-01 01:00:00" --raw
-
-  # Custom query
-  phasor-cli query --sql "SELECT TOP 100 * FROM pmu_45022_1 ORDER BY ts DESC"
+More help: phasor-cli <command> --help
         """,
         )
 
