@@ -70,3 +70,52 @@ def print_banner():
 def print_about():
     """Print the full about information to console."""
     print(get_about_text())
+
+
+# Pirate raccoon ASCII art (hidden easter egg)
+PIRATE_RACCOON = r"""
+    ╔════════════════════════════════════════════════════════════════╗
+    ║                                                                ║
+    ║   AHOY, MATEY! Ye found Captain Trash Panda!                   ║
+    ║                                                                ║
+    ║   Arrr! This be a hidden treasure in the code!                 ║
+    ║   The legendary data pirate of the seven servers!              ║
+    ║                                                                ║
+    ║   Keep searchin' for more easter eggs, ye scurvy landlubber!   ║
+    ║                                                                ║
+    ║   ~∿~ Captain Trash Panda ~∿~                                  ║
+    ║                                                                ║
+    ╚════════════════════════════════════════════════════════════════╝
+
+                    ⠀⠀⠀⠀⣀⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+                    ⠀⠀⠀⡌⡀⠉⠓⢤⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣠⠄⡄⠀
+                    ⠀⠀⠀⣇⢧⣶⡠⣬⣿⣶⣤⣤⣠⣴⣦⣤⣄⣀⠀⣀⣠⠞⢛⣡⣴⣾⣾⠀
+                    ⠀⠀⠀⠹⡜⣿⣿⣯⠻⠻⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷⣶⣩⣽⣿⡿⡽⠀
+                    ⠀⠀⠀⠀⢺⠄⡻⠀⠐⢻⣿⣿⣿⣿⠻⢻⠿⢻⣿⢿⣿⣿⣿⣿⡿⡕⠁⠀
+                    ⠀⠀⠀⠀⢨⡆⠁⠀⠀⠀⠀⣿⡟⠃⠀⠈⠀⠀⠈⠻⢻⣿⣿⠏⢠⠃⠀⠀
+                    ⠀⠀⠀⠀⢨⠃⠀⣀⣰⡄⢰⡿⠁⢠⣆⣀⠀⠀⠀⠀⠈⠻⢧⠀⢇⠀⠀⠀
+                    ⠀⠀⠀⠀⠞⠀⣼⣿⣾⡗⢸⠇⣰⣿⣿⣿⣿⣷⣤⠤⠀⢀⢈⠀⢸⡂⠀⠀
+                    ⠀⠈⠐⠤⠆⢼⣿⣿⠋⠀⠀⠀⠀⠻⣿⣿⣿⣿⣿⣿⣿⣚⣟⠀⠀⢳⡄⠀
+                    ⠀⠤⠤⢴⠧⣐⡺⢅⣤⣶⣶⡀⠀⠀⣻⣿⣿⠟⣻⣿⣿⡿⠷⢶⡀⠀⢻⠂
+                    ⠀⢈⡩⠿⢷⠒⠒⣺⣿⣿⣿⣧⣶⠠⠈⢨⣻⣿⡿⣿⣿⣿⡤⡄⢩⣬⡿⠆
+                    ⠈⠀⠀⠀⢚⡃⢀⣿⣿⣛⣿⣛⣻⣯⣽⣿⣿⣿⣿⣮⣿⣿⣿⣶⣦⣽⡍⠀
+                    ⠀⠀⠀⠀⢸⣅⢹⣿⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣾⠻⠃⠀
+                    ⠀⠀⠀⠀⠈⠋⠘⠻⠋⢿⣿⣿⣿⣿⣿⣿⣿⣿⠿⠟⠛⠛⠁⠁⠀⠀⠀⠀
+                    ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+
+"""
+
+
+def get_pirate_raccoon() -> str:
+    """
+    Get the hidden pirate raccoon ASCII art.
+
+    Returns:
+        str: ASCII art of a pirate raccoon
+    """
+    return PIRATE_RACCOON
+
+
+def print_pirate_raccoon():
+    """Print the hidden pirate raccoon easter egg."""
+    print(get_pirate_raccoon())

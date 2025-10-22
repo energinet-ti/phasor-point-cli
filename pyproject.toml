@@ -51,6 +51,7 @@ dev = [
     "pytest-mock>=3.11.1",
     "freezegun>=1.2.2",
     "ruff>=0.1.0",
+    "pyright>=1.1.0",
     "build>=0.10.0",
     "setuptools-scm>=8.0",
 ]

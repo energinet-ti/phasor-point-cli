@@ -74,6 +74,7 @@ class CommandRouter:
             "config-path": self.handle_config_path,
             "config-clean": self.handle_config_clean,
             "about": self.handle_about,
+            "aboot": self.handle_aboot,
             "list-tables": self.handle_list_tables,
             "table-info": self.handle_table_info,
             "extract": self.handle_extract,
@@ -223,6 +224,17 @@ class CommandRouter:
         from .banner import print_about  # noqa: PLC0415 - late import for CLI perf
 
         print_about()
+
+    def handle_aboot(self, _args: argparse.Namespace) -> None:
+        """
+        Handle the hidden 'aboot' command (easter egg).
+
+        Args:
+            args: Parsed command-line arguments
+        """
+        from .banner import print_pirate_raccoon  # noqa: PLC0415 - late import for CLI perf
+
+        print_pirate_raccoon()
 
     def handle_list_tables(self, args: argparse.Namespace) -> None:
         """

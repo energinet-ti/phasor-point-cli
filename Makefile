@@ -1,4 +1,4 @@
-.PHONY: help lint format check test clean install dev coverage build
+.PHONY: help lint format type-check check test clean install dev coverage build
 
 help:
 	@echo "Available commands:"
@@ -6,8 +6,9 @@ help:
 	@echo "  make dev         - Install package with dev dependencies"
 	@echo "  make lint        - Run linter (check only)"
 	@echo "  make format      - Auto-format code"
+	@echo "  make type-check  - Run type checker (Pyright)"
 	@echo "  make fix         - Auto-fix linting issues and format code"
-	@echo "  make check       - Run all checks (lint + format + tests)"
+	@echo "  make check       - Run all checks (lint + format + type-check + tests)"
 	@echo "  make test        - Run tests"
 	@echo "  make coverage    - Run tests with coverage report"
 	@echo "  make build       - Build wheel distribution package"
@@ -25,6 +26,10 @@ lint:
 format:
 	ruff format src/ tests/
 
+type-check:
+	@echo "Running type checker..."
+	pyright src/ tests/
+
 fix:
 	ruff check --no-cache --fix src/ tests/
 	ruff format src/ tests/
@@ -34,6 +39,8 @@ check:
 	ruff check --no-cache src/ tests/
 	ruff format --check src/ tests/
 	pytest
+	@echo ""
+	@echo "Note: Type checking available with 'make type-check'"
 
 test:
 	pytest

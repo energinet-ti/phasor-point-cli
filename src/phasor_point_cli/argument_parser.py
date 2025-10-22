@@ -83,6 +83,7 @@ Examples:
         self._add_config_path_command(subparsers)
         self._add_config_clean_command(subparsers)
         self._add_about_command(subparsers)
+        self._add_aboot_command(subparsers)  # Hidden easter egg
 
         # Data extraction commands
         self._add_extract_command(subparsers)
@@ -93,7 +94,46 @@ Examples:
         self._add_table_info_command(subparsers)
         self._add_query_command(subparsers)
 
+        # Hide aboot from help display while keeping it functional
+        self._hide_easter_egg_from_help(subparsers)
+
         return parser
+
+    def _hide_easter_egg_from_help(self, subparsers) -> None:
+        """Hide the aboot command from help display while keeping it functional."""
+        # Store the original choices dict but create a filtered view for display
+        if hasattr(subparsers, "choices") and "aboot" in subparsers.choices:
+            original_choices = subparsers.choices
+
+            # Create a wrapper class that hides 'aboot' during iteration
+            class FilteredChoicesView(dict):
+                """A dict wrapper that hides specific keys from iteration."""
+
+                def __init__(self, wrapped_dict, hidden_keys):
+                    super().__init__(wrapped_dict)
+                    self._hidden = set(hidden_keys)
+
+                def __iter__(self):
+                    return (k for k in super().__iter__() if k not in self._hidden)
+
+                def keys(self):
+                    return [k for k in super() if k not in self._hidden]
+
+                def __str__(self):
+                    return "{" + ",".join(self.keys()) + "}"
+
+            # Replace choices with filtered view
+            subparsers.choices = FilteredChoicesView(original_choices, ["aboot"])
+
+            # Also hide from _get_subactions for help formatting
+            if hasattr(subparsers, "_get_subactions"):
+                original_get_subactions = subparsers._get_subactions
+
+                def filtered_get_subactions():
+                    subactions = original_get_subactions()
+                    return [a for a in subactions if getattr(a, "dest", None) != "aboot"]
+
+                subparsers._get_subactions = filtered_get_subactions
 
     def _add_global_arguments(self, parser: argparse.ArgumentParser) -> None:
         """Add global arguments (config, username, password, etc.)."""
@@ -181,6 +221,14 @@ Use --all to remove files from both locations.
             "about",
             help="Show version and about information",
             description="Display version, author, repository, and feature information for PhasorPoint CLI.",
+        )
+
+    def _add_aboot_command(self, subparsers) -> None:
+        """Add hidden aboot command parser (easter egg)."""
+        subparsers.add_parser(
+            "aboot",
+            help=argparse.SUPPRESS,  # Hide from help text
+            description="Hidden easter egg command.",
         )
 
     def _add_list_tables_command(self, subparsers) -> None:

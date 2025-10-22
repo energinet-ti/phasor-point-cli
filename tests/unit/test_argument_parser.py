@@ -374,3 +374,15 @@ class TestCLIArgumentParser:
 
         # Assert
         assert args.no_clean is True
+
+    def test_aboot_command_hidden_easter_egg(self):
+        """Test hidden aboot command (easter egg) is properly configured."""
+        # Arrange
+        parser_builder = CLIArgumentParser()
+        parser = parser_builder.build()
+
+        # Act
+        args = parser.parse_args(["aboot"])
+
+        # Assert
+        assert args.command == "aboot"
