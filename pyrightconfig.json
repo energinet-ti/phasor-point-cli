@@ -16,7 +16,7 @@
   "extraPaths": [
     "src"
   ],
-  "pythonVersion": "3.8",
+  "pythonVersion": "3.13",
   "pythonPlatform": "All",
   "typeCheckingMode": "basic",
   "reportMissingImports": "warning",

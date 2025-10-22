@@ -242,3 +242,68 @@ def test_list_available_tables_respects_cancellation_sequential(sample_config):
     assert result.found_pmus is not None
     # Clean up
     cancellation_mgr.reset()
+
+
+def test_list_available_tables_with_progress_callback_parallel(sample_config):
+    """Test that progress callback is called during parallel table scanning."""
+    # Arrange
+    connection, _ = create_connection_mock({"pmu_45012_1", "pmu_45012_10"})
+    pool = MagicMock()
+    pool.get_connection.return_value = connection
+    pool.pool_size = 3
+    manager = TableManager(pool, sample_config, logger=MagicMock())
+
+    progress_calls = []
+
+    def progress_callback(completed, total, found_count):
+        progress_calls.append((completed, total, found_count))
+
+    # Act
+    result = manager.list_available_tables(
+        pmu_ids=[45012],
+        resolutions=[1, 10, 50],
+        parallel=True,
+        progress_callback=progress_callback,
+    )
+
+    # Assert
+    assert result.found_pmus == {45012: [1, 10]}
+    assert result.total_tables == 2
+    assert len(progress_calls) > 0, "Progress callback should have been called"
+    # Last call should be with total checks
+    last_call = progress_calls[-1]
+    assert last_call[0] == 3, "Last call should have completed=3"
+    assert last_call[1] == 3, "Total should be 3"
+    assert last_call[2] == 2, "Should have found 2 tables"
+
+
+def test_list_available_tables_with_progress_callback_sequential(sample_config):
+    """Test that progress callback is called during sequential table scanning."""
+    # Arrange
+    connection, _ = create_connection_mock({"pmu_45012_1", "pmu_45012_10"})
+    pool = MagicMock()
+    pool.get_connection.return_value = connection
+    manager = TableManager(pool, sample_config, logger=MagicMock())
+
+    progress_calls = []
+
+    def progress_callback(completed, total, found_count):
+        progress_calls.append((completed, total, found_count))
+
+    # Act
+    result = manager.list_available_tables(
+        pmu_ids=[45012],
+        resolutions=[1, 10, 50],
+        parallel=False,
+        progress_callback=progress_callback,
+    )
+
+    # Assert
+    assert result.found_pmus == {45012: [1, 10]}
+    assert result.total_tables == 2
+    assert len(progress_calls) > 0, "Progress callback should have been called"
+    # Last call should be with total checks
+    last_call = progress_calls[-1]
+    assert last_call[0] == 3, "Last call should have completed=3"
+    assert last_call[1] == 3, "Total should be 3"
+    assert last_call[2] == 2, "Should have found 2 tables"

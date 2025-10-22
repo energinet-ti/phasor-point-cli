@@ -8,6 +8,7 @@ and sampling logic for working with PMU data tables.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import suppress
 from typing import Sequence
@@ -24,7 +25,7 @@ class TableManagerError(Exception):
 class TableManager:
     """Manage discovery and inspection of PMU tables."""
 
-    DEFAULT_RESOLUTIONS: tuple[int, ...] = (1, 10, 12, 15, 20, 25, 30, 50, 60)
+    DEFAULT_RESOLUTIONS: tuple[int, ...] = (1, 10, 25, 50)
 
     def __init__(
         self, connection_pool, config_manager, logger: logging.Logger | None = None
@@ -130,6 +131,7 @@ class TableManager:
         resolutions: Sequence[int] | None = None,
         max_pmus: int | None = 10,
         parallel: bool = True,
+        progress_callback: Callable[[int, int, int], None] | None = None,
     ) -> TableListResult:
         """
         List available PMU tables by checking existence of combinations.
@@ -139,6 +141,7 @@ class TableManager:
             resolutions: Optional list of resolutions to check
             max_pmus: Maximum number of PMUs to scan if pmu_ids not provided
             parallel: Whether to check tables in parallel (default True)
+            progress_callback: Optional callback function called with (completed, total, found_count)
 
         Returns:
             TableListResult with found PMU/resolution combinations
@@ -162,6 +165,8 @@ class TableManager:
             # Use parallel checking with ThreadPoolExecutor
             cancellation_manager = get_cancellation_manager()
             found: dict[int, list[int]] = {}
+            found_count = 0
+            last_progress_at = 0
 
             # Use connection pool size as max workers to avoid overwhelming the pool
             # Default to 3 if pool_size is not available or not an integer (e.g., in mocks/tests)
@@ -194,16 +199,28 @@ class TableManager:
 
                     result = future.result()
 
-                    if completed % 10 == 0 or completed == total_checks:
-                        self.logger.debug(
-                            "Checked %d/%d table combinations", completed, total_checks
-                        )
-
                     if result:
                         pmu_id, resolution = result
                         if pmu_id not in found:
                             found[pmu_id] = []
                         found[pmu_id].append(resolution)
+                        found_count += 1
+
+                    # Call progress callback every 5 tables OR every 10% (whichever comes first)
+                    progress_interval = min(5, max(1, total_checks // 10))
+                    should_report = (
+                        completed - last_progress_at >= progress_interval
+                        or completed == total_checks
+                    )
+
+                    if should_report and progress_callback:
+                        progress_callback(completed, total_checks, found_count)
+                        last_progress_at = completed
+
+                    if completed % 10 == 0 or completed == total_checks:
+                        self.logger.debug(
+                            "Checked %d/%d table combinations", completed, total_checks
+                        )
         else:
             # Fall back to sequential checking if parallel is disabled
             cancellation_manager = get_cancellation_manager()
@@ -211,6 +228,8 @@ class TableManager:
             cursor = conn.cursor()
             found: dict[int, list[int]] = {}
             checked = 0
+            found_count = 0
+            last_progress_at = 0
 
             try:
                 for pmu_id in pmus_to_scan:
@@ -229,6 +248,18 @@ class TableManager:
                             if pmu_id not in found:
                                 found[pmu_id] = []
                             found[pmu_id].append(resolution)
+                            found_count += 1
+
+                        # Call progress callback every 5 tables OR every 10% (whichever comes first)
+                        progress_interval = min(5, max(1, total_checks // 10))
+                        should_report = (
+                            checked - last_progress_at >= progress_interval
+                            or checked == total_checks
+                        )
+
+                        if should_report and progress_callback:
+                            progress_callback(checked, total_checks, found_count)
+                            last_progress_at = checked
 
                     # Check again at the outer loop to break both loops
                     if cancellation_manager.is_cancelled():

@@ -17,16 +17,19 @@ import sys
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Iterable, Sequence
+from typing import TYPE_CHECKING, Any, Iterable, Sequence
 
 import pandas as pd
 
 # Compatibility wrapper: Python < 3.10 does not support dataclass(slots=...)
-if sys.version_info >= (3, 10):
+if TYPE_CHECKING:
+    # For type checking, always use the real dataclass decorator
+    dataclass_compat = dataclass
+elif sys.version_info >= (3, 10):
     dataclass_compat = dataclass
 else:
-
-    def dataclass_compat(_cls=None, **kwargs):
+    # For older Python at runtime, strip the slots argument
+    def dataclass_compat(_cls=None, /, **kwargs):  # type: ignore[misc]
         kwargs.pop("slots", None)
         if _cls is None:
             return lambda cls: dataclass(**kwargs)(cls)

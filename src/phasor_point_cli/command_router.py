@@ -6,6 +6,7 @@ user input and the various manager classes.
 """
 
 import argparse
+import sys
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -18,6 +19,28 @@ from .table_manager import TableManager
 
 if TYPE_CHECKING:
     from .cli import PhasorPointCLI
+
+
+def _print_progress(completed: int, total: int, found_count: int) -> None:
+    """
+    Print scan progress in-place using carriage return.
+
+    Args:
+        completed: Number of tables checked so far
+        total: Total number of tables to check
+        found_count: Number of tables found so far
+    """
+    percentage = int((completed / total) * 100) if total > 0 else 0
+
+    # Use carriage return to overwrite the same line
+    # Pad with spaces to clear any leftover characters from previous output
+    message = f"\rScanning: {completed}/{total} ({percentage}%) - {found_count} tables found..."
+    print(message, end="", flush=True)
+
+    # If this is the final update, print a newline and completion message
+    if completed == total:
+        print(f"\rScanning: {completed}/{total} (100%) - {found_count} tables found ✓")
+        sys.stdout.flush()
 
 
 class CommandRouter:
@@ -206,7 +229,10 @@ class CommandRouter:
 
         manager = TableManager(self._cli.connection_pool, self._cli.config, self._logger)
         result = manager.list_available_tables(
-            pmu_ids=pmu_ids, resolutions=resolutions, max_pmus=max_pmus
+            pmu_ids=pmu_ids,
+            resolutions=resolutions,
+            max_pmus=max_pmus,
+            progress_callback=_print_progress,
         )
 
         if not result or not result.found_pmus:
