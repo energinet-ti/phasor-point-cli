@@ -88,14 +88,14 @@ class TestPhasorPointCLI:
         skip_validation = True
 
         # Act
-        with patch("phasor_point_cli.cli.load_config") as mock_load_config:
-            mock_load_config.return_value = {}
+        with ExitStack() as stack:
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigurationManager"))
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigPathManager"))
             cli = PhasorPointCLI(skip_validation=skip_validation, logger=mock_logger)
 
         # Assert
         assert cli is not None
         assert cli.logger == mock_logger
-        mock_load_config.assert_called_once_with(None, mock_logger)
 
     def test_initialization_with_valid_credentials(self, mock_logger, valid_env_vars):
         """Test PhasorPointCLI initialization with valid environment credentials."""
@@ -104,8 +104,9 @@ class TestPhasorPointCLI:
         password = "test_pass"
 
         # Act
-        with patch("phasor_point_cli.cli.load_config") as mock_load_config:
-            mock_load_config.return_value = {}
+        with ExitStack() as stack:
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigurationManager"))
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigPathManager"))
             with patch("phasor_point_cli.cli.JDBCConnectionPool") as mock_pool:
                 cli = PhasorPointCLI(username=username, password=password, logger=mock_logger)
 
@@ -127,7 +128,9 @@ class TestPhasorPointCLI:
         monkeypatch.setenv("DB_PASSWORD", "test_pass")
 
         # Act & Assert
-        with patch("phasor_point_cli.cli.load_config", return_value={}):
+        with ExitStack() as stack:
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigurationManager"))
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigPathManager"))
             with pytest.raises(SystemExit) as exc_info:
                 PhasorPointCLI(logger=mock_logger)
 
@@ -143,7 +146,9 @@ class TestPhasorPointCLI:
         monkeypatch.setenv("DB_USERNAME", "test_user")
 
         # Act & Assert
-        with patch("phasor_point_cli.cli.load_config", return_value={}):
+        with ExitStack() as stack:
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigurationManager"))
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigPathManager"))
             with pytest.raises(SystemExit) as exc_info:
                 PhasorPointCLI(logger=mock_logger)
 
@@ -159,7 +164,9 @@ class TestPhasorPointCLI:
         monkeypatch.setenv("DB_PASSWORD", "test_pass")
 
         # Act & Assert
-        with patch("phasor_point_cli.cli.load_config", return_value={}):
+        with ExitStack() as stack:
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigurationManager"))
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigPathManager"))
             with pytest.raises(SystemExit) as exc_info:
                 PhasorPointCLI(logger=mock_logger)
 
@@ -175,7 +182,9 @@ class TestPhasorPointCLI:
         monkeypatch.delenv("DB_NAME", raising=False)
 
         # Act & Assert
-        with patch("phasor_point_cli.cli.load_config", return_value={}):
+        with ExitStack() as stack:
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigurationManager"))
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigPathManager"))
             with pytest.raises(SystemExit) as exc_info:
                 PhasorPointCLI(logger=mock_logger)
 
@@ -189,7 +198,9 @@ class TestPhasorPointCLI:
         cli_password = "cli_pass"
 
         # Act
-        with patch("phasor_point_cli.cli.load_config", return_value={}):
+        with ExitStack() as stack:
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigurationManager"))
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigPathManager"))
             with patch("phasor_point_cli.cli.JDBCConnectionPool"):
                 cli = PhasorPointCLI(
                     username=cli_username, password=cli_password, logger=mock_logger
@@ -206,7 +217,9 @@ class TestPhasorPointCLI:
         password = "test_pass"
 
         # Act
-        with patch("phasor_point_cli.cli.load_config", return_value={}):
+        with ExitStack() as stack:
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigurationManager"))
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigPathManager"))
             with patch("phasor_point_cli.cli.JDBCConnectionPool"):
                 cli = PhasorPointCLI(username=username, password=password, logger=mock_logger)
 
@@ -220,7 +233,9 @@ class TestPhasorPointCLI:
         pool_size = 5
 
         # Act
-        with patch("phasor_point_cli.cli.load_config", return_value={}):
+        with ExitStack() as stack:
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigurationManager"))
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigPathManager"))
             with patch("phasor_point_cli.cli.JDBCConnectionPool") as mock_pool:
                 PhasorPointCLI(
                     username="test_user",
@@ -240,23 +255,29 @@ class TestPhasorPointCLI:
         config_file = "custom_config.json"
 
         # Act
-        with patch("phasor_point_cli.cli.load_config") as mock_load_config:
-            mock_load_config.return_value = {}
-            with patch("phasor_point_cli.cli.JDBCConnectionPool"):
-                PhasorPointCLI(
-                    username="test_user",
-                    password="test_pass",
-                    config_file=config_file,
-                    logger=mock_logger,
-                )
+        with ExitStack() as stack:
+            mock_config_manager = stack.enter_context(
+                patch("phasor_point_cli.cli.ConfigurationManager")
+            )
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigPathManager"))
+            stack.enter_context(patch("phasor_point_cli.cli.JDBCConnectionPool"))
+            cli = PhasorPointCLI(
+                username="test_user",
+                password="test_pass",
+                config_file=config_file,
+                logger=mock_logger,
+            )
 
         # Assert
-        mock_load_config.assert_called_once_with(config_file, mock_logger)
+        mock_config_manager.assert_called_once_with(config_file=config_file, logger=mock_logger)
+        assert cli.config is not None
 
     def test_create_connection(self, mock_logger, valid_env_vars):
         """Test create_connection method."""
         # Arrange
-        with patch("phasor_point_cli.cli.load_config", return_value={}):
+        with ExitStack() as stack:
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigurationManager"))
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigPathManager"))
             with patch("phasor_point_cli.cli.JDBCConnectionPool") as mock_pool_class:
                 mock_pool = Mock()
                 mock_connection = Mock()
@@ -275,7 +296,9 @@ class TestPhasorPointCLI:
     def test_cleanup_connections_success(self, mock_logger, valid_env_vars):
         """Test cleanup_connections method with successful cleanup."""
         # Arrange
-        with patch("phasor_point_cli.cli.load_config", return_value={}):
+        with ExitStack() as stack:
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigurationManager"))
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigPathManager"))
             with patch("phasor_point_cli.cli.JDBCConnectionPool") as mock_pool_class:
                 mock_pool = Mock()
                 mock_pool_class.return_value = mock_pool
@@ -292,7 +315,9 @@ class TestPhasorPointCLI:
     def test_cleanup_connections_with_error(self, mock_logger, valid_env_vars):
         """Test cleanup_connections method handles errors gracefully."""
         # Arrange
-        with patch("phasor_point_cli.cli.load_config", return_value={}):
+        with ExitStack() as stack:
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigurationManager"))
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigPathManager"))
             with patch("phasor_point_cli.cli.JDBCConnectionPool") as mock_pool_class:
                 mock_pool = Mock()
                 mock_pool.cleanup.side_effect = Exception("Cleanup error")
@@ -310,7 +335,9 @@ class TestPhasorPointCLI:
     def test_update_connection_pool_size_creates_new_pool(self, mock_logger, valid_env_vars):
         """Test update_connection_pool_size creates a new pool when size differs."""
         # Arrange
-        with patch("phasor_point_cli.cli.load_config", return_value={}):
+        with ExitStack() as stack:
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigurationManager"))
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigPathManager"))
             with patch("phasor_point_cli.cli.JDBCConnectionPool") as mock_pool_class:
                 mock_pool = Mock()
                 mock_pool.max_connections = 3
@@ -333,7 +360,9 @@ class TestPhasorPointCLI:
     def test_update_connection_pool_size_skips_if_same(self, mock_logger, valid_env_vars):
         """Test update_connection_pool_size skips update if size is the same."""
         # Arrange
-        with patch("phasor_point_cli.cli.load_config", return_value={}):
+        with ExitStack() as stack:
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigurationManager"))
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigPathManager"))
             with patch("phasor_point_cli.cli.JDBCConnectionPool") as mock_pool_class:
                 mock_pool = Mock()
                 mock_pool.max_connections = 3
@@ -377,15 +406,15 @@ class TestMainFunction:
         test_args = ["phasor-cli"]
 
         # Act
-        with patch("sys.argv", test_args):
-            with patch("phasor_point_cli.cli.CLIArgumentParser") as mock_parser_class:
-                mock_parser = Mock()
-                mock_parser_instance = Mock()
-                mock_parser_instance.parse_args.return_value = argparse.Namespace(command=None)
-                mock_parser.build.return_value = mock_parser_instance
-                mock_parser_class.return_value = mock_parser
-
-                main()
+        with ExitStack() as stack:
+            stack.enter_context(patch("sys.argv", test_args))
+            mock_parser_class = stack.enter_context(patch("phasor_point_cli.cli.CLIArgumentParser"))
+            mock_parser = Mock()
+            mock_parser_instance = Mock()
+            mock_parser_instance.parse_args.return_value = argparse.Namespace(command=None)
+            mock_parser.build.return_value = mock_parser_instance
+            mock_parser_class.return_value = mock_parser
+            main()
 
         # Assert
         mock_parser_instance.print_help.assert_called_once()
@@ -501,7 +530,8 @@ class TestMainFunction:
             mock_cli_class = stack.enter_context(patch("phasor_point_cli.cli.PhasorPointCLI"))
             mock_router_class = stack.enter_context(patch("phasor_point_cli.cli.CommandRouter"))
             mock_logging = stack.enter_context(patch("phasor_point_cli.cli.setup_logging"))
-            stack.enter_context(patch("phasor_point_cli.cli.load_config", return_value={}))
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigurationManager"))
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigPathManager"))
 
             mock_logger = Mock()
             mock_logging.return_value = mock_logger
@@ -552,7 +582,8 @@ class TestMainFunction:
             mock_cli_class = stack.enter_context(patch("phasor_point_cli.cli.PhasorPointCLI"))
             mock_router_class = stack.enter_context(patch("phasor_point_cli.cli.CommandRouter"))
             mock_logging = stack.enter_context(patch("phasor_point_cli.cli.setup_logging"))
-            stack.enter_context(patch("phasor_point_cli.cli.load_config", return_value={}))
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigurationManager"))
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigPathManager"))
 
             mock_logger = Mock()
             mock_logging.return_value = mock_logger
@@ -603,7 +634,8 @@ class TestMainFunction:
             mock_cli_class = stack.enter_context(patch("phasor_point_cli.cli.PhasorPointCLI"))
             mock_router_class = stack.enter_context(patch("phasor_point_cli.cli.CommandRouter"))
             stack.enter_context(patch("phasor_point_cli.cli.setup_logging", return_value=Mock()))
-            stack.enter_context(patch("phasor_point_cli.cli.load_config", return_value={}))
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigurationManager"))
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigPathManager"))
             # Patch the import inside main's if block
             mock_path_mgr_class = stack.enter_context(
                 patch("phasor_point_cli.config_paths.ConfigPathManager")
@@ -684,7 +716,8 @@ class TestMainFunction:
             mock_cli_class = stack.enter_context(patch("phasor_point_cli.cli.PhasorPointCLI"))
             stack.enter_context(patch("phasor_point_cli.cli.CommandRouter"))
             stack.enter_context(patch("phasor_point_cli.cli.setup_logging", return_value=Mock()))
-            stack.enter_context(patch("phasor_point_cli.cli.load_config", return_value={}))
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigurationManager"))
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigPathManager"))
 
             mock_parser = Mock()
             mock_parser_instance = Mock()
@@ -728,7 +761,8 @@ class TestMainFunction:
             # This patch at the module level ensures we're testing the import scope
             mock_router_class = stack.enter_context(patch("phasor_point_cli.cli.CommandRouter"))
             stack.enter_context(patch("phasor_point_cli.cli.setup_logging", return_value=Mock()))
-            stack.enter_context(patch("phasor_point_cli.cli.load_config", return_value={}))
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigurationManager"))
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigPathManager"))
 
             mock_parser = Mock()
             mock_parser_instance = Mock()
@@ -772,7 +806,9 @@ class TestEdgeCases:
         monkeypatch.setenv("DB_PASSWORD", "test_pass")
 
         # Act & Assert - Now exits with clear error message instead of ValueError
-        with patch("phasor_point_cli.cli.load_config", return_value={}):
+        with ExitStack() as stack:
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigurationManager"))
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigPathManager"))
             with pytest.raises(SystemExit) as exc_info:
                 PhasorPointCLI(logger=Mock())
             assert exc_info.value.code == 1
@@ -795,7 +831,8 @@ class TestEdgeCases:
             mock_cli_class = stack.enter_context(patch("phasor_point_cli.cli.PhasorPointCLI"))
             stack.enter_context(patch("phasor_point_cli.cli.CommandRouter"))
             stack.enter_context(patch("phasor_point_cli.cli.setup_logging", return_value=Mock()))
-            stack.enter_context(patch("phasor_point_cli.cli.load_config", return_value={}))
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigurationManager"))
+            stack.enter_context(patch("phasor_point_cli.cli.ConfigPathManager"))
 
             # Setup parser mocks
             mock_parser = Mock()

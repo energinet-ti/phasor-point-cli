@@ -35,6 +35,7 @@ dist/
 build/
 *.egg-info/
 .eggs/
+src/phasor_point_cli/_version.py
 
 # Jupyter Notebook
 .ipynb_checkpoints

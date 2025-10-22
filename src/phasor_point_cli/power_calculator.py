@@ -1,10 +1,9 @@
 """
-Power calculation utilities for the OOP refactor.
+Power calculation utilities for PhasorPoint CLI.
 
 The ``PowerCalculator`` class encapsulates phasor column detection, voltage
 corrections, angle conversion, and the derivation of apparent/active/reactive
-power metrics. Legacy module-level helpers remain available via lightweight
-wrappers in this module.
+power metrics.
 """
 
 from __future__ import annotations
@@ -15,7 +14,6 @@ from typing import Iterable, Sequence
 import numpy as np
 import pandas as pd
 
-from .data_processor import DataProcessor
 from .data_validator import DataValidator
 from .models import PhasorColumnMap
 
@@ -271,7 +269,7 @@ class PowerCalculator:
         return working, column_map
 
 
-# ------------------------------------------------------------------ Wrappers --
+# --------------------------------------------------------------- Helper Functions --
 def _build_validator(config: dict | None, logger: logging.Logger | None) -> DataValidator:
     thresholds = config.get("data_quality") if config else None
     return DataValidator(thresholds, logger=logger)
@@ -310,27 +308,3 @@ def calculate_power_values(
     logger: logging.Logger | None = None,
 ) -> pd.DataFrame:
     return PowerCalculator(logger=logger).calculate_power_values(df, column_map, extraction_log)
-
-
-def process_phasor_data(
-    df: pd.DataFrame,
-    config: dict | None,
-    clean: bool = True,
-    extraction_log: dict | None = None,
-    logger: logging.Logger | None = None,
-) -> pd.DataFrame | None:
-    """
-    Legacy compatibility helper that runs cleaning, validation, and power calculations.
-    """
-    if df is None or len(df) == 0:
-        return None
-
-    validator = _build_validator(config, logger)
-    processor = DataProcessor(logger=logger, validator=validator)
-
-    processed_df, _ = processor.process(
-        df, extraction_log=extraction_log, clean=clean, validate=clean
-    )
-    calculator = PowerCalculator(logger=logger)
-    processed_df, _ = calculator.process_phasor_data(processed_df, extraction_log=extraction_log)
-    return processed_df

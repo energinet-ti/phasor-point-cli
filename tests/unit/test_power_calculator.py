@@ -20,7 +20,6 @@ from phasor_point_cli.power_calculator import (
     convert_angles_to_degrees,
     detect_phasor_columns,
     log_power_calculations,
-    process_phasor_data,
 )
 
 
@@ -430,63 +429,3 @@ def test_calculate_power_values_wrapper():
 
     # Assert
     assert "apparent_power_mva" in result.columns
-
-
-def test_process_phasor_data_legacy_wrapper_full():
-    """Test legacy process_phasor_data wrapper with full processing."""
-    # Arrange
-    df = build_sample_dataframe()
-    config = {
-        "data_quality": {
-            "frequency_min": 49.5,
-            "frequency_max": 50.5,
-            "null_threshold_percent": 50,
-            "gap_multiplier": 3,
-        }
-    }
-    extraction_log = {
-        "column_changes": {"added": []},
-        "issues_found": [],
-        "data_quality": {},  # Required by validator
-    }
-
-    # Act
-    result = process_phasor_data(df, config, clean=True, extraction_log=extraction_log)
-
-    # Assert
-    assert result is not None
-    assert "apparent_power_mva" in result.columns
-
-
-def test_process_phasor_data_legacy_wrapper_no_clean():
-    """Test legacy process_phasor_data wrapper without cleaning."""
-    # Arrange
-    df = build_sample_dataframe()
-
-    # Act
-    result = process_phasor_data(df, config=None, clean=False)
-
-    # Assert
-    assert result is not None
-    assert "apparent_power_mva" in result.columns
-
-
-def test_process_phasor_data_legacy_wrapper_empty():
-    """Test legacy process_phasor_data wrapper with empty dataframe."""
-    # Arrange
-    df = pd.DataFrame()
-
-    # Act
-    result = process_phasor_data(df, config=None)
-
-    # Assert
-    assert result is None
-
-
-def test_process_phasor_data_legacy_wrapper_none():
-    """Test legacy process_phasor_data wrapper with None dataframe."""
-    # Act
-    result = process_phasor_data(None, config=None)
-
-    # Assert
-    assert result is None

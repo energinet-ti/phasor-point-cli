@@ -1,15 +1,14 @@
 """
-Table management services for the refactored PhasorPoint CLI.
+Table management services for PhasorPoint CLI.
 
 The :class:`TableManager` encapsulates PMU table discovery, metadata retrieval,
-and sampling logic. Legacy helpers in ``table_operations`` delegate to this
-class to preserve backwards compatibility with existing command handlers while
-the CLI migrates to the new OOP façade.
+and sampling logic for working with PMU data tables.
 """
 
 from __future__ import annotations
 
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import suppress
 from typing import Sequence
 
@@ -25,7 +24,7 @@ class TableManagerError(Exception):
 class TableManager:
     """Manage discovery and inspection of PMU tables."""
 
-    DEFAULT_RESOLUTIONS: tuple[int, ...] = (1, 50, 200)
+    DEFAULT_RESOLUTIONS: tuple[int, ...] = (1, 10, 12, 15, 20, 25, 30, 50, 60)
 
     def __init__(
         self, connection_pool, config_manager, logger: logging.Logger | None = None
@@ -97,37 +96,145 @@ class TableManager:
         return conn
 
     # ----------------------------------------------------------- Table Scanning
-    def list_available_tables(
+    def _check_single_table(self, pmu_id: int, resolution: int) -> tuple[int, int] | None:
+        """
+        Check if a single table exists.
+
+        Returns (pmu_id, resolution) tuple if table exists, None otherwise.
+        This method is designed to be called concurrently from multiple threads.
+        """
+        table_name = f"pmu_{pmu_id}_{resolution}"
+        conn = None
+        cursor = None
+
+        try:
+            conn = self._acquire_connection()
+            if not conn:
+                return None
+
+            cursor = conn.cursor()
+            cursor.execute(f"SELECT TOP 1 ts FROM {table_name}")
+            return (pmu_id, resolution)
+        except Exception:
+            return None
+        finally:
+            if cursor:
+                with suppress(Exception):
+                    cursor.close()
+            if conn:
+                self.connection_pool.return_connection(conn)
+
+    def list_available_tables(  # noqa: PLR0912, PLR0915
         self,
         pmu_ids: Sequence[int] | None = None,
         resolutions: Sequence[int] | None = None,
         max_pmus: int | None = 10,
+        parallel: bool = True,
     ) -> TableListResult:
+        """
+        List available PMU tables by checking existence of combinations.
+
+        Args:
+            pmu_ids: Optional list of PMU IDs to check
+            resolutions: Optional list of resolutions to check
+            max_pmus: Maximum number of PMUs to scan if pmu_ids not provided
+            parallel: Whether to check tables in parallel (default True)
+
+        Returns:
+            TableListResult with found PMU/resolution combinations
+        """
+        from .signal_handler import get_cancellation_manager  # noqa: PLC0415
+
         pmus_to_scan = self.determine_pmus_to_scan(pmu_ids, max_pmus)
         if not pmus_to_scan:
             return TableListResult(found_pmus={})
 
         resolutions_to_scan = list(resolutions or self.DEFAULT_RESOLUTIONS)
-        conn = self._acquire_connection()
-        cursor = conn.cursor()
-
-        found: dict[int, list[int]] = {}
         total_checks = len(pmus_to_scan) * len(resolutions_to_scan)
-        checked = 0
 
-        try:
-            self.logger.info("Checking %s table combinations...", total_checks)
-            for pmu_id in pmus_to_scan:
-                for res in resolutions_to_scan:
-                    table_name = f"pmu_{pmu_id}_{res}"
-                    checked += 1
-                    with suppress(Exception):
-                        cursor.execute(f"SELECT TOP 1 ts FROM {table_name}")
+        self.logger.info(
+            "Checking %s table combinations%s...",
+            total_checks,
+            " (parallel)" if parallel else " (sequential)",
+        )
+
+        if parallel:
+            # Use parallel checking with ThreadPoolExecutor
+            cancellation_manager = get_cancellation_manager()
+            found: dict[int, list[int]] = {}
+
+            # Use connection pool size as max workers to avoid overwhelming the pool
+            # Default to 3 if pool_size is not available or not an integer (e.g., in mocks/tests)
+            pool_size = getattr(self.connection_pool, "pool_size", 3)
+            if not isinstance(pool_size, int):
+                pool_size = 3
+            max_workers = min(pool_size, total_checks)
+
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                # Submit all table checks
+                future_to_params = {}
+                for pmu_id in pmus_to_scan:
+                    for resolution in resolutions_to_scan:
+                        future = executor.submit(self._check_single_table, pmu_id, resolution)
+                        future_to_params[future] = (pmu_id, resolution)
+
+                # Collect results as they complete
+
+                for completed, future in enumerate(as_completed(future_to_params), start=1):
+                    # Check for cancellation before processing each completed future
+                    if cancellation_manager.is_cancelled():
+                        self.logger.warning(
+                            f"Table scan cancelled - {completed}/{total_checks} checks completed"
+                        )
+                        # Cancel remaining futures
+                        for f in future_to_params:
+                            if not f.done():
+                                f.cancel()
+                        break
+
+                    result = future.result()
+
+                    if completed % 10 == 0 or completed == total_checks:
+                        self.logger.debug(
+                            "Checked %d/%d table combinations", completed, total_checks
+                        )
+
+                    if result:
+                        pmu_id, resolution = result
                         if pmu_id not in found:
                             found[pmu_id] = []
-                        found[pmu_id].append(res)
-        finally:
-            self.connection_pool.return_connection(conn)
+                        found[pmu_id].append(resolution)
+        else:
+            # Fall back to sequential checking if parallel is disabled
+            cancellation_manager = get_cancellation_manager()
+            conn = self._acquire_connection()
+            cursor = conn.cursor()
+            found: dict[int, list[int]] = {}
+            checked = 0
+
+            try:
+                for pmu_id in pmus_to_scan:
+                    for resolution in resolutions_to_scan:
+                        # Check for cancellation before each table check
+                        if cancellation_manager.is_cancelled():
+                            self.logger.warning(
+                                f"Table scan cancelled after {checked}/{total_checks} checks"
+                            )
+                            break
+
+                        table_name = f"pmu_{pmu_id}_{resolution}"
+                        checked += 1
+                        with suppress(Exception):
+                            cursor.execute(f"SELECT TOP 1 ts FROM {table_name}")
+                            if pmu_id not in found:
+                                found[pmu_id] = []
+                            found[pmu_id].append(resolution)
+
+                    # Check again at the outer loop to break both loops
+                    if cancellation_manager.is_cancelled():
+                        break
+            finally:
+                self.connection_pool.return_connection(conn)
 
         sorted_found = {pmu_id: sorted(res_list) for pmu_id, res_list in found.items()}
         return TableListResult(found_pmus=sorted_found)
@@ -168,7 +275,14 @@ class TableManager:
     def get_table_statistics(self, table_name: str) -> TableStatistics:
         """
         Get table statistics without using aggregate functions.
-        Custom JDBC implementation doesn't support COUNT, MIN, MAX.
+
+        Note: Custom JDBC implementation doesn't support COUNT, MIN, MAX, AVG, SUM.
+        This method queries the table multiple times sequentially to gather stats.
+        These queries cannot be parallelized as they must use the same connection
+        context, and batching them into a single query is not possible due to
+        JDBC limitations (no UNION support in result sets).
+
+        See docs/phasor-point-sql/README.md for more on PhasorPoint SQL constraints.
         """
         conn = self._acquire_connection()
 

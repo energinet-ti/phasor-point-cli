@@ -1,11 +1,8 @@
 """
 Configuration management for PhasorPoint CLI.
 
-Historically configuration was handled through standalone helper functions
-returning plain dictionaries. As part of the OOP migration, the
-``ConfigurationManager`` class centralises loading, validation, and retrieval of
-configuration data while maintaining backwards compatible wrappers for legacy
-callers.
+The ``ConfigurationManager`` class centralises loading, validation, and retrieval
+of configuration data for the PhasorPoint CLI application.
 """
 
 from __future__ import annotations
@@ -23,9 +20,6 @@ from .models import DataQualityThresholds, PMUInfo
 
 __all__ = [
     "ConfigurationManager",
-    "load_config",
-    "setup_configuration",
-    "cleanup_configuration",
 ]
 
 
@@ -62,7 +56,7 @@ def _get_embedded_default_config() -> dict[str, Any]:
 
 
 class ConfigurationManager:
-    """High level API for loading and querying configuration data."""
+    """High level interface for loading and querying configuration data."""
 
     def __init__(
         self,
@@ -574,60 +568,3 @@ DEFAULT_OUTPUT_DIR=data_exports
         print("To create new configuration files, run:")
         print("   phasor-cli setup")
         print("-" * 70)
-
-
-# ---------------------------------------------------------------- Legacy API --
-def load_config(
-    config_file: str | None = None, logger: logging.Logger | None = None
-) -> ConfigurationManager:
-    """
-    Load and return a ConfigurationManager instance.
-
-    This function creates a ConfigurationManager with the appropriate config file,
-    checking multiple locations with proper priority if no explicit path is provided.
-
-    Args:
-        config_file: Optional path to configuration file
-        logger: Optional logger instance
-
-    Returns:
-        ConfigurationManager instance
-    """
-    # Use the new config finder if no explicit config provided
-    if config_file is None:
-        path_manager = ConfigPathManager()
-        config_file_path = path_manager.find_config_file()
-        config_file = str(config_file_path) if config_file_path else None
-
-    return ConfigurationManager(config_file=config_file, logger=logger)
-
-
-def setup_configuration(
-    force: bool = False,
-    local: bool = False,
-    interactive: bool = False,
-    refresh_pmus: bool = False,
-) -> None:
-    """
-    Backwards compatible wrapper for ``ConfigurationManager.setup_configuration_files``.
-
-    Args:
-        force: If True, overwrite existing files.
-        local: If True, create files in current directory. If False, create in user config directory.
-        interactive: If True, prompt user for credentials interactively.
-        refresh_pmus: If True, fetch and update PMU list from database.
-    """
-    ConfigurationManager.setup_configuration_files(
-        local=local, force=force, interactive=interactive, refresh_pmus=refresh_pmus
-    )
-
-
-def cleanup_configuration(local: bool = False, all_locations: bool = False) -> None:
-    """
-    Wrapper for ``ConfigurationManager.cleanup_configuration_files``.
-
-    Args:
-        local: If True, remove files from current directory. If False, remove from user config directory.
-        all_locations: If True, remove files from both locations.
-    """
-    ConfigurationManager.cleanup_configuration_files(local=local, all_locations=all_locations)

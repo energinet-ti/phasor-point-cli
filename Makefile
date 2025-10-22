@@ -1,4 +1,4 @@
-.PHONY: help lint format check test clean install dev coverage
+.PHONY: help lint format check test clean install dev coverage build
 
 help:
 	@echo "Available commands:"
@@ -10,6 +10,7 @@ help:
 	@echo "  make check       - Run all checks (lint + format + tests)"
 	@echo "  make test        - Run tests"
 	@echo "  make coverage    - Run tests with coverage report"
+	@echo "  make build       - Build wheel distribution package"
 	@echo "  make clean       - Remove build artifacts and cache files"
 
 install:
@@ -42,6 +43,14 @@ coverage:
 	pytest --cov=src/phasor_point_cli --cov-report=term-missing --cov-report=html
 	@echo ""
 	@echo "HTML coverage report generated in htmlcov/index.html"
+
+build:
+	@echo "Building wheel distribution package..."
+	pip install --upgrade build
+	python -m build
+	@echo ""
+	@echo "Build complete! Distribution files created in dist/"
+	@ls -lh dist/
 
 clean:
 	rm -rf build/

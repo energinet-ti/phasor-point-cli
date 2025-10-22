@@ -142,7 +142,9 @@ class TestCommandRouter:
         args = argparse.Namespace(force=False)
 
         # Act
-        with patch("phasor_point_cli.command_router.setup_configuration") as mock_setup:
+        with patch(
+            "phasor_point_cli.command_router.ConfigurationManager.setup_configuration_files"
+        ) as mock_setup:
             command_router.handle_setup(args)
 
         # Assert
@@ -156,7 +158,9 @@ class TestCommandRouter:
         args = argparse.Namespace(force=True)
 
         # Act
-        with patch("phasor_point_cli.command_router.setup_configuration") as mock_setup:
+        with patch(
+            "phasor_point_cli.command_router.ConfigurationManager.setup_configuration_files"
+        ) as mock_setup:
             command_router.handle_setup(args)
 
         # Assert
@@ -170,7 +174,9 @@ class TestCommandRouter:
         args = argparse.Namespace(force=False, local=True)
 
         # Act
-        with patch("phasor_point_cli.command_router.setup_configuration") as mock_setup:
+        with patch(
+            "phasor_point_cli.command_router.ConfigurationManager.setup_configuration_files"
+        ) as mock_setup:
             command_router.handle_setup(args)
 
         # Assert
@@ -184,7 +190,9 @@ class TestCommandRouter:
         args = argparse.Namespace(force=True, local=True)
 
         # Act
-        with patch("phasor_point_cli.command_router.setup_configuration") as mock_setup:
+        with patch(
+            "phasor_point_cli.command_router.ConfigurationManager.setup_configuration_files"
+        ) as mock_setup:
             command_router.handle_setup(args)
 
         # Assert
@@ -198,7 +206,9 @@ class TestCommandRouter:
         args = argparse.Namespace(force=False, local=False, interactive=True)
 
         # Act
-        with patch("phasor_point_cli.command_router.setup_configuration") as mock_setup:
+        with patch(
+            "phasor_point_cli.command_router.ConfigurationManager.setup_configuration_files"
+        ) as mock_setup:
             command_router.handle_setup(args)
 
         # Assert

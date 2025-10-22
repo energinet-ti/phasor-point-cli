@@ -9,8 +9,6 @@ appropriate.
 
 from __future__ import annotations
 
-from dataclasses import asdict
-
 import pandas as pd
 
 from .models import DataQualityThresholds
@@ -38,17 +36,6 @@ class DataValidator:
 
         self.thresholds: DataQualityThresholds = thresholds
         self.logger = logger
-
-    # ------------------------------------------------------------------ Helpers
-    def thresholds_dict(self) -> dict:
-        """Return thresholds as a dictionary for legacy consumers."""
-        payload = asdict(self.thresholds)
-        return {
-            "freq_min": payload["frequency_min"],
-            "freq_max": payload["frequency_max"],
-            "null_threshold": payload["null_threshold_percent"],
-            "gap_multiplier": payload["gap_multiplier"],
-        }
 
     # --------------------------------------------------------------- Checkers --
     def check_empty_columns(

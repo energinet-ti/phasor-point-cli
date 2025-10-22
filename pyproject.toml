@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=61.0", "wheel", "setuptools-scm>=8.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "phasor-point-cli"
-version = "1.0.0"
+dynamic = ["version"]
 description = "A comprehensive CLI for extracting, processing, and analyzing PMU data from PhasorPoint databases"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -51,6 +51,8 @@ dev = [
     "pytest-mock>=3.11.1",
     "freezegun>=1.2.2",
     "ruff>=0.1.0",
+    "build>=0.10.0",
+    "setuptools-scm>=8.0",
 ]
 
 [project.scripts]
@@ -158,4 +160,42 @@ indent-style = "space"
 
 # Use Unix line endings
 line-ending = "auto"
+
+[tool.setuptools_scm]
+write_to = "src/phasor_point_cli/_version.py"
+local_scheme = "no-local-version"
+
+[tool.pyright]
+include = ["src", "tests"]
+exclude = [
+    "**/__pycache__",
+    ".git",
+    "venv",
+    ".venv",
+    "build",
+    "dist",
+    "*.egg-info"
+]
+extraPaths = ["src"]
+pythonVersion = "3.8"
+typeCheckingMode = "basic"
+reportMissingImports = "warning"
+reportMissingTypeStubs = false
+
+[tool.basedpyright]
+include = ["src", "tests"]
+exclude = [
+    "**/__pycache__",
+    ".git",
+    "venv",
+    ".venv",
+    "build",
+    "dist",
+    "*.egg-info"
+]
+extraPaths = ["src"]
+pythonVersion = "3.8"
+typeCheckingMode = "basic"
+reportMissingImports = "warning"
+reportMissingTypeStubs = false
 

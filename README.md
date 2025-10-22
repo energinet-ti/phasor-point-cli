@@ -268,9 +268,39 @@ pytest
 # Run with coverage
 pytest --cov=src/phasor_point_cli --cov-report=html
 
-# Run linting
-ruff check src/
+# Run all checks (lint + format check + tests)
+make check
 ```
+
+### Building Distribution Package
+
+To build a wheel distribution package:
+
+```bash
+make build
+```
+
+This will create a `.whl` file in the `dist/` directory that can be installed with pip or distributed to others.
+
+### Versioning
+
+This project uses **setuptools-scm** for automatic version management based on git tags:
+
+- **Version is derived from git tags** - no manual version bumping needed
+- **Development builds** get automatic `.devN` suffixes based on commits since last tag
+- **Clean releases** require a git tag (e.g., `v1.0.0`)
+
+**Creating a release:**
+```bash
+# Tag the release
+git tag v1.0.0
+git push origin v1.0.0
+
+# Build will now use version 1.0.0
+make build
+```
+
+**Development builds** (without tags) will have versions like `0.1.dev3` based on commit count.
 
 ## License
 

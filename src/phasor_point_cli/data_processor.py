@@ -1,10 +1,8 @@
 """
-Data processing utilities for the OOP refactor.
+Data processing utilities for PhasorPoint CLI.
 
 ``DataProcessor`` orchestrates timestamp handling, type conversion, and (optionally)
-data validation via ``DataValidator``. Module-level wrappers in
-``data_processing`` maintain backwards compatibility with the previous functional
-API while delegating to this class.
+data validation via ``DataValidator``.
 """
 
 from __future__ import annotations
@@ -225,7 +223,7 @@ class DataProcessor:
                 )
         return df
 
-    # ----------------------------------------------------------- Public API ---
+    # ----------------------------------------------------------- Public Interface ---
     def clean_and_convert_types(
         self, df: pd.DataFrame | None, extraction_log: dict | None = None
     ) -> pd.DataFrame | None:

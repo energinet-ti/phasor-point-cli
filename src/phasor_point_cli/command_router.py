@@ -9,7 +9,7 @@ import argparse
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from .config import cleanup_configuration, setup_configuration
+from .config import ConfigurationManager
 from .date_utils import DateRangeCalculator
 from .extraction_manager import ExtractionManager
 from .models import ExtractionRequest
@@ -70,7 +70,7 @@ class CommandRouter:
         Args:
             args: Parsed command-line arguments
         """
-        setup_configuration(
+        ConfigurationManager.setup_configuration_files(
             force=args.force if hasattr(args, "force") else False,
             local=args.local if hasattr(args, "local") else False,
             interactive=args.interactive if hasattr(args, "interactive") else False,
@@ -184,7 +184,7 @@ class CommandRouter:
         Args:
             args: Parsed command-line arguments
         """
-        cleanup_configuration(
+        ConfigurationManager.cleanup_configuration_files(
             local=args.local if hasattr(args, "local") else False,
             all_locations=args.all if hasattr(args, "all") else False,
         )

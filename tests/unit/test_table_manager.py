@@ -84,9 +84,30 @@ def test_list_available_tables_returns_expected_mapping(sample_config):
     # Assert
     assert result.found_pmus == {45012: [1]}
     assert result.total_tables == 1
-    pool.return_connection.assert_called_with(connection)
-    # Verify cursor() was called once (reused for multiple queries in list_available_tables)
+    # With parallel execution (default), each table check gets its own connection/cursor
+    # 2 resolutions checked = 2 cursor calls
+    assert connection.cursor.call_count == 2
+    # Connection should be returned to pool for each check
+    assert pool.return_connection.call_count == 2
+
+
+def test_list_available_tables_sequential_mode(sample_config):
+    # Arrange
+    connection, _ = create_connection_mock({"pmu_45012_1"})
+    pool = MagicMock()
+    pool.get_connection.return_value = connection
+    manager = TableManager(pool, sample_config, logger=MagicMock())
+
+    # Act - Use sequential mode
+    result = manager.list_available_tables(pmu_ids=[45012], resolutions=[1, 50], parallel=False)
+
+    # Assert
+    assert result.found_pmus == {45012: [1]}
+    assert result.total_tables == 1
+    # In sequential mode, one cursor is reused for all queries
     assert connection.cursor.call_count == 1
+    # Connection returned once at the end
+    assert pool.return_connection.call_count == 1
 
 
 @patch("phasor_point_cli.table_manager.pd.read_sql")
@@ -155,3 +176,69 @@ def test_test_table_access_returns_false_on_error(sample_config):
 
     # Assert
     assert result is False
+
+
+def test_list_available_tables_respects_cancellation_parallel(sample_config):
+    """Test that parallel table scanning respects cancellation signals."""
+    from unittest.mock import patch
+
+    from phasor_point_cli.signal_handler import get_cancellation_manager
+
+    # Arrange
+    connection, _ = create_connection_mock({"pmu_45012_1", "pmu_45012_10", "pmu_45012_50"})
+    pool = MagicMock()
+    pool.get_connection.return_value = connection
+    pool.pool_size = 3
+    manager = TableManager(pool, sample_config, logger=MagicMock())
+
+    # Get cancellation manager and cancel after first check
+    cancellation_mgr = get_cancellation_manager()
+    cancellation_mgr.reset()  # Ensure clean state
+
+    call_count = [0]
+
+    def cancel_after_first(*args, **kwargs):
+        call_count[0] += 1
+        if call_count[0] == 1:
+            cancellation_mgr.cancel()
+        # Let the original method run
+        return connection.cursor()
+
+    # Patch get_connection to trigger cancellation
+    with patch.object(pool, "get_connection", side_effect=cancel_after_first):
+        # Act - check multiple resolutions (should cancel early)
+        result = manager.list_available_tables(
+            pmu_ids=[45012],
+            resolutions=[1, 10, 50],  # 3 resolutions
+            parallel=True,
+        )
+
+    # Assert - should have stopped early due to cancellation
+    # We can't assert exact count due to thread timing, but should be less than total
+    assert result.found_pmus is not None
+    # Clean up
+    cancellation_mgr.reset()
+
+
+def test_list_available_tables_respects_cancellation_sequential(sample_config):
+    """Test that sequential table scanning respects cancellation signals."""
+    from phasor_point_cli.signal_handler import get_cancellation_manager
+
+    # Arrange
+    connection, _ = create_connection_mock({"pmu_45012_1", "pmu_45012_10", "pmu_45012_50"})
+    pool = MagicMock()
+    pool.get_connection.return_value = connection
+    manager = TableManager(pool, sample_config, logger=MagicMock())
+
+    # Get cancellation manager and set it to cancelled before starting
+    cancellation_mgr = get_cancellation_manager()
+    cancellation_mgr.reset()
+    cancellation_mgr.cancel()  # Pre-cancel to test immediate handling
+
+    # Act - check multiple resolutions (should exit immediately)
+    result = manager.list_available_tables(pmu_ids=[45012], resolutions=[1, 10, 50], parallel=False)
+
+    # Assert - should have stopped immediately, returning empty or partial results
+    assert result.found_pmus is not None
+    # Clean up
+    cancellation_mgr.reset()

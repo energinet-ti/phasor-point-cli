@@ -44,7 +44,8 @@ warnings.filterwarnings("ignore", message="pandas only supports SQLAlchemy")
 # Import modules
 from .argument_parser import CLIArgumentParser  # noqa: E402 - placed after environment setup
 from .command_router import CommandRouter  # noqa: E402 - placed after environment setup
-from .config import load_config  # noqa: E402 - placed after environment setup
+from .config import ConfigurationManager  # noqa: E402 - placed after environment setup
+from .config_paths import ConfigPathManager  # noqa: E402 - placed after environment setup
 from .connection_pool import JDBCConnectionPool  # noqa: E402 - placed after environment setup
 
 
@@ -72,10 +73,16 @@ class PhasorPointCLI:
         logger=None,
         skip_validation=False,
     ):
-        # Initialize logger first so it's available in _load_config
+        # Initialize logger first so it's available for configuration
         self.logger = logger or logging.getLogger("phasor_cli")
 
-        self.config = load_config(config_file, self.logger)
+        # Use the config path manager if no explicit config provided
+        if config_file is None:
+            path_manager = ConfigPathManager()
+            config_file_path = path_manager.find_config_file()
+            config_file = str(config_file_path) if config_file_path else None
+
+        self.config = ConfigurationManager(config_file=config_file, logger=self.logger)
 
         # For setup command, skip credential validation
         if skip_validation:

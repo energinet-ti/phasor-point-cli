@@ -40,7 +40,12 @@ from .power_calculator import PowerCalculator
 from .query_executor import QueryExecutor
 from .table_manager import TableManager
 
-__version__ = "2.0.0"
+# Version is managed by setuptools-scm
+try:
+    from ._version import version as __version__
+except ImportError:
+    # Fallback for development installations without build
+    __version__ = "0.0.0.dev0+unknown"
 __all__ = [
     # Main CLI
     "PhasorPointCLI",

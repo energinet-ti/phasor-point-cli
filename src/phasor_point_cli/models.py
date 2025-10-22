@@ -428,16 +428,6 @@ class WriteResult:
     format: str
     error: str | None = None
 
-    @property
-    def output_path(self) -> Path:
-        """Backward compatibility alias for output_file."""
-        return self.output_file
-
-    @property
-    def bytes_written(self) -> int:
-        """Backward compatibility - approximate bytes from MB."""
-        return int(self.file_size_mb * 1024 * 1024)
-
     def to_dict(self) -> dict[str, Any]:
         return {
             "success": bool(self.success),

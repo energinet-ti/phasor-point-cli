@@ -21,16 +21,6 @@ def validator():
     return DataValidator(thresholds)
 
 
-def test_thresholds_dict_matches_expected_keys(validator):
-    # Act
-    data = validator.thresholds_dict()
-
-    # Assert
-    assert set(data.keys()) == {"freq_min", "freq_max", "null_threshold", "gap_multiplier"}
-    assert data["freq_min"] == 49
-    assert data["freq_max"] == 51
-
-
 def test_check_empty_columns_removes_and_logs(validator):
     # Arrange
     df = pd.DataFrame(
