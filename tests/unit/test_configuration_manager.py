@@ -167,3 +167,48 @@ def test_pmu_metadata_merge():
     assert any(p["id"] == 1026 and p["station_name"] == "VHA400-P1" for p in merged)
     # Check sorting by ID
     assert merged[0]["id"] < merged[1]["id"] < merged[2]["id"]
+
+
+def test_config_invalid_json_exits_gracefully(tmp_path, capsys):
+    """Test that invalid JSON config file exits with helpful error message."""
+    # Arrange - Create config file with invalid JSON
+    config_file = tmp_path / "config.json"
+    config_file.write_text('{"database": {"driver": "test",}', encoding="utf-8")  # Trailing comma
+
+    # Act & Assert - Should exit with code 1
+    with pytest.raises(SystemExit) as exc_info:
+        ConfigurationManager(config_file=str(config_file))
+
+    assert exc_info.value.code == 1
+
+    # Check error message is helpful
+    captured = capsys.readouterr()
+    assert "Invalid JSON format" in captured.out
+    assert "config file" in captured.out.lower()
+    assert "phasor-cli setup --force" in captured.out
+
+
+def test_config_missing_file_uses_defaults():
+    """Test that missing config file falls back to embedded defaults."""
+    # Arrange - Use non-existent file path
+    nonexistent = "/tmp/nonexistent_config_file_xyz.json"
+
+    # Act
+    manager = ConfigurationManager(config_file=nonexistent)
+
+    # Assert - Should use embedded defaults
+    assert manager.get_database_config()["driver"] == "Psymetrix PhasorPoint"
+    assert manager.get_extraction_config()["default_resolution"] == 1
+
+
+def test_config_file_directory_path_exits_gracefully(tmp_path):
+    """Test that config file read errors (like passing a directory) exit gracefully."""
+    # Arrange - Use a directory path instead of file (will cause read error)
+    fake_config_dir = tmp_path / "not_a_file"
+    fake_config_dir.mkdir()
+
+    # Act & Assert - Should exit with SystemExit
+    with pytest.raises(SystemExit) as exc_info:
+        ConfigurationManager(config_file=str(fake_config_dir))
+
+    assert exc_info.value.code == 1
