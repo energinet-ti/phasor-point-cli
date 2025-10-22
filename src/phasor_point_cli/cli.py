@@ -221,8 +221,8 @@ def main():
     # Initialize logging first
     logger = setup_logging(verbose=getattr(args, "verbose", False))
 
-    # Handle setup, config-path, and config-clean commands early (don't need database connection)
-    if args.command in ("setup", "config-path", "config-clean"):
+    # Handle setup, config-path, config-clean, and about commands early (don't need database connection)
+    if args.command in ("setup", "config-path", "config-clean", "about"):
         # Create a minimal router without CLI instance for non-DB commands
         router = CommandRouter(None, logger)
         router.route(args.command, args)

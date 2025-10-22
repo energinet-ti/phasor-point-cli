@@ -5,6 +5,8 @@ Handles command-line argument definition and parsing
 
 import argparse
 
+from .banner import get_banner
+
 
 class CLIArgumentParser:
     """Creates and configures the CLI argument parser."""
@@ -19,8 +21,19 @@ class CLIArgumentParser:
         Returns:
             argparse.ArgumentParser: Configured argument parser with all commands
         """
+        # Build description with banner
+        description = f"""{get_banner()}
+PMU Data Extraction & Analysis Tool
+
+COMMAND GROUPS:
+  Configuration:    setup, config-path, config-clean, about
+  Data Extraction:  extract, batch-extract
+  Database Ops:     list-tables, table-info, query
+"""
+
         parser = argparse.ArgumentParser(
-            description="PhasorPoint Database CLI Tool",
+            prog="phasor-cli",
+            description=description,
             formatter_class=argparse.RawDescriptionHelpFormatter,
             epilog="""
 Examples:
@@ -65,13 +78,19 @@ Examples:
         self._add_global_arguments(parser)
         subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
+        # Configuration commands
         self._add_setup_command(subparsers)
         self._add_config_path_command(subparsers)
         self._add_config_clean_command(subparsers)
-        self._add_list_tables_command(subparsers)
-        self._add_table_info_command(subparsers)
+        self._add_about_command(subparsers)
+
+        # Data extraction commands
         self._add_extract_command(subparsers)
         self._add_batch_extract_command(subparsers)
+
+        # Database operation commands
+        self._add_list_tables_command(subparsers)
+        self._add_table_info_command(subparsers)
         self._add_query_command(subparsers)
 
         return parser
@@ -154,6 +173,14 @@ Use --all to remove files from both locations.
             "-a",
             action="store_true",
             help="Remove config files from both user and local directories",
+        )
+
+    def _add_about_command(self, subparsers) -> None:
+        """Add about command parser."""
+        subparsers.add_parser(
+            "about",
+            help="Show version and about information",
+            description="Display version, author, repository, and feature information for PhasorPoint CLI.",
         )
 
     def _add_list_tables_command(self, subparsers) -> None:

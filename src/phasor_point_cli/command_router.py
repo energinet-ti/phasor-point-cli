@@ -73,6 +73,7 @@ class CommandRouter:
             "setup": self.handle_setup,
             "config-path": self.handle_config_path,
             "config-clean": self.handle_config_clean,
+            "about": self.handle_about,
             "list-tables": self.handle_list_tables,
             "table-info": self.handle_table_info,
             "extract": self.handle_extract,
@@ -211,6 +212,17 @@ class CommandRouter:
             local=args.local if hasattr(args, "local") else False,
             all_locations=args.all if hasattr(args, "all") else False,
         )
+
+    def handle_about(self, _args: argparse.Namespace) -> None:
+        """
+        Handle the 'about' command to display version and about information.
+
+        Args:
+            args: Parsed command-line arguments
+        """
+        from .banner import print_about  # noqa: PLC0415 - late import for CLI perf
+
+        print_about()
 
     def handle_list_tables(self, args: argparse.Namespace) -> None:
         """

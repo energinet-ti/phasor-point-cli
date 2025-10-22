@@ -32,7 +32,13 @@ class TestCLIArgumentParser:
 
         # Assert
         assert isinstance(parser, argparse.ArgumentParser)
-        assert parser.description == "PhasorPoint Database CLI Tool"
+        # Check that description contains banner and key text
+        assert parser.description is not None
+        assert "PMU Data Extraction Tool" in parser.description
+        assert "COMMAND GROUPS" in parser.description
+        assert "Configuration:" in parser.description
+        assert "Data Extraction:" in parser.description
+        assert parser.prog == "phasor-cli"
 
     def test_global_arguments_present(self):
         """Test global arguments are configured."""
