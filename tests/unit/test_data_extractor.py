@@ -15,6 +15,13 @@ from phasor_point_cli.data_extractor import DataExtractor
 from phasor_point_cli.models import DateRange, ExtractionRequest
 
 
+def ts(timestamp_str: str) -> pd.Timestamp:
+    """Helper to create a Timestamp with proper type annotation for tests."""
+    result = pd.Timestamp(timestamp_str)
+    assert isinstance(result, pd.Timestamp), f"Failed to create timestamp from {timestamp_str}"
+    return result
+
+
 def build_request(start, end, **overrides):
     date_range = DateRange(start=start, end=end)
     return ExtractionRequest(
@@ -74,6 +81,7 @@ def test_extract_chunked_sequential_merges_chunks(connection_pool, mocker):
     result = extractor.extract(request)
 
     # Assert
+    assert result is not None
     assert len(result) == 2
     assert list(result["value"]) == [1, 2]
     assert connection_pool.get_connection.call_count == 2
@@ -98,6 +106,7 @@ def test_extract_chunked_parallel_combines_results(connection_pool, mocker):
     result = extractor.extract(request)
 
     # Assert
+    assert result is not None
     assert len(result) == 2
     assert sorted(result["value"].tolist()) == [0, 1]
 
@@ -114,6 +123,7 @@ def test_combine_chunks_removes_duplicate_timestamps(connection_pool, mocker):
     combined = extractor.combine_chunks(chunk_list)
 
     # Assert
+    assert combined is not None
     assert len(combined) == 1
     assert combined.iloc[0]["value"] == 1
 
@@ -197,8 +207,8 @@ def test_extract_sequential_no_connection_for_chunk(connection_pool, mocker):
     mocker.patch.object(DataExtractor, "_read_dataframe", return_value=df1)
 
     chunks = [
-        (pd.Timestamp("2025-01-01 00:00:00"), pd.Timestamp("2025-01-01 00:30:00")),
-        (pd.Timestamp("2025-01-01 00:30:00"), pd.Timestamp("2025-01-01 01:00:00")),
+        (ts("2025-01-01 00:00:00"), ts("2025-01-01 00:30:00")),
+        (ts("2025-01-01 00:30:00"), ts("2025-01-01 01:00:00")),
     ]
 
     # Act
@@ -223,8 +233,8 @@ def test_extract_sequential_chunk_exception(connection_pool, mocker):
     )
 
     chunks = [
-        (pd.Timestamp("2025-01-01 00:00:00"), pd.Timestamp("2025-01-01 00:30:00")),
-        (pd.Timestamp("2025-01-01 00:30:00"), pd.Timestamp("2025-01-01 01:00:00")),
+        (ts("2025-01-01 00:00:00"), ts("2025-01-01 00:30:00")),
+        (ts("2025-01-01 00:30:00"), ts("2025-01-01 01:00:00")),
     ]
 
     # Act
@@ -247,8 +257,8 @@ def test_extract_sequential_empty_chunk(connection_pool, mocker):
     mocker.patch.object(DataExtractor, "_read_dataframe", side_effect=[df1, empty_df])
 
     chunks = [
-        (pd.Timestamp("2025-01-01 00:00:00"), pd.Timestamp("2025-01-01 00:30:00")),
-        (pd.Timestamp("2025-01-01 00:30:00"), pd.Timestamp("2025-01-01 01:00:00")),
+        (ts("2025-01-01 00:00:00"), ts("2025-01-01 00:30:00")),
+        (ts("2025-01-01 00:30:00"), ts("2025-01-01 01:00:00")),
     ]
 
     # Act
@@ -272,7 +282,7 @@ def test_extract_single_chunk_success(connection_pool, mocker):
 
     # Act
     result_df, error, timing = extractor._extract_single_chunk(
-        "pmu_45012_1", pd.Timestamp("2025-01-01 00:00:00"), pd.Timestamp("2025-01-01 00:30:00"), 0
+        "pmu_45012_1", ts("2025-01-01 00:00:00"), ts("2025-01-01 00:30:00"), 0
     )
 
     # Assert
@@ -293,11 +303,12 @@ def test_extract_single_chunk_no_connection(connection_pool, mocker):
 
     # Act
     result_df, error, timing = extractor._extract_single_chunk(
-        "pmu_45012_1", pd.Timestamp("2025-01-01 00:00:00"), pd.Timestamp("2025-01-01 00:30:00"), 0
+        "pmu_45012_1", ts("2025-01-01 00:00:00"), ts("2025-01-01 00:30:00"), 0
     )
 
     # Assert
     assert result_df is None
+    assert error is not None
     assert "Could not create connection" in error
     assert "connection_time" in timing
 
@@ -313,11 +324,12 @@ def test_extract_single_chunk_no_data(connection_pool, mocker):
 
     # Act
     result_df, error, timing = extractor._extract_single_chunk(
-        "pmu_45012_1", pd.Timestamp("2025-01-01 00:00:00"), pd.Timestamp("2025-01-01 00:30:00"), 0
+        "pmu_45012_1", ts("2025-01-01 00:00:00"), ts("2025-01-01 00:30:00"), 0
     )
 
     # Assert
     assert result_df is None
+    assert error is not None
     assert "No data found" in error
     assert "query_time" in timing
 
@@ -332,11 +344,12 @@ def test_extract_single_chunk_exception(connection_pool, mocker):
 
     # Act
     result_df, error, timing = extractor._extract_single_chunk(
-        "pmu_45012_1", pd.Timestamp("2025-01-01 00:00:00"), pd.Timestamp("2025-01-01 00:30:00"), 0
+        "pmu_45012_1", ts("2025-01-01 00:00:00"), ts("2025-01-01 00:30:00"), 0
     )
 
     # Assert
     assert result_df is None
+    assert error is not None
     assert "Error processing chunk" in error
     assert "total_time" in timing
     connection_pool.return_connection.assert_called_once()
@@ -353,7 +366,7 @@ def test_extract_chunk_with_timing_wrapper(connection_pool, mocker):
 
     # Act
     result_df, error, timing = extractor.extract_chunk_with_timing(
-        "pmu_45012_1", pd.Timestamp("2025-01-01 00:00:00"), pd.Timestamp("2025-01-01 00:30:00"), 0
+        "pmu_45012_1", ts("2025-01-01 00:00:00"), ts("2025-01-01 00:30:00"), 0
     )
 
     # Assert
@@ -379,8 +392,8 @@ def test_extract_parallel_with_failed_chunks(connection_pool, mocker):
     )
 
     chunks = [
-        (pd.Timestamp("2025-01-01 00:00:00"), pd.Timestamp("2025-01-01 00:30:00")),
-        (pd.Timestamp("2025-01-01 00:30:00"), pd.Timestamp("2025-01-01 01:00:00")),
+        (ts("2025-01-01 00:00:00"), ts("2025-01-01 00:30:00")),
+        (ts("2025-01-01 00:30:00"), ts("2025-01-01 01:00:00")),
     ]
 
     # Act

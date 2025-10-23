@@ -43,7 +43,7 @@ def build_request(tmp_path: Path) -> ExtractionRequest:
     return ExtractionRequest(
         pmu_id=45012,
         date_range=date_range,
-        output_file=str(tmp_path / "output.csv"),
+        output_file=tmp_path / "output.csv",
         resolution=1,
         processed=True,
         clean=True,
@@ -401,7 +401,7 @@ def test_extraction_log_read_failure_handled(tmp_path):
     request = ExtractionRequest(
         pmu_id=45012,
         date_range=date_range,
-        output_file=str(output_file),
+        output_file=output_file,
         resolution=1,
         processed=True,
         clean=True,
@@ -473,4 +473,7 @@ def test_batch_extract_all_failures_returns_summary(tmp_path):
     assert len(batch_result.results) == 2
     assert len(batch_result.successful_results()) == 0
     assert len(batch_result.failed_results()) == 2
-    assert all("Database connection lost" in r.error for r in batch_result.failed_results())
+    assert all(
+        r.error is not None and "Database connection lost" in r.error
+        for r in batch_result.failed_results()
+    )

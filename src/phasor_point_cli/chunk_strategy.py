@@ -47,7 +47,7 @@ class ChunkStrategy:
         chunks: list[tuple[pd.Timestamp, pd.Timestamp]] = []
         current_start = start_dt
         while current_start < end_dt:
-            chunk_end = min(current_start + chunk_delta, end_dt)
+            chunk_end: pd.Timestamp = min(current_start + chunk_delta, end_dt)  # type: ignore[assignment]
             chunks.append((current_start, chunk_end))
             current_start = chunk_end
 
@@ -63,5 +63,13 @@ class ChunkStrategy:
         if isinstance(value, pd.Timestamp):
             return value
         if isinstance(value, datetime):
-            return pd.Timestamp(value)
-        return pd.to_datetime(value)
+            ts_result = pd.Timestamp(value)
+            if isinstance(ts_result, pd.Timestamp):
+                return ts_result
+            raise ValueError(f"Could not convert datetime {value} to timestamp")
+        result = pd.to_datetime(value)
+        if pd.isna(result):
+            raise ValueError(f"Could not convert {value} to timestamp")
+        if not isinstance(result, pd.Timestamp):
+            raise ValueError(f"Conversion resulted in {type(result)}, expected Timestamp")
+        return result

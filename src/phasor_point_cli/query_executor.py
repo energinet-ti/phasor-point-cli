@@ -52,7 +52,8 @@ class QueryExecutor:
         try:
             with warnings.catch_warnings():
                 warnings.filterwarnings("ignore", message="pandas only supports SQLAlchemy")
-                df = pd.read_sql_query(query, conn, params=params)
+                # Type ignore for params - pandas accepts various sequence types
+                df = pd.read_sql_query(query, conn, params=params)  # type: ignore[arg-type]
 
             # Handle case where read_sql_query returns None for custom JDBC
             if df is None:
@@ -62,9 +63,9 @@ class QueryExecutor:
                     cursor.execute(query)
                     # Check if this is a query that returns results
                     if cursor.description:
-                        columns = [desc[0] for desc in cursor.description]
+                        columns: list[str] = [desc[0] for desc in cursor.description]
                         rows = cursor.fetchall()
-                        df = pd.DataFrame(rows, columns=columns)
+                        df = pd.DataFrame(rows, columns=columns)  # type: ignore[arg-type]
                     else:
                         # Non-query statement (e.g., INSERT, UPDATE)
                         df = pd.DataFrame()

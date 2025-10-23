@@ -6,6 +6,7 @@ handlers.
 """
 
 import argparse
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
@@ -321,7 +322,7 @@ class TestCommandRouter:
         mock_result = ExtractionResult(
             request=mock_request,
             success=True,
-            output_file="test.parquet",
+            output_file=Path("test.parquet"),
             rows_extracted=100,
             extraction_time_seconds=10.0,
         )
@@ -464,7 +465,10 @@ class TestCommandRouter:
         )
 
         mock_result = QueryResult(
-            success=True, rows_returned=100, duration_seconds=2.5, output_file="result.parquet"
+            success=True,
+            rows_returned=100,
+            duration_seconds=2.5,
+            output_file=Path("result.parquet"),
         )
 
         # Act
@@ -533,7 +537,7 @@ class TestCommandRouter:
         mock_result = ExtractionResult(
             request=mock_request,
             success=True,
-            output_file="test.parquet",
+            output_file=Path("test.parquet"),
             rows_extracted=100,
             extraction_time_seconds=10.0,
         )

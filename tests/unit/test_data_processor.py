@@ -79,6 +79,7 @@ def test_clean_and_convert_types_applies_timezone_and_numeric(extraction_log):
         result = processor.clean_and_convert_types(df.copy(), extraction_log)
 
     # Assert
+    assert result is not None
     assert "ts_utc" in result.columns
     assert pd.api.types.is_numeric_dtype(result["value"])
 
@@ -92,7 +93,7 @@ def test_process_with_validation_updates_issues(extraction_log):
             "f": [48, 49, 50, 52],
         }
     )
-    processor = DataProcessor(config_manager=DummyConfigManager(), logger=MagicMock())
+    processor = DataProcessor(config_manager=DummyConfigManager(), logger=MagicMock())  # type: ignore[arg-type]
 
     # Act
     with patch.object(DataProcessor, "get_local_timezone", return_value=pytz.timezone("UTC")):
@@ -114,7 +115,7 @@ def test_process_without_clean_skips_cleaning(extraction_log):
             "value": ["1", "2"],
         }
     )
-    processor = DataProcessor(config_manager=DummyConfigManager(), logger=MagicMock())
+    processor = DataProcessor(config_manager=DummyConfigManager(), logger=MagicMock())  # type: ignore[arg-type]
 
     # Act
     with patch.object(DataProcessor, "clean_and_convert_types") as mock_clean:

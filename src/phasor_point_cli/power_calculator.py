@@ -14,7 +14,6 @@ from typing import Iterable, Sequence
 import numpy as np
 import pandas as pd
 
-from .data_validator import DataValidator
 from .models import PhasorColumnMap
 
 
@@ -270,11 +269,6 @@ class PowerCalculator:
 
 
 # --------------------------------------------------------------- Helper Functions --
-def _build_validator(config: dict | None, logger: logging.Logger | None) -> DataValidator:
-    thresholds = config.get("data_quality") if config else None
-    return DataValidator(thresholds, logger=logger)
-
-
 def detect_phasor_columns(
     df: pd.DataFrame, logger: logging.Logger | None = None
 ) -> PhasorColumnMap:

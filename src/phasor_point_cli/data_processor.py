@@ -255,9 +255,11 @@ class DataProcessor:
         processed_df = df
         if clean:
             processed_df = self.clean_and_convert_types(processed_df, extraction_log)
+            if processed_df is None:
+                return None, []
 
         issues: Iterable[str] = []
-        if validate and self.validator:
+        if validate and self.validator and processed_df is not None:
             processed_df, issues = self.validator.validate(processed_df, extraction_log)
 
         return processed_df, list(issues)

@@ -31,9 +31,11 @@ except ImportError:
 # Set UTF-8 encoding for Windows console
 if sys.platform == "win32":
     try:
-        sys.stdout.reconfigure(encoding="utf-8")
-    except AttributeError:
-        # Python < 3.7
+        # Use hasattr to check for reconfigure method (type checker workaround)
+        if hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
+    except (AttributeError, Exception):
+        # Python < 3.7 or reconfigure not available
         import codecs
 
         sys.stdout = codecs.getwriter("utf-8")(sys.stdout.buffer, "strict")
@@ -224,7 +226,8 @@ def main():
     # Handle setup, config-path, config-clean, about, and aboot commands early (don't need database connection)
     if args.command in ("setup", "config-path", "config-clean", "about", "aboot"):
         # Create a minimal router without CLI instance for non-DB commands
-        router = CommandRouter(None, logger)
+        # These commands don't require database access, so CLI instance is optional
+        router = CommandRouter(None, logger)  # type: ignore[arg-type]
         router.route(args.command, args)
         return
 

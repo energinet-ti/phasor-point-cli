@@ -74,7 +74,7 @@ def test_apply_voltage_corrections_scales_magnitudes():
 
 def test_calculate_power_values_missing_columns_logs_issue():
     # Arrange
-    df = build_sample_dataframe()[["ts", "va1_m", "ia1_m", "va1_a", "ia1_a"]]  # minimal columns
+    df: pd.DataFrame = build_sample_dataframe()[["ts", "va1_m", "ia1_m", "va1_a", "ia1_a"]]  # type: ignore[assignment]
     calculator = PowerCalculator()
     column_map = calculator.detect_columns(df)
     extraction_log = {"column_changes": {"added": []}, "issues_found": []}
@@ -267,7 +267,9 @@ def test_calculate_power_values_full_success():
 def test_calculate_power_values_missing_voltage_angle():
     """Test power calculation when voltage angle columns are missing."""
     # Arrange
-    df = build_sample_dataframe()[["ts", "va1_m", "vb1_m", "vc1_m", "ia1_m", "ib1_m", "ic1_m"]]
+    df: pd.DataFrame = build_sample_dataframe()[
+        ["ts", "va1_m", "vb1_m", "vc1_m", "ia1_m", "ib1_m", "ic1_m"]
+    ]  # type: ignore[assignment]
     calculator = PowerCalculator()
     column_map = calculator.detect_columns(df)
     extraction_log = {"column_changes": {"added": []}, "issues_found": []}
@@ -320,7 +322,7 @@ def test_process_phasor_data_none_dataframe():
     calculator = PowerCalculator()
 
     # Act
-    result_df, column_map = calculator.process_phasor_data(None)
+    result_df, column_map = calculator.process_phasor_data(None)  # type: ignore[arg-type]
 
     # Assert
     assert result_df is None
@@ -334,7 +336,7 @@ def test_process_phasor_data_without_timestamp():
     calculator = PowerCalculator()
 
     # Act
-    result_df, column_map = calculator.process_phasor_data(df)
+    result_df, _column_map = calculator.process_phasor_data(df)
 
     # Assert
     assert "ts" not in result_df.columns  # Should not add ts if not present

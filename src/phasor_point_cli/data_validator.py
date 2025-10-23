@@ -128,7 +128,12 @@ class DataValidator:
                 time_diffs = ts_sorted.diff().dropna()
                 if len(time_diffs) > 0:
                     median_diff = time_diffs.median()
-                    if pd.notna(median_diff) and median_diff > pd.Timedelta(0):
+                    # Type narrowing: ensure median_diff is a Timedelta, not NaT
+                    if (
+                        pd.notna(median_diff)
+                        and isinstance(median_diff, pd.Timedelta)
+                        and median_diff > pd.Timedelta(0)
+                    ):
                         large_gaps = time_diffs[time_diffs > median_diff * multiplier]
                         if len(large_gaps) > 0:
                             issues.append(f"Time gaps: {len(large_gaps)}")

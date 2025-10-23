@@ -42,7 +42,7 @@ class TestFileUtils:
     def test_sanitize_filename_empty(self):
         """Test sanitization of empty string."""
         assert FileUtils.sanitize_filename("") == "unknown"
-        assert FileUtils.sanitize_filename(None) == "unknown"
+        assert FileUtils.sanitize_filename(None) == "unknown"  # type: ignore[arg-type]
 
     def test_sanitize_filename_only_invalid(self):
         """Test sanitization when only invalid characters remain."""

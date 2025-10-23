@@ -208,7 +208,7 @@ class ExtractionManager:
         return self._persist_dataframe(request, df, extraction_log)
 
     # ---------------------------------------------------------------- Extraction
-    def extract(
+    def extract(  # noqa: PLR0911 - Multiple returns for error handling and early exits
         self, request: ExtractionRequest, *, chunk_strategy: ChunkStrategy | None = None
     ) -> ExtractionResult:
         start_clock = time.monotonic()
@@ -218,7 +218,7 @@ class ExtractionManager:
         output_path = self._resolve_output_path(request).with_suffix(f".{request.output_format}")
 
         # Check if we should skip based on existing file
-        should_skip, reason = self._check_existing_file(request, output_path)
+        should_skip, _reason = self._check_existing_file(request, output_path)
         if should_skip:
             self.logger.info(f"Skipping extraction - file already exists: {output_path}")
             print(f"\n[SKIP] Output file already exists with matching parameters: {output_path}")
@@ -271,9 +271,40 @@ class ExtractionManager:
                 clean=request.clean,
                 validate=request.clean,
             )
+            if df is None:
+                duration = time.monotonic() - start_clock
+                return ExtractionResult(
+                    request=request,
+                    success=False,
+                    output_file=None,
+                    rows_extracted=0,
+                    extraction_time_seconds=duration,
+                    error="Data processing returned no data",
+                )
 
-        if request.processed:
+        if request.processed and df is not None:
             df, _ = self.power_calculator.process_phasor_data(df, extraction_log=extraction_log)
+            if df is None:
+                duration = time.monotonic() - start_clock
+                return ExtractionResult(
+                    request=request,
+                    success=False,
+                    output_file=None,
+                    rows_extracted=0,
+                    extraction_time_seconds=duration,
+                    error="Power calculation returned no data",
+                )
+
+        if df is None or len(df) == 0:
+            duration = time.monotonic() - start_clock
+            return ExtractionResult(
+                request=request,
+                success=False,
+                output_file=None,
+                rows_extracted=0,
+                extraction_time_seconds=duration,
+                error="No data available after processing",
+            )
 
         try:
             output_path, file_size_mb = self._persist_dataframe(request, df, extraction_log)
@@ -368,7 +399,7 @@ class ExtractionManager:
                 start_str = request.date_range.start.strftime("%Y%m%d_%H%M%S")
                 end_str = request.date_range.end.strftime("%Y%m%d_%H%M%S")
                 filename = f"pmu_{request.pmu_id}_{station_name}_{request.resolution}hz_{start_str}_to_{end_str}.{request.output_format}"
-                request.output_file = str(output_dir / filename)
+                request.output_file = output_dir / filename
 
             try:
                 result = self.extract(request, chunk_strategy=chunk_strategy)
