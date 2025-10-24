@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Helper script to create a new release
-# Usage: ./scripts/create_release.sh 1.0.1 "Release message"
+# Helper script to create a release branch
+# Usage: ./scripts/create_release.sh 0.0.1 "Release message"
 
 set -e
 
@@ -9,21 +9,25 @@ set -e
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Check if version argument is provided
 if [ -z "$1" ]; then
     echo -e "${RED}Error: Version number required${NC}"
     echo "Usage: $0 <version> [message]"
-    echo "Example: $0 1.0.1 'Bug fixes and improvements'"
+    echo "Example: $0 0.0.1 'Initial release'"
     exit 1
 fi
 
 VERSION=$1
 MESSAGE=${2:-"Release version $VERSION"}
 TAG="v$VERSION"
+RELEASE_BRANCH="release/$VERSION"
+TODAY=$(date +%Y-%m-%d)
 
-echo -e "${YELLOW}Creating release $TAG${NC}"
+echo -e "${YELLOW}Creating release branch for $TAG${NC}"
+echo ""
 
 # Check if we're in a git repository
 if ! git rev-parse --git-dir > /dev/null 2>&1; then
@@ -41,69 +45,90 @@ if ! git diff-index --quiet HEAD --; then
     fi
 fi
 
-# Check if tag already exists
-if git rev-parse "$TAG" >/dev/null 2>&1; then
-    echo -e "${RED}Error: Tag $TAG already exists${NC}"
-    echo "Use: git tag -d $TAG && git push origin :refs/tags/$TAG to remove it"
+# Check if branch already exists
+if git rev-parse --verify "$RELEASE_BRANCH" >/dev/null 2>&1; then
+    echo -e "${RED}Error: Branch $RELEASE_BRANCH already exists${NC}"
+    echo "Use: git branch -D $RELEASE_BRANCH to remove it locally"
     exit 1
 fi
 
-# Update version in pyproject.toml
-echo -e "${YELLOW}Updating version in pyproject.toml${NC}"
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    # macOS
-    sed -i '' "s/version = \".*\"/version = \"$VERSION\"/" pyproject.toml
-else
-    # Linux
-    sed -i "s/version = \".*\"/version = \"$VERSION\"/" pyproject.toml
+# Check if CHANGELOG.md exists
+if [ ! -f "CHANGELOG.md" ]; then
+    echo -e "${RED}Error: CHANGELOG.md not found${NC}"
+    echo "Please create CHANGELOG.md before creating a release"
+    exit 1
 fi
 
-# Show the change
-echo -e "${GREEN}Version updated to $VERSION${NC}"
-grep "version = " pyproject.toml
+# Create release branch
+echo -e "${YELLOW}Creating branch: $RELEASE_BRANCH${NC}"
+git checkout -b "$RELEASE_BRANCH"
+
+# Update CHANGELOG.md
+echo -e "${YELLOW}Updating CHANGELOG.md${NC}"
+
+# Replace [Unreleased] header with version and date
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    # macOS
+    sed -i '' "s/## \[Unreleased\]/## [Unreleased]\n\n### Added\n- Nothing yet\n\n## [$VERSION] - $TODAY/" CHANGELOG.md
+else
+    # Linux
+    sed -i "s/## \[Unreleased\]/## [Unreleased]\n\n### Added\n- Nothing yet\n\n## [$VERSION] - $TODAY/" CHANGELOG.md
+fi
+
+# Show the changes
+echo -e "${GREEN}Updated CHANGELOG.md:${NC}"
+head -n 15 CHANGELOG.md
+echo ""
 
 # Ask for confirmation
-echo ""
-echo -e "${YELLOW}Ready to create release:${NC}"
+echo -e "${YELLOW}Ready to create release branch:${NC}"
 echo "  Version: $VERSION"
-echo "  Tag: $TAG"
+echo "  Tag: $TAG (to be created after PR merge)"
+echo "  Branch: $RELEASE_BRANCH"
 echo "  Message: $MESSAGE"
 echo ""
-read -p "Proceed with release? (y/n) " -n 1 -r
+read -p "Proceed? (y/n) " -n 1 -r
 echo
 
 if [[ ! $REPLY =~ ^[Yy]$ ]]; then
     echo -e "${RED}Release cancelled${NC}"
+    echo "Cleaning up branch..."
+    git checkout -
+    git branch -D "$RELEASE_BRANCH"
     exit 1
 fi
 
-# Commit version change
-echo -e "${YELLOW}Committing version change${NC}"
-git add pyproject.toml
-git commit -m "Bump version to $VERSION" || echo "No changes to commit"
+# Commit CHANGELOG changes
+echo -e "${YELLOW}Committing CHANGELOG${NC}"
+git add CHANGELOG.md
+git commit -m "Prepare release $VERSION"
 
-# Push changes
-echo -e "${YELLOW}Pushing changes${NC}"
-git push origin $(git branch --show-current)
-
-# Create and push tag
-echo -e "${YELLOW}Creating tag $TAG${NC}"
-git tag -a "$TAG" -m "$MESSAGE"
-
-echo -e "${YELLOW}Pushing tag $TAG${NC}"
-git push origin "$TAG"
+# Push release branch
+echo -e "${YELLOW}Pushing branch $RELEASE_BRANCH${NC}"
+git push -u origin "$RELEASE_BRANCH"
 
 echo ""
-echo -e "${GREEN}Release $TAG created successfully!${NC}"
+echo -e "${GREEN}Release branch $RELEASE_BRANCH created successfully!${NC}"
 echo ""
-echo "GitHub Actions will now:"
-echo "  1. Build the package"
-echo "  2. Create a GitHub release"
-echo "  3. Upload distribution files"
+echo -e "${BLUE}Next steps:${NC}"
+echo "  1. Create PR: $RELEASE_BRANCH → main"
+echo "     - Title: 'Release $TAG'"
+echo "     - Description: '$MESSAGE'"
 echo ""
-echo "Check the progress at:"
-echo "  https://github.com/energinet-ti/phasor-point-cli/actions"
+echo "  2. Review and merge the PR"
 echo ""
-echo "Once complete, the release will be available at:"
-echo "  https://github.com/energinet-ti/phasor-point-cli/releases/tag/$TAG"
-
+echo "  3. After merge, create GitHub Release:"
+echo "     - Go to: https://github.com/energinet-ti/phasor-point-cli/releases/new"
+echo "     - Tag: $TAG"
+echo "     - Target: main"
+echo "     - Title: '$TAG'"
+echo "     - Description: Copy from CHANGELOG.md"
+echo ""
+echo "  4. Manually trigger PyPI publishing:"
+echo "     - Go to: https://github.com/energinet-ti/phasor-point-cli/actions"
+echo "     - Select 'Publish to PyPI' workflow"
+echo "     - Click 'Run workflow'"
+echo "     - Choose 'pypi-test' first to test, then 'pypi' for production"
+echo ""
+echo -e "${BLUE}Note:${NC} Version $VERSION will be automatically set by setuptools-scm from the git tag"
+echo ""

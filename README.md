@@ -282,7 +282,7 @@ make build
 
 This will create a `.whl` file in the `dist/` directory that can be installed with pip or distributed to others.
 
-### Versioning
+### Versioning and Releases
 
 This project uses **setuptools-scm** for automatic version management based on git tags:
 
@@ -291,16 +291,28 @@ This project uses **setuptools-scm** for automatic version management based on g
 - **Clean releases** require a git tag (e.g., `v1.0.0`)
 
 **Creating a release:**
-```bash
-# Tag the release
-git tag v1.0.0
-git push origin v1.0.0
 
-# Build will now use version 1.0.0
-make build
+Releases are prepared in dedicated release branches:
+
+```bash
+# Create a release branch with CHANGELOG updates
+./scripts/create_release.sh 1.0.0 "Description of release"
+
+# This will:
+# 1. Create branch release/1.0.0
+# 2. Update CHANGELOG.md with version and date
+# 3. Push the branch
+
+# Then:
+# 1. Create PR: release/1.0.0 → main
+# 2. Review and merge the PR
+# 3. Create GitHub Release with tag v1.0.0 on main
+# 4. Manually trigger PyPI publishing from GitHub Actions
 ```
 
 **Development builds** (without tags) will have versions like `0.1.dev3` based on commit count.
+
+See [docs/RELEASING.md](docs/RELEASING.md) for detailed release procedures.
 
 ## License
 

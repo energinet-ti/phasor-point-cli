@@ -2,11 +2,12 @@ name: Build and Test
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main ]
     types: [opened, synchronize, reopened]
   workflow_dispatch:
+  # Note: Release branches (release/*) trigger CI via pull requests
 
 jobs:
   lint:
