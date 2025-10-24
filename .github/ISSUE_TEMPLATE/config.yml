@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Discussion
+    url: https://github.com/energinet-ti/phasor-point-cli/discussions
+    about: Ask questions and discuss ideas with the community
+  - name: 📖 Documentation
+    url: https://github.com/energinet-ti/phasor-point-cli/wiki
+    about: Check the documentation and wiki for help
