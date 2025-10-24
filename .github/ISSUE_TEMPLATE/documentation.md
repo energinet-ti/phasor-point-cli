@@ -15,8 +15,8 @@ assignees: ''
 <!-- Where is the documentation issue? -->
 
 - [ ] README.md
-- [ ] CLI help text (`phasor-point --help`)
-- [ ] Command-specific help (`phasor-point command --help`)
+- [ ] CLI help text (`phasor-cli --help`)
+- [ ] Command-specific help (`phasor-cli command --help`)
 - [ ] Wiki/External docs
 - [ ] Code comments
 - [ ] Other: 
