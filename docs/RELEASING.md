@@ -274,7 +274,7 @@ twine check dist/*
 
 ### Wrong Version After Release
 
-**Problem**: Version shows `0.0.1.devX` instead of `0.0.1`
+**Problem**: Version shows `0.0.2.devX` instead of `0.0.1`
 
 This happens when:
 - No tag exists

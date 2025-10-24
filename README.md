@@ -310,7 +310,7 @@ Releases are prepared in dedicated release branches:
 # 4. Manually trigger PyPI publishing from GitHub Actions
 ```
 
-**Development builds** (without tags) will have versions like `0.1.dev3` based on commit count.
+**Development builds** (without tags) will have versions like `0.0.2.dev3` based on commit count.
 
 See [docs/RELEASING.md](docs/RELEASING.md) for detailed release procedures.
 

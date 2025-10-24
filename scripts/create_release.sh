@@ -66,14 +66,19 @@ git checkout -b "$RELEASE_BRANCH"
 # Update CHANGELOG.md
 echo -e "${YELLOW}Updating CHANGELOG.md${NC}"
 
-# Replace [Unreleased] header with version and date
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    # macOS
-    sed -i '' "s/## \[Unreleased\]/## [Unreleased]\n\n### Added\n- Nothing yet\n\n## [$VERSION] - $TODAY/" CHANGELOG.md
-else
-    # Linux
-    sed -i "s/## \[Unreleased\]/## [Unreleased]\n\n### Added\n- Nothing yet\n\n## [$VERSION] - $TODAY/" CHANGELOG.md
-fi
+# Replace [Unreleased] header with version and date using awk for portability
+awk -v version="$VERSION" -v today="$TODAY" '
+/^## \[Unreleased\]$/ {
+    print "## [Unreleased]"
+    print ""
+    print "### Added"
+    print "- Nothing yet"
+    print ""
+    print "## [" version "] - " today
+    next
+}
+{ print }
+' CHANGELOG.md > CHANGELOG.md.tmp && mv CHANGELOG.md.tmp CHANGELOG.md
 
 # Show the changes
 echo -e "${GREEN}Updated CHANGELOG.md:${NC}"
