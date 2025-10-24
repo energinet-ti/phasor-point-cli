@@ -25,7 +25,7 @@ assignees: ''
 
 ```bash
 # Example of how the new feature might work
-phasor-point new-command --option value
+phasor-cli new-command --option value
 ```
 
 ### Expected Output
