@@ -86,9 +86,11 @@ Initial release of PhasorPoint CLI.
 2. Get team review/approval
 3. Merge the PR (use "Create a merge commit" or "Squash and merge")
 
-### 5. Create GitHub Release and Tag
+### 5. Create Tag (GitHub Release Auto-Created)
 
-After the PR is merged:
+After the PR is merged, create the tag on main. The GitHub Release will be automatically created.
+
+#### Option A: Create Tag via GitHub UI (Recommended)
 
 1. Go to: https://github.com/energinet-ti/phasor-point-cli/releases/new
 2. Click "Choose a tag"
@@ -98,7 +100,26 @@ After the PR is merged:
 6. Description: Copy from CHANGELOG.md
 7. Click "Publish release"
 
-This creates both the tag and the GitHub release page.
+This creates the tag and immediately publishes the release.
+
+#### Option B: Create Tag via Git CLI (Release Auto-Created)
+
+```bash
+# Switch to main and pull latest
+git checkout main
+git pull origin main
+
+# Create and push the tag
+git tag -a v0.0.1 -m "Release v0.0.1"
+git push origin v0.0.1
+
+# The release.yml workflow will automatically:
+# - Build the package
+# - Create a GitHub Release
+# - Upload wheel and source distributions
+```
+
+Check the workflow progress at: https://github.com/energinet-ti/phasor-point-cli/actions
 
 ### 6. Publish to PyPI
 

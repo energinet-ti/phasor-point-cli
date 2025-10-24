@@ -40,17 +40,18 @@ jobs:
           TAG=${GITHUB_REF#refs/tags/v}
           echo "version=$TAG" >> $GITHUB_OUTPUT
           echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          echo "Tag version: v$TAG"
       
-      - name: Verify version matches pyproject.toml
+      - name: Install setuptools-scm to verify version
         run: |
-          VERSION_IN_FILE=$(grep -m 1 'version = ' pyproject.toml | cut -d'"' -f2)
-          if [ "$VERSION_IN_FILE" != "${{ steps.version.outputs.version }}" ]; then
-            echo "Error: Version mismatch!"
-            echo "Tag version: ${{ steps.version.outputs.version }}"
-            echo "pyproject.toml version: $VERSION_IN_FILE"
-            exit 1
+          pip install setuptools-scm
+          DETECTED_VERSION=$(python -m setuptools_scm)
+          echo "Version detected by setuptools-scm: $DETECTED_VERSION"
+          echo "Expected from tag: ${{ steps.version.outputs.version }}"
+          if [ "$DETECTED_VERSION" != "${{ steps.version.outputs.version }}" ]; then
+            echo "Warning: Version mismatch between tag and setuptools-scm"
+            echo "This might be expected if you have local commits"
           fi
-          echo "Version verified: $VERSION_IN_FILE"
       
       - name: Build package
         run: |

@@ -306,7 +306,7 @@ Releases are prepared in dedicated release branches:
 # Then:
 # 1. Create PR: release/1.0.0 → main
 # 2. Review and merge the PR
-# 3. Create GitHub Release with tag v1.0.0 on main
+# 3. Create tag v1.0.0 on main (GitHub Release auto-created)
 # 4. Manually trigger PyPI publishing from GitHub Actions
 ```
 
