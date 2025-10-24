@@ -1,0 +1,6 @@
+---
+alwaysApply: true
+---
+We use virtual environments when we execute python code
+We must avoid the use of emojis in the code, at all times
+You are not able to make any calls to the real database server, at it is not reachable from the environment

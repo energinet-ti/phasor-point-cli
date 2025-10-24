@@ -1,0 +1,53 @@
+{
+  "include": [
+    "src",
+    "tests"
+  ],
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    ".git",
+    "venv",
+    ".venv",
+    "build",
+    "dist",
+    "*.egg-info"
+  ],
+  "extraPaths": [
+    "src"
+  ],
+  "pythonVersion": "3.13",
+  "pythonPlatform": "All",
+  "typeCheckingMode": "basic",
+  "reportMissingImports": "warning",
+  "reportMissingTypeStubs": false,
+  "reportUnusedImport": "warning",
+  "reportUnusedClass": "warning",
+  "reportUnusedFunction": "warning",
+  "reportUnusedVariable": "warning",
+  "reportDuplicateImport": "warning",
+  "reportOptionalMemberAccess": false,
+  "reportGeneralTypeIssues": false,
+  "reportOptionalCall": false,
+  "reportOptionalIterable": false,
+  "reportOptionalContextManager": false,
+  "reportOptionalOperand": false,
+  "reportPrivateUsage": false,
+  "reportUnboundVariable": "warning",
+  "reportUnnecessaryIsInstance": false,
+  "reportUnnecessaryCast": "warning",
+  "reportImplicitStringConcatenation": false,
+  "reportInvalidStringEscapeSequence": "warning",
+  "reportUnknownParameterType": false,
+  "reportUnknownArgumentType": false,
+  "reportUnknownLambdaType": false,
+  "reportUnknownVariableType": false,
+  "reportUnknownMemberType": false,
+  "reportUntypedFunctionDecorator": false,
+  "reportUntypedClassDecorator": false,
+  "reportUntypedBaseClass": false,
+  "reportUntypedNamedTuple": false,
+  "venvPath": ".",
+  "venv": "venv"
+}
+

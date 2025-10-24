@@ -1,0 +1,107 @@
+name: Publish to PyPI
+
+# This workflow publishes to PyPI when a release is published on GitHub
+# To enable:
+#   1. Create a PyPI account and generate an API token
+#   2. Add the token as a secret in GitHub: Settings > Secrets > PYPI_API_TOKEN
+#   3. Uncomment the 'on' trigger below
+
+# on:
+#   release:
+#     types: [published]
+
+# Manual trigger for testing
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to publish to'
+        required: true
+        type: choice
+        options:
+          - testpypi
+          - pypi
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+      
+      - name: Build package
+        run: |
+          python -m build
+          echo "Built packages:"
+          ls -lh dist/
+      
+      - name: Verify package
+        run: |
+          twine check dist/*
+      
+      - name: Publish to TestPyPI
+        if: github.event.inputs.environment == 'testpypi'
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN }}
+        run: |
+          twine upload --repository testpypi dist/*
+      
+      - name: Publish to PyPI
+        if: github.event.inputs.environment == 'pypi'
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          twine upload dist/*
+      
+      - name: Success summary
+        run: |
+          echo "## PyPI Publish Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Successfully published to ${{ github.event.inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ github.event.inputs.environment }}" == "pypi" ]; then
+            echo "📦 Package available at: https://pypi.org/project/phasor-point-cli/" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "📦 Package available at: https://test.pypi.org/project/phasor-point-cli/" >> $GITHUB_STEP_SUMMARY
+          fi
+
+# Setup Instructions:
+# 
+# 1. Create PyPI Account:
+#    - Production: https://pypi.org/account/register/
+#    - Testing: https://test.pypi.org/account/register/
+# 
+# 2. Generate API Token:
+#    - Go to Account Settings > API tokens
+#    - Create a token for the phasor-point-cli project
+# 
+# 3. Add Secrets to GitHub:
+#    - Go to: Settings > Secrets and variables > Actions
+#    - Add secret: PYPI_API_TOKEN (for production)
+#    - Add secret: TEST_PYPI_API_TOKEN (for testing)
+# 
+# 4. Enable Automatic Publishing:
+#    - Uncomment the 'on: release' trigger at the top
+#    - Comment out the 'on: workflow_dispatch' trigger
+# 
+# 5. Test First:
+#    - Go to Actions > Publish to PyPI
+#    - Click "Run workflow"
+#    - Select "testpypi" environment
+#    - Verify it works before enabling automatic publishing

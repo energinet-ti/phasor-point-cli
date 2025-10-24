@@ -1,0 +1,29 @@
+{
+  "database": {
+    "driver": "Psymetrix PhasorPoint"
+  },
+  "extraction": {
+    "default_resolution": 1,
+    "default_clean": true,
+    "timezone_handling": "machine_timezone"
+  },
+  "data_quality": {
+    "frequency_min": 45,
+    "frequency_max": 65,
+    "null_threshold_percent": 50,
+    "gap_multiplier": 5
+  },
+  "output": {
+    "default_output_dir": "data_exports",
+    "timestamp_format": "%Y%m%d_%H%M%S",
+    "timestamp_display_format": "%Y-%m-%d %H:%M:%S.%f",
+    "compression": "snappy"
+  },
+  "available_pmus": {
+    "all": []
+  },
+  "notes": {
+    "discovery": "PMU list is dynamically populated from database during setup. Use 'phasor-cli setup --refresh-pmus' to update.",
+    "list_tables": "Use 'list-tables' command to see which PMUs are currently accessible"
+  }
+}

@@ -1,0 +1,128 @@
+---
+description: SQL schemas for interacting with the phasor point sql
+alwaysApply: false
+---
+# PhasorPoint SQL Schema Reference
+
+## SQL Development Rule: Always Consult Schema Documentation
+
+**CRITICAL**: Before making ANY SQL-related changes, modifications, or additions to this codebase, you MUST first consult the PhasorPoint SQL schema documentation located in `docs/phasor-point-sql/`.
+
+## Documentation Location
+
+All schema documentation is located at: `docs/phasor-point-sql/`
+
+Key files:
+- `README.md` - Overview of all tables, naming conventions, and query syntax
+- Individual table schema files (e.g., `pmu_data_tables.md`, `bus_measurement_group.md`, etc.)
+
+## When to Consult Documentation
+
+You MUST reference the schema documentation before:
+
+1. **Writing SQL queries** - Check table names, column names, and valid query patterns
+2. **Adding new table support** - Verify table naming conventions and column structures
+3. **Modifying query generation** - Ensure compatibility with PhasorPoint SQL subset
+4. **Implementing data extraction** - Understand available tables and their data types
+5. **Validating table names** - Confirm naming patterns match PhasorPoint conventions
+6. **Working with time-series data** - Understand sample rate suffixes and resampling
+7. **Debugging SQL errors** - Verify query syntax against supported features
+
+## Required Workflow for SQL Changes
+
+1. **READ** the relevant schema documentation file(s) from `docs/phasor-point-sql/`
+2. **VERIFY** table names, column names, and data types match the documentation
+3. **CONFIRM** query patterns follow PhasorPoint SQL supported syntax
+4. **IMPLEMENT** changes based on documented schema
+5. **TEST** with knowledge of custom JDBC limitations (see `custom-jdbc-database.mdc`)
+
+## Available Table Categories
+
+### Time-Series Measurement Data
+- **PMU Data**: `pmu_<PMU_ID>_<X>` - See [pmu_data_tables.md](../../docs/phasor-point-sql/pmu_data_tables.md)
+- **Bus Data**: `v_<MEASUREMENT_GROUP>_<BUS>_<X>` - See [bus_measurement_group.md](../../docs/phasor-point-sql/bus_measurement_group.md)
+- **Circuit Data**: `i_<MEASUREMENT_GROUP>_<CIRCUIT>_<X>` - See [circuit_measurement_group.md](../../docs/phasor-point-sql/circuit_measurement_group.md)
+- **Analog Data**: `a_<MEASUREMENT_GROUP>_<ANALOG>_<X>` - See [analog_measurement_group.md](../../docs/phasor-point-sql/analog_measurement_group.md)
+- **Digital Data**: `d_<MEASUREMENT_GROUP>_<DIGITAL>_<X>` - See [digital_measurement_group.md](../../docs/phasor-point-sql/digital_measurement_group.md)
+- **Reference Angle**: `ref_<SYNCHRONOUS_AREA>_<X>` - See [reference_angle.md](../../docs/phasor-point-sql/reference_angle.md)
+- **Angle Difference**: `ad_<ANGLE_DIFFERENCE>_<X>` - See [angle_difference.md](../../docs/phasor-point-sql/angle_difference.md)
+- **Calculated Data**: `c_<CALCULATED_VALUE>_<X>` - See [calculated_data.md](../../docs/phasor-point-sql/calculated_data.md)
+
+### Summary and Statistics
+- **Bus Summary**: `v_<PMU_ID>_<BUS>_summary` - See [bus_summary_data.md](../../docs/phasor-point-sql/bus_summary_data.md)
+- **Circuit Summary**: `i_<PMU_ID>_<CIRCUIT>_summary` - See [circuit_summary_data.md](../../docs/phasor-point-sql/circuit_summary_data.md)
+- **PMU Statistics**: `pmu_data_statistics` - See [pmu_data_statistics.md](../../docs/phasor-point-sql/pmu_data_statistics.md)
+- **Connection Stats**: `pmu_connection_statistics` - See [pmu_connection_statistics.md](../../docs/phasor-point-sql/pmu_connection_statistics.md)
+
+### Events
+- **Magnitude Events**: `magnitude_events` - See [magnitude_events.md](../../docs/phasor-point-sql/magnitude_events.md)
+- **Dynamics Events**: `dynamics_events` - See [dynamics_analysis_events.md](../../docs/phasor-point-sql/dynamics_analysis_events.md)
+- **Composite Events**: `composite_events` - See [composite_events.md](../../docs/phasor-point-sql/composite_events.md)
+- **System Events**: `system_events` - See [system_events.md](../../docs/phasor-point-sql/system_events.md)
+
+### Advanced Analysis
+- **Line Parameter Estimation**: `lpe_<ESTIMATION_NAME>` - See [line_parameter_estimation.md](../../docs/phasor-point-sql/line_parameter_estimation.md)
+- **PDX1 Analysis**: `pdx1_*` tables - See [dynamics_analysis_results.md](../../docs/phasor-point-sql/dynamics_analysis_results.md)
+- **PDX2 Analysis**: `pdx2_*` tables - See [dynamics_analysis_results.md](../../docs/phasor-point-sql/dynamics_analysis_results.md)
+- **SSO Results**: `sso_*` tables - See [sso_results.md](../../docs/phasor-point-sql/sso_results.md)
+- **Impact Measures**: `impact_*` tables - See [impact_measures.md](../../docs/phasor-point-sql/impact_measures.md)
+
+## Key Schema Conventions
+
+### Table Naming Rules
+1. **Special Characters**: Spaces and special chars are replaced with underscores
+   - Example: "Zone 1" becomes "zone_1"
+2. **Sample Rate Suffix**: Many tables require `<X>` suffix (samples per second)
+   - Example: `pmu_1234_50` for 50 Hz data
+3. **Case Sensitivity**: Table names are typically lowercase with underscores
+
+### Column Naming
+- **Timestamp**: Always `ts` (local time)
+- **Resampled Indicator**: `resampled` column shows if data rate was changed
+- Refer to individual schema files for specific column names per table type
+
+### Query Constraints
+1. **Time Filtering REQUIRED**: All queries must filter on `ts` column
+2. **Supported**: `SELECT`, `WHERE` (on `ts`), `ORDER BY`, basic `JOIN`
+3. **Unsupported**: Aggregate functions (COUNT, MIN, MAX, AVG, SUM) - see `custom-jdbc-database.mdc`
+
+## Example: Proper Workflow
+
+### ❌ WRONG: Skip Documentation
+```python
+# DON'T: Assume table structure without checking
+query = "SELECT timestamp, voltage FROM pmu_data WHERE timestamp > '2024-01-01'"
+```
+
+### ✅ CORRECT: Consult Documentation First
+```python
+# DO: Read docs/phasor-point-sql/pmu_data_tables.md first
+# Verify actual column names: ts (not timestamp), v_pos_mag (not voltage)
+query = "SELECT ts, v_pos_mag FROM pmu_1_50 WHERE ts BETWEEN '2024-01-01 00:00:00' AND '2024-01-01 01:00:00'"
+```
+
+## Integration with Other Rules
+
+This rule works in conjunction with:
+- `custom-jdbc-database.mdc` - Database limitations and workarounds
+- `environment.mdc` - General environment constraints
+
+## Enforcement
+
+Before submitting ANY code changes involving SQL:
+
+1. ✅ Have you read the relevant schema documentation?
+2. ✅ Do your table names match the documented naming patterns?
+3. ✅ Do your column names match the documented schema?
+4. ✅ Does your query syntax follow PhasorPoint SQL constraints?
+5. ✅ Have you accounted for custom JDBC limitations?
+
+## Quick Reference Links
+
+When working with SQL, keep these documentation files open:
+- Start here: [docs/phasor-point-sql/README.md](../../docs/phasor-point-sql/README.md)
+- Refer to individual table schema files for specific column details
+
+## Summary
+
+**ALWAYS consult `docs/phasor-point-sql/` before making SQL-related changes. The documentation is the source of truth for all schema information.**

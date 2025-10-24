@@ -1,0 +1,114 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # Trigger on version tags (v1.0.0, v1.0.1, etc.)
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 1.0.0)'
+        required: false
+        type: string
+
+permissions:
+  contents: write  # Required for creating releases
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for changelog generation
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+      
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG=${GITHUB_REF#refs/tags/v}
+          echo "version=$TAG" >> $GITHUB_OUTPUT
+          echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+      
+      - name: Verify version matches pyproject.toml
+        run: |
+          VERSION_IN_FILE=$(grep -m 1 'version = ' pyproject.toml | cut -d'"' -f2)
+          if [ "$VERSION_IN_FILE" != "${{ steps.version.outputs.version }}" ]; then
+            echo "Error: Version mismatch!"
+            echo "Tag version: ${{ steps.version.outputs.version }}"
+            echo "pyproject.toml version: $VERSION_IN_FILE"
+            exit 1
+          fi
+          echo "Version verified: $VERSION_IN_FILE"
+      
+      - name: Build package
+        run: |
+          python -m build
+          echo "Built packages:"
+          ls -lh dist/
+      
+      - name: Verify package integrity
+        run: |
+          twine check dist/*
+      
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          echo "## What's Changed" > release_notes.md
+          echo "" >> release_notes.md
+          echo "See the [CHANGELOG](https://github.com/${{ github.repository }}/compare/$(git describe --tags --abbrev=0 HEAD^)...${{ steps.version.outputs.tag }}) for detailed changes." >> release_notes.md
+          echo "" >> release_notes.md
+          echo "## Installation" >> release_notes.md
+          echo "" >> release_notes.md
+          echo '```bash' >> release_notes.md
+          echo "# Install from wheel" >> release_notes.md
+          echo "pip install https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.tag }}/phasor_point_cli-${{ steps.version.outputs.version }}-py3-none-any.whl" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "# Or install from source" >> release_notes.md
+          echo "pip install https://github.com/${{ github.repository }}/archive/${{ steps.version.outputs.tag }}.tar.gz" >> release_notes.md
+          echo '```' >> release_notes.md
+          echo "" >> release_notes.md
+          echo "## Files" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "- \`phasor_point_cli-${{ steps.version.outputs.version }}-py3-none-any.whl\` - Python wheel (recommended)" >> release_notes.md
+          echo "- \`phasor_point_cli-${{ steps.version.outputs.version }}.tar.gz\` - Source distribution" >> release_notes.md
+      
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.whl
+            dist/*.tar.gz
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Release summary
+        run: |
+          echo "## Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Successfully released version ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Release Details" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tag:** ${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Release URL:** https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          ls -lh dist/ >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY

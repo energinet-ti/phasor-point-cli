@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# Testing
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+*.cover
+.tox/
+.ruff_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment variables
+.env
+.env.local
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+.eggs/
+src/phasor_point_cli/_version.py
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+ai-working-docs/*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+*.log
+*.bak
+*.tmp
+
+docs/phasor-point-sql/*.csv
+*.zip
