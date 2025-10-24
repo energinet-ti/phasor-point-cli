@@ -3,6 +3,7 @@
 help:
 	@echo "Available commands:"
 	@echo "  make install     - Install package"
+	@echo "  make setup       - Run setup script"
 	@echo "  make dev         - Install package with dev dependencies"
 	@echo "  make lint        - Run linter (check only)"
 	@echo "  make format      - Auto-format code"
@@ -14,47 +15,51 @@ help:
 	@echo "  make build       - Build wheel distribution package"
 	@echo "  make clean       - Remove build artifacts and cache files"
 
+# Run setup script
+setup:
+	@bash scripts/setup.sh
+
 install:
-	pip install -e .
+	./venv/bin/pip install -e .
 
 dev:
-	pip install -e '.[dev]'
+	./venv/bin/pip install -e '.[dev]'
 
 lint:
-	ruff check --no-cache src/ tests/
+	./venv/bin/ruff check --no-cache src/ tests/
 
 format:
-	ruff format src/ tests/
+	./venv/bin/ruff format src/ tests/
 
 type-check:
 	@echo "Running type checker..."
 	pyright src/ tests/
 
 fix:
-	ruff check --no-cache --fix src/ tests/
-	ruff format src/ tests/
+	./venv/bin/ruff check --no-cache --fix src/ tests/
+	./venv/bin/ruff format src/ tests/
 
 check:
 	@echo "Running comprehensive checks..."
-	ruff check --no-cache src/ tests/
-	ruff format --check src/ tests/
-	pytest
+	./venv/bin/ruff check --no-cache src/ tests/
+	./venv/bin/ruff format --check src/ tests/
+	./venv/bin/pytest
 	@echo ""
 	@echo "Note: Type checking available with 'make type-check'"
 
 test:
-	pytest
+	./venv/bin/pytest
 
 coverage:
 	@echo "Running tests with coverage report..."
-	pytest --cov=src/phasor_point_cli --cov-report=term-missing --cov-report=html
+	./venv/bin/pytest --cov=src/phasor_point_cli --cov-report=term-missing --cov-report=html
 	@echo ""
 	@echo "HTML coverage report generated in htmlcov/index.html"
 
 build:
 	@echo "Building wheel distribution package..."
-	pip install --upgrade build
-	python -m build
+	./venv/bin/pip install --upgrade build
+	./venv/bin/python -m build
 	@echo ""
 	@echo "Build complete! Distribution files created in dist/"
 	@ls -lh dist/
