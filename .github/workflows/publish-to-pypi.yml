@@ -19,7 +19,7 @@ on:
         required: true
         type: choice
         options:
-          - testpypi
+          - pypi-test
           - pypi
 
 permissions:
@@ -28,6 +28,7 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
     
     steps:
       - name: Checkout code
@@ -54,10 +55,10 @@ jobs:
           twine check dist/*
       
       - name: Publish to TestPyPI
-        if: github.event.inputs.environment == 'testpypi'
+        if: github.event.inputs.environment == 'pypi-test'
         env:
           TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN }}
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
         run: |
           twine upload --repository testpypi dist/*
       
