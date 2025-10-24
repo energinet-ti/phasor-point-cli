@@ -20,13 +20,13 @@ assignees: ''
 
 ```bash
 # Commands you've tried
-phasor-point command --options
+phasor-cli command --options
 ```
 
 ## Environment
 
 **CLI Version:**
-<!-- Run: phasor-point --version -->
+<!-- Run: phasor-cli --version -->
 
 **Operating System:**
 - [ ] Windows
