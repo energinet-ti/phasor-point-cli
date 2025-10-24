@@ -47,7 +47,7 @@ Please check the type of change your PR introduces:
 
 ```bash
 # Example commands (if applicable)
-phasor-point --help
+phasor-cli --help
 ```
 
 ## Breaking Changes
