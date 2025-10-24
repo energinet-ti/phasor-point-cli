@@ -37,17 +37,21 @@ jobs:
         ruff format --check src/ tests/
 
   test-ubuntu:
-    name: Ubuntu - Python 3.12
+    name: Ubuntu - Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12']
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
     
-    - name: Set up Python 3.12
+    - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v5
       with:
-        python-version: '3.12'
+        python-version: ${{ matrix.python-version }}
         cache: 'pip'
     
     - name: Install dependencies
@@ -60,22 +64,18 @@ jobs:
         pytest
 
   test-macos:
-    name: macOS - Python ${{ matrix.python-version }}
+    name: macOS - Python 3.11
     runs-on: macos-latest
     if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'pull_request' && github.base_ref == 'main')
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12']
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
     
-    - name: Set up Python ${{ matrix.python-version }}
+    - name: Set up Python 3.11
       uses: actions/setup-python@v5
       with:
-        python-version: ${{ matrix.python-version }}
+        python-version: '3.11'
         cache: 'pip'
     
     - name: Install dependencies
@@ -88,22 +88,18 @@ jobs:
         pytest
 
   test-windows:
-    name: Windows - Python ${{ matrix.python-version }}
+    name: Windows - Python 3.11
     runs-on: windows-latest
     if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'pull_request' && github.base_ref == 'main')
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12']
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
     
-    - name: Set up Python ${{ matrix.python-version }}
+    - name: Set up Python 3.11
       uses: actions/setup-python@v5
       with:
-        python-version: ${{ matrix.python-version }}
+        python-version: '3.11'
         cache: 'pip'
     
     - name: Install dependencies
@@ -118,8 +114,13 @@ jobs:
   build:
     name: Build Distribution
     runs-on: ubuntu-latest
-    needs: [lint, test-ubuntu]
-    if: always() && needs.lint.result == 'success' && needs.test-ubuntu.result == 'success'
+    needs: [lint, test-ubuntu, test-macos, test-windows]
+    if: |
+      always() &&
+      needs.lint.result == 'success' &&
+      needs.test-ubuntu.result == 'success' &&
+      (needs.test-macos.result == 'success' || needs.test-macos.result == 'skipped') &&
+      (needs.test-windows.result == 'success' || needs.test-windows.result == 'skipped')
     
     steps:
     - name: Checkout code
