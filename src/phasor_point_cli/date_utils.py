@@ -65,8 +65,21 @@ class DateRangeCalculator:
 
         if local_tz is None:
             try:
-                local_tz = tzlocal.get_localzone()
-                logger.debug(f"[DST DEBUG] Detected system timezone: {local_tz}")
+                detected_tz = tzlocal.get_localzone()
+                logger.debug(f"[DST DEBUG] Detected system timezone: {detected_tz}")
+                
+                # Convert to pytz timezone for proper DST handling
+                # tzlocal on Windows may return zoneinfo which doesn't handle historical DST correctly
+                tz_name = str(detected_tz)
+                if tz_name and not tz_name.startswith("UTC"):
+                    try:
+                        local_tz = pytz.timezone(tz_name)
+                        logger.debug(f"[DST DEBUG] Converted to pytz timezone: {local_tz}")
+                    except Exception:
+                        # If conversion fails, use detected timezone as-is
+                        local_tz = detected_tz
+                else:
+                    local_tz = detected_tz
             except Exception as e:
                 logger.debug(f"[DST DEBUG] Failed to detect timezone: {e}, falling back to UTC")
                 # Final fallback to UTC if tzlocal fails
