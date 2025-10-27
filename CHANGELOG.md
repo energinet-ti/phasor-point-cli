@@ -10,6 +10,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Nothing yet
 
+## [0.0.2] - 2025-10-27
+
+### Added
+- Detailed daylight saving time (DST) handling in date utilities
+- Timezone management methods with UTC offset logging
+- Warnings for invalid timezone configurations with automatic fallback to system timezone
+- Basic documentation templates for issues and pull requests
+
+### Changed
+- Enhanced README.md for improved clarity and streamlined installation instructions
+- Improved date parsing to ensure accurate local datetime and UTC conversion across DST transitions
+
+### Fixed
+- setuptools-scm version scheme to properly handle 0.0.x versions
+
+### Tests
+- Expanded unit tests to cover DST scenarios and timezone conversions
+- Added test cases for invalid timezone configurations and fallback behavior
+
 ## [0.0.1] - 2025-10-24
 
 ### Added
@@ -30,6 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI/CD workflows for testing and PyPI publishing
 - Complete documentation and usage examples
 
-[Unreleased]: https://github.com/energinet-ti/phasor-point-cli/compare/v0.0.1...HEAD
+[Unreleased]: https://github.com/energinet-ti/phasor-point-cli/compare/v0.0.2...HEAD
+[0.0.2]: https://github.com/energinet-ti/phasor-point-cli/compare/v0.0.1...v0.0.2
 [0.0.1]: https://github.com/energinet-ti/phasor-point-cli/releases/tag/v0.0.1
 
