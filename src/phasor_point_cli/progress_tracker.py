@@ -167,13 +167,14 @@ class ProgressTracker:
         self._stop_display_thread()
         self._spinner.stop()
 
+        # Always clear the progress line and move to new line if we were displaying progress
+        if self._is_tty and self._total_chunks > 0:
+            print("\r" + " " * 120, end="", flush=True)  # Clear any remaining progress text
+            print()  # Move to new line
+
         if self._completed_chunks > 0 and self._is_tty:
             elapsed = time.time() - self._start_time
             elapsed_str = self._format_time(elapsed)
-
-            # Clear line and print completion on new line
-            print("\r" + " " * 120, end="", flush=True)  # Clear any remaining progress text
-            print()  # Move to new line
 
             pmu_label = f"PMU {self._current_pmu_id}" if self._current_pmu_id else "Extraction"
             print(f"[{pmu_label}] Completed {self._total_chunks} chunks in {elapsed_str}")
@@ -379,6 +380,11 @@ class ScanProgressTracker:
         self._stop_display_thread()
         self._spinner.stop()
 
+        # Always clear the progress line and move to new line if we were displaying progress
+        if self._is_tty and self._total > 0:
+            print("\r" + " " * 120, end="", flush=True)
+            print()
+
     def update(self, completed: int, total: int, found_count: int) -> None:
         """
         Update scan progress.
@@ -405,9 +411,7 @@ class ScanProgressTracker:
         if not self._is_tty:
             return
 
-        # Clear line and print final message on new line
-        print("\r" + " " * 120, end="", flush=True)
-        print()  # Move to new line
+        # Print final message (line already cleared by stop())
         percentage = 100 if self._total > 0 else 0
         print(
             f"Scanning: {self._completed}/{self._total} ({percentage}%) - {self._found_count} tables found ✓"
