@@ -267,8 +267,11 @@ class ProgressTracker:
                 )
                 message += f" | Last chunk: {self._format_time(last_chunk_time)}"
 
-            # Print with carriage return for same-line update
-            print(message, end="", flush=True)
+            # Clear line first, then print message to avoid leftover characters
+            print("\r" + " " * 120, end="", flush=True)
+            print(
+                f"\r{message[1:]}", end="", flush=True
+            )  # Skip the \r in message since we already cleared
 
     def _calculate_eta(self) -> str:
         """Calculate and format ETA string."""
@@ -460,4 +463,8 @@ class ScanProgressTracker:
             percentage = int((self._completed / self._total) * 100) if self._total > 0 else 0
 
             message = f"\rScanning: {self._completed}/{self._total} ({percentage}%) {spinner_frame} Elapsed: {elapsed_str} - {self._found_count} tables found..."
-            print(message, end="", flush=True)
+            # Clear line first, then print message to avoid leftover characters
+            print("\r" + " " * 120, end="", flush=True)
+            print(
+                f"\r{message[1:]}", end="", flush=True
+            )  # Skip the \r in message since we already cleared

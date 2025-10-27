@@ -39,8 +39,13 @@ class DateRangeCalculator:
         Returns:
             Timezone-naive datetime in UTC (for database queries)
         """
+        import logging  # noqa: PLC0415
+
+        logger = logging.getLogger("phasor_cli")
+
         # Parse as naive datetime
         naive_dt = pd.to_datetime(date_string).to_pydatetime()
+        logger.debug(f"[DST DEBUG] Parsing input: '{date_string}' -> naive: {naive_dt}")
 
         # Get local timezone
         local_tz = None
@@ -48,6 +53,7 @@ class DateRangeCalculator:
         if tz_env:
             try:
                 local_tz = pytz.timezone(tz_env)
+                logger.debug(f"[DST DEBUG] Using TZ env var: {tz_env} -> {local_tz}")
             except pytz.exceptions.UnknownTimeZoneError:
                 warnings.warn(
                     f"Invalid timezone in TZ environment variable: '{tz_env}'. "
@@ -60,7 +66,9 @@ class DateRangeCalculator:
         if local_tz is None:
             try:
                 local_tz = tzlocal.get_localzone()
-            except Exception:
+                logger.debug(f"[DST DEBUG] Detected system timezone: {local_tz}")
+            except Exception as e:
+                logger.debug(f"[DST DEBUG] Failed to detect timezone: {e}, falling back to UTC")
                 # Final fallback to UTC if tzlocal fails
                 local_tz = pytz.UTC
 
@@ -72,15 +80,26 @@ class DateRangeCalculator:
                     # is_dst=True means during ambiguous times (fall-back), use the first occurrence (DST active)
                     # pytz timezones provide 'localize', but type checker does not recognize it; checked with hasattr above
                     aware_dt = local_tz.localize(naive_dt, is_dst=True)  # type: ignore[attr-defined]
+                    logger.debug(
+                        f"[DST DEBUG] Localized with pytz: {aware_dt} "
+                        f"(offset: {aware_dt.strftime('%z')})"
+                    )
                 else:
                     # For other timezone implementations (e.g., zoneinfo)
                     aware_dt = naive_dt.replace(tzinfo=local_tz)
+                    logger.debug(
+                        f"[DST DEBUG] Localized with replace: {aware_dt} "
+                        f"(offset: {aware_dt.strftime('%z')})"
+                    )
 
                 # Convert to UTC for internal consistency, then remove timezone
-                # Database expects naive local time, but we work in UTC internally
+                # Database expects UTC timestamps
                 utc_dt = aware_dt.astimezone(timezone.utc)
-                return utc_dt.replace(tzinfo=None)
-            except Exception:
+                result = utc_dt.replace(tzinfo=None)
+                logger.debug(f"[DST DEBUG] Final UTC for query: {result}")
+                return result
+            except Exception as e:
+                logger.debug(f"[DST DEBUG] Localization failed: {e}, returning naive datetime")
                 # Fallback: return naive datetime (treat as if already UTC)
                 return naive_dt
 
