@@ -92,8 +92,6 @@ class DateRangeCalculator:
 
         # Convert to database timezone (UTC+1 fixed, no DST)
         # Database uses CET without DST transitions
-        from datetime import timedelta  # noqa: PLC0415
-
         db_offset = timedelta(hours=1)
         db_dt = utc_dt + db_offset
         logger.debug(f"[DST DEBUG] Database time (UTC+1 fixed): {db_dt}")

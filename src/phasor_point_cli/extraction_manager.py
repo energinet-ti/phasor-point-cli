@@ -22,7 +22,7 @@ from .data_processor import DataProcessor
 from .data_validator import DataValidator
 from .extraction_history import ExtractionHistory
 from .file_utils import FileUtils
-from .models import BatchExtractionResult, ExtractionRequest, ExtractionResult
+from .models import BatchExtractionResult, ExtractionRequest, ExtractionResult, PersistResult
 from .power_calculator import PowerCalculator
 from .progress_tracker import ProgressTracker
 
@@ -276,7 +276,7 @@ class ExtractionManager:
         extraction_log: dict,
         output_dir: Path | None = None,
         start_clock: float | None = None,
-    ):
+    ) -> PersistResult:
         # Generate filename with actual data timestamps if in batch mode
         if output_dir and not request.output_file:
             station_name = self._get_station_name(request.pmu_id)
@@ -300,7 +300,11 @@ class ExtractionManager:
                 skip_result = self._handle_skip_existing_file(request, output_path, start_clock)
                 if skip_result:
                     # Return the skip result info
-                    return output_path, skip_result.file_size_mb or 0.0, skip_result
+                    return PersistResult(
+                        output_path=output_path,
+                        file_size_mb=skip_result.file_size_mb or 0.0,
+                        skip_result=skip_result,
+                    )
         else:
             output_path = self._resolve_output_path(request).with_suffix(
                 f".{request.output_format}"
@@ -323,7 +327,7 @@ class ExtractionManager:
             self.logger.warning("Could not write extraction log: %s", exc)
 
         self._print_summary(df)
-        return output_path, file_size_mb
+        return PersistResult(output_path=output_path, file_size_mb=file_size_mb)
 
     def finalise(
         self,
@@ -332,7 +336,7 @@ class ExtractionManager:
         extraction_log: dict,
         output_dir: Path | None = None,
         start_clock: float | None = None,
-    ):
+    ) -> PersistResult:
         return self._persist_dataframe(request, df, extraction_log, output_dir, start_clock)
 
     # ----------------------------------------------------------- Helper Methods
@@ -603,11 +607,10 @@ class ExtractionManager:
         # Persist data
         try:
             result = self._persist_dataframe(request, df, extraction_log, output_dir, start_clock)
-            if len(result) == 3:
-                # Skip result was returned
-                _, _, skip_result = result
-                return skip_result
-            output_path, file_size_mb = result
+            if result.skip_result:
+                return result.skip_result
+            output_path = result.output_path
+            file_size_mb = result.file_size_mb
         except Exception as exc:
             duration = time.monotonic() - start_clock
             self.logger.error("Failed to save output: %s", exc)
