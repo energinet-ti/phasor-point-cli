@@ -270,9 +270,42 @@ class ExtractionManager:
                 print(f"   Local time range: {df['ts_local'].min()} to {df['ts_local'].max()}")
 
     def _persist_dataframe(
-        self, request: ExtractionRequest, df: pd.DataFrame, extraction_log: dict
+        self,
+        request: ExtractionRequest,
+        df: pd.DataFrame,
+        extraction_log: dict,
+        output_dir: Path | None = None,
+        start_clock: float | None = None,
     ):
-        output_path = self._resolve_output_path(request).with_suffix(f".{request.output_format}")
+        # Generate filename with actual data timestamps if in batch mode
+        if output_dir and not request.output_file:
+            station_name = self._get_station_name(request.pmu_id)
+
+            # Use actual first/last ts_local from data if available
+            if "ts_local" in df.columns:
+                first_ts = pd.to_datetime(df["ts_local"].iloc[0])
+                last_ts = pd.to_datetime(df["ts_local"].iloc[-1])
+            else:
+                # Fallback to ts column if ts_local doesn't exist
+                first_ts = pd.to_datetime(df["ts"].iloc[0])
+                last_ts = pd.to_datetime(df["ts"].iloc[-1])
+
+            start_str = first_ts.strftime("%Y%m%d_%H%M%S")
+            end_str = last_ts.strftime("%Y%m%d_%H%M%S")
+            filename = f"pmu_{request.pmu_id}_{station_name}_{request.resolution}hz_{start_str}_to_{end_str}.{request.output_format}"
+            output_path = output_dir / filename
+
+            # Check if file exists and we should skip
+            if start_clock is not None:
+                skip_result = self._handle_skip_existing_file(request, output_path, start_clock)
+                if skip_result:
+                    # Return the skip result info
+                    return output_path, skip_result.file_size_mb or 0.0, skip_result
+        else:
+            output_path = self._resolve_output_path(request).with_suffix(
+                f".{request.output_format}"
+            )
+
         file_size_mb = self._write_output(df, output_path, request.output_format)
 
         extraction_log["statistics"]["final_rows"] = len(df)
@@ -292,8 +325,15 @@ class ExtractionManager:
         self._print_summary(df)
         return output_path, file_size_mb
 
-    def finalise(self, request: ExtractionRequest, df: pd.DataFrame, extraction_log: dict):
-        return self._persist_dataframe(request, df, extraction_log)
+    def finalise(
+        self,
+        request: ExtractionRequest,
+        df: pd.DataFrame,
+        extraction_log: dict,
+        output_dir: Path | None = None,
+        start_clock: float | None = None,
+    ):
+        return self._persist_dataframe(request, df, extraction_log, output_dir, start_clock)
 
     # ----------------------------------------------------------- Helper Methods
     def _build_failure_result(
@@ -500,19 +540,28 @@ class ExtractionManager:
                 print(f"   PMU {result.request.pmu_id}: {result.error}")
 
     # ---------------------------------------------------------------- Extraction
-    def extract(
-        self, request: ExtractionRequest, *, chunk_strategy: ChunkStrategy | None = None
+    def extract(  # noqa: PLR0911
+        self,
+        request: ExtractionRequest,
+        *,
+        chunk_strategy: ChunkStrategy | None = None,
+        output_dir: Path | None = None,
     ) -> ExtractionResult:
         start_clock = time.monotonic()
         request.validate()
 
-        # Resolve output path early to check for existing files
-        output_path = self._resolve_output_path(request).with_suffix(f".{request.output_format}")
+        # Only check for existing files early if not using output_dir
+        # (when output_dir is used, filename depends on actual data timestamps)
+        if not output_dir:
+            # Resolve output path early to check for existing files
+            output_path = self._resolve_output_path(request).with_suffix(
+                f".{request.output_format}"
+            )
 
-        # Check if we should skip based on existing file
-        skip_result = self._handle_skip_existing_file(request, output_path, start_clock)
-        if skip_result:
-            return skip_result
+            # Check if we should skip based on existing file
+            skip_result = self._handle_skip_existing_file(request, output_path, start_clock)
+            if skip_result:
+                return skip_result
 
         extraction_log = self._initialise_log(request)
 
@@ -553,7 +602,12 @@ class ExtractionManager:
 
         # Persist data
         try:
-            output_path, file_size_mb = self._persist_dataframe(request, df, extraction_log)
+            result = self._persist_dataframe(request, df, extraction_log, output_dir, start_clock)
+            if len(result) == 3:
+                # Skip result was returned
+                _, _, skip_result = result
+                return skip_result
+            output_path, file_size_mb = result
         except Exception as exc:
             duration = time.monotonic() - start_clock
             self.logger.error("Failed to save output: %s", exc)
@@ -636,15 +690,8 @@ class ExtractionManager:
 
             self.logger.info("Processing PMU %d (%d/%d)", request.pmu_id, i, len(requests))
 
-            if not request.output_file and output_dir:
-                station_name = self._get_station_name(request.pmu_id)
-                start_str = request.date_range.start.strftime("%Y%m%d_%H%M%S")
-                end_str = request.date_range.end.strftime("%Y%m%d_%H%M%S")
-                filename = f"pmu_{request.pmu_id}_{station_name}_{request.resolution}hz_{start_str}_to_{end_str}.{request.output_format}"
-                request.output_file = output_dir / filename
-
             try:
-                result = self.extract(request, chunk_strategy=chunk_strategy)
+                result = self.extract(request, chunk_strategy=chunk_strategy, output_dir=output_dir)
                 results.append(result)
 
                 # Update batch progress after PMU completes

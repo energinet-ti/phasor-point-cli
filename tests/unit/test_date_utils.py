@@ -82,7 +82,8 @@ class TestDateRangeCalculator:
         # UTC → Database (UTC+1): adds 1 hour
         assert result.start == datetime(2025, 1, 1, 1, 0, 0)
         assert result.end == datetime(2025, 1, 1, 1, 30, 0)
-        assert result.batch_timestamp == "20250101_010000"
+        # Batch timestamp uses original input time
+        assert result.batch_timestamp == "20250101_000000"
         assert result.is_relative is False
 
     def test_calculate_start_with_hours_forward(self, monkeypatch):
@@ -98,7 +99,8 @@ class TestDateRangeCalculator:
         # UTC → Database (UTC+1): adds 1 hour
         assert result.start == datetime(2025, 1, 1, 1, 0, 0)
         assert result.end == datetime(2025, 1, 1, 4, 0, 0)
-        assert result.batch_timestamp == "20250101_010000"
+        # Batch timestamp uses original input time
+        assert result.batch_timestamp == "20250101_000000"
         assert result.is_relative is False
 
     def test_calculate_start_with_days_forward(self, monkeypatch):
@@ -114,7 +116,8 @@ class TestDateRangeCalculator:
         # UTC → Database (UTC+1): adds 1 hour
         assert result.start == datetime(2025, 1, 1, 1, 0, 0)
         assert result.end == datetime(2025, 1, 2, 1, 0, 0)
-        assert result.batch_timestamp == "20250101_010000"
+        # Batch timestamp uses original input time
+        assert result.batch_timestamp == "20250101_000000"
         assert result.is_relative is False
 
     def test_calculate_missing_args(self):
@@ -157,7 +160,8 @@ class TestDateRangeCalculator:
         # UTC → Database (UTC+1): adds 1 hour
         assert result.start == datetime(2025, 1, 1, 1, 0, 0)
         assert result.end == datetime(2025, 1, 1, 3, 0, 0)
-        assert result.batch_timestamp == "20250101_010000"
+        # Batch timestamp uses original input time
+        assert result.batch_timestamp == "20250101_000000"
         assert result.is_relative is False
 
     def test_calculate_priority_start_duration_over_absolute(self, monkeypatch):
@@ -378,10 +382,11 @@ class TestDSTHandling:
             days=None,
         )
 
-        # Act
-        result = DateRangeCalculator.calculate(args)
+        # Act & Assert
+        # Should warn about invalid timezone but still parse successfully
+        with pytest.warns(UserWarning, match="Invalid timezone in TZ environment variable"):
+            result = DateRangeCalculator.calculate(args)
 
-        # Assert
         # Should still parse successfully (falls back to system timezone)
         assert result.start is not None
         assert result.end is not None

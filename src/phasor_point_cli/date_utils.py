@@ -141,8 +141,10 @@ class DateRangeCalculator:
             duration = DateRangeCalculator._extract_duration(args)
             end_dt = start_dt + duration
 
-            # Use start time for batch timestamp (consistent filenames)
-            batch_timestamp = start_dt.strftime("%Y%m%d_%H%M%S")
+            # Use ORIGINAL input time for batch timestamp (consistent with user intent)
+            # Parse the input string again without timezone conversion
+            original_dt = pd.to_datetime(args.start).to_pydatetime()
+            batch_timestamp = original_dt.strftime("%Y%m%d_%H%M%S")
 
             return DateRange(
                 start=start_dt, end=end_dt, batch_timestamp=batch_timestamp, is_relative=False
@@ -225,7 +227,10 @@ class DateRangeCalculator:
         """
         start_dt = DateRangeCalculator._parse_local_datetime(start_date)
         end_dt = start_dt + duration
-        batch_timestamp = start_dt.strftime("%Y%m%d_%H%M%S")
+
+        # Use ORIGINAL input time for batch timestamp (consistent with user intent)
+        original_dt = pd.to_datetime(start_date).to_pydatetime()
+        batch_timestamp = original_dt.strftime("%Y%m%d_%H%M%S")
 
         return DateRange(
             start=start_dt, end=end_dt, batch_timestamp=batch_timestamp, is_relative=False
