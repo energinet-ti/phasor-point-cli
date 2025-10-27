@@ -545,6 +545,76 @@ def test_get_utc_offset_invalid_timezone_warns():
     assert result == "+00:00"
 
 
+def test_get_utc_offset_summer_date_copenhagen(monkeypatch):
+    """Test UTC offset calculation for summer date (DST active)."""
+    # Arrange
+    monkeypatch.setenv("TZ", "Europe/Copenhagen")
+    dt = datetime(2024, 7, 15, 10, 0, 0)
+    local_tz = ExtractionManager._get_local_timezone()
+
+    # Act
+    result = ExtractionManager._get_utc_offset(dt, local_tz)
+
+    # Assert
+    # Copenhagen summer time is UTC+2 (CEST)
+    assert result == "+02:00"
+
+
+def test_get_utc_offset_winter_date_copenhagen(monkeypatch):
+    """Test UTC offset calculation for winter date (DST inactive)."""
+    # Arrange
+    monkeypatch.setenv("TZ", "Europe/Copenhagen")
+    dt = datetime(2024, 1, 15, 10, 0, 0)
+    local_tz = ExtractionManager._get_local_timezone()
+
+    # Act
+    result = ExtractionManager._get_utc_offset(dt, local_tz)
+
+    # Assert
+    # Copenhagen winter time is UTC+1 (CET)
+    assert result == "+01:00"
+
+
+def test_get_utc_offset_different_dates_different_offsets(monkeypatch):
+    """Test that same local time gets different UTC offsets based on date."""
+    # Arrange
+    monkeypatch.setenv("TZ", "Europe/Copenhagen")
+    local_tz = ExtractionManager._get_local_timezone()
+
+    summer_dt = datetime(2024, 7, 15, 14, 0, 0)
+    winter_dt = datetime(2024, 1, 15, 14, 0, 0)
+
+    # Act
+    summer_offset = ExtractionManager._get_utc_offset(summer_dt, local_tz)
+    winter_offset = ExtractionManager._get_utc_offset(winter_dt, local_tz)
+
+    # Assert
+    # Same local time (14:00), different offsets due to DST
+    assert summer_offset == "+02:00"
+    assert winter_offset == "+01:00"
+
+
+def test_get_local_timezone_returns_dst_aware_timezone(monkeypatch):
+    """Test that _get_local_timezone returns a DST-aware timezone object."""
+    # Arrange
+    monkeypatch.setenv("TZ", "Europe/Copenhagen")
+
+    # Act
+    tz = ExtractionManager._get_local_timezone()
+
+    # Assert
+    assert tz is not None
+    # Verify it can calculate different offsets for different dates
+    summer_dt = datetime(2024, 7, 15, 10, 0, 0)
+    winter_dt = datetime(2024, 1, 15, 10, 0, 0)
+
+    summer_offset = ExtractionManager._get_utc_offset(summer_dt, tz)
+    winter_offset = ExtractionManager._get_utc_offset(winter_dt, tz)
+
+    # If it's DST-aware, offsets should differ
+    assert summer_offset != winter_offset
+
+
 # ============================================================================
 # HELPER METHOD UNIT TESTS
 # ============================================================================

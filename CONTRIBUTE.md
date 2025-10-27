@@ -37,10 +37,12 @@ That's it! We'll review it and work with you to get it merged.
 git clone https://github.com/your-username/phasor-point-cli.git
 cd phasor-point-cli
 
-# Install dependencies (TODO)
-# npm install
-# pip install -r requirements.txt
-# cargo build
+# Run setup script
+make setup
+
+# Or manually:
+# bash scripts/setup.sh           # Linux/macOS
+# .\scripts\setup.ps1              # Windows PowerShell
 ```
 
 ## Making Changes

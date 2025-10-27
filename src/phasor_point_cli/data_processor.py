@@ -15,6 +15,7 @@ from typing import Iterable, Sequence
 
 import pandas as pd
 import pytz
+import tzlocal
 
 from .config import ConfigurationManager
 from .data_validator import DataValidator
@@ -60,7 +61,10 @@ class DataProcessor:
                 return pytz.timezone(tz_env)
             except Exception:  # pragma: no cover - graceful fallback
                 pass
-        return datetime.now().astimezone().tzinfo
+        try:
+            return tzlocal.get_localzone()
+        except Exception:  # pragma: no cover - graceful fallback
+            return pytz.UTC
 
     @staticmethod
     def format_timestamps_with_precision(df: pd.DataFrame, columns: Sequence[str]) -> pd.DataFrame:

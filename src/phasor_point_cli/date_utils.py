@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 import pytz
+import tzlocal
 
 from .models import DateRange
 
@@ -57,7 +58,11 @@ class DateRangeCalculator:
                 )
 
         if local_tz is None:
-            local_tz = datetime.now().astimezone().tzinfo
+            try:
+                local_tz = tzlocal.get_localzone()
+            except Exception:
+                # Final fallback to UTC if tzlocal fails
+                local_tz = pytz.UTC
 
         # Localize to local timezone - this applies DST rules based on the date
         if local_tz is not None:

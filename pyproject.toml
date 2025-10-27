@@ -32,16 +32,11 @@ classifiers = [
 dependencies = [
     "numpy",
     "pandas",
-    "scipy",
-    "matplotlib",
-    "plotly",
-    "pyodbc",
-    "sqlalchemy",
     "pyarrow",
-    "fastparquet",
-    "seaborn",
+    "pyodbc",
     "python-dotenv",
-    "openpyxl",
+    "pytz",
+    "tzlocal",
 ]
 
 [project.optional-dependencies]
