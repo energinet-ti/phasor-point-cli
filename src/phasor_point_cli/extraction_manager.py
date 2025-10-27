@@ -13,14 +13,18 @@ from pathlib import Path
 
 import pandas as pd
 import pytz
+import tzlocal
 
 from .chunk_strategy import ChunkStrategy
+from .config_paths import ConfigPathManager
 from .data_extractor import DataExtractor
 from .data_processor import DataProcessor
 from .data_validator import DataValidator
+from .extraction_history import ExtractionHistory
 from .file_utils import FileUtils
-from .models import BatchExtractionResult, ExtractionRequest, ExtractionResult
+from .models import BatchExtractionResult, ExtractionRequest, ExtractionResult, PersistResult
 from .power_calculator import PowerCalculator
+from .progress_tracker import ProgressTracker
 
 
 class ExtractionManager:
@@ -35,10 +39,13 @@ class ExtractionManager:
         data_extractor: DataExtractor | None = None,
         data_processor: DataProcessor | None = None,
         power_calculator: PowerCalculator | None = None,
+        extraction_history: ExtractionHistory | None = None,
+        verbose_timing: bool = False,
     ) -> None:
         self.connection_pool = connection_pool
         self.config_manager = config_manager
         self.logger = logger
+        self.verbose_timing = verbose_timing
 
         validator = None
         if data_processor is None:
@@ -48,9 +55,18 @@ class ExtractionManager:
             config_manager=config_manager, logger=logger, validator=validator
         )
         self.data_extractor = data_extractor or DataExtractor(
-            connection_pool=connection_pool, logger=logger
+            connection_pool=connection_pool,
+            logger=logger,
+            extraction_history=extraction_history,
         )
         self.power_calculator = power_calculator or PowerCalculator(logger=logger)
+
+        # Initialize extraction history
+        if extraction_history is None:
+            config_path_manager = ConfigPathManager()
+            extraction_history = ExtractionHistory(config_path_manager, logger=logger)
+            extraction_history.load_history()
+        self.extraction_history = extraction_history
 
     # ------------------------------------------------------------------ Helpers
     def _config(self):
@@ -73,7 +89,11 @@ class ExtractionManager:
                     UserWarning,
                     stacklevel=3,
                 )
-        return datetime.now().astimezone().tzinfo
+        try:
+            return tzlocal.get_localzone()
+        except Exception:
+            # Final fallback to UTC if tzlocal fails
+            return pytz.UTC
 
     @staticmethod
     def _get_utc_offset(dt: datetime, local_tz) -> str:
@@ -245,14 +265,51 @@ class ExtractionManager:
         print(f"   Shape: {df.shape}")
         print(f"   Columns: {list(df.columns[:5])}{'...' if len(df.columns) > 5 else ''}")
         if "ts" in df.columns:
-            print(f"   Local time range: {df['ts'].min()} to {df['ts'].max()}")
-            if "ts_utc" in df.columns:
-                print(f"   UTC time range: {df['ts_utc'].min()} to {df['ts_utc'].max()}")
+            print(f"   UTC time range: {df['ts'].min()} to {df['ts'].max()}")
+            if "ts_local" in df.columns:
+                print(f"   Local time range: {df['ts_local'].min()} to {df['ts_local'].max()}")
 
     def _persist_dataframe(
-        self, request: ExtractionRequest, df: pd.DataFrame, extraction_log: dict
-    ):
-        output_path = self._resolve_output_path(request).with_suffix(f".{request.output_format}")
+        self,
+        request: ExtractionRequest,
+        df: pd.DataFrame,
+        extraction_log: dict,
+        output_dir: Path | None = None,
+        start_clock: float | None = None,
+    ) -> PersistResult:
+        # Generate filename with actual data timestamps if in batch mode
+        if output_dir and not request.output_file:
+            station_name = self._get_station_name(request.pmu_id)
+
+            # Use actual first/last ts_local from data if available
+            if "ts_local" in df.columns:
+                first_ts = pd.to_datetime(df["ts_local"].iloc[0])
+                last_ts = pd.to_datetime(df["ts_local"].iloc[-1])
+            else:
+                # Fallback to ts column if ts_local doesn't exist
+                first_ts = pd.to_datetime(df["ts"].iloc[0])
+                last_ts = pd.to_datetime(df["ts"].iloc[-1])
+
+            start_str = first_ts.strftime("%Y%m%d_%H%M%S")
+            end_str = last_ts.strftime("%Y%m%d_%H%M%S")
+            filename = f"pmu_{request.pmu_id}_{station_name}_{request.resolution}hz_{start_str}_to_{end_str}.{request.output_format}"
+            output_path = output_dir / filename
+
+            # Check if file exists and we should skip
+            if start_clock is not None:
+                skip_result = self._handle_skip_existing_file(request, output_path, start_clock)
+                if skip_result:
+                    # Return the skip result info
+                    return PersistResult(
+                        output_path=output_path,
+                        file_size_mb=skip_result.file_size_mb or 0.0,
+                        skip_result=skip_result,
+                    )
+        else:
+            output_path = self._resolve_output_path(request).with_suffix(
+                f".{request.output_format}"
+            )
+
         file_size_mb = self._write_output(df, output_path, request.output_format)
 
         extraction_log["statistics"]["final_rows"] = len(df)
@@ -270,125 +327,308 @@ class ExtractionManager:
             self.logger.warning("Could not write extraction log: %s", exc)
 
         self._print_summary(df)
-        return output_path, file_size_mb
+        return PersistResult(output_path=output_path, file_size_mb=file_size_mb)
 
-    def finalise(self, request: ExtractionRequest, df: pd.DataFrame, extraction_log: dict):
-        return self._persist_dataframe(request, df, extraction_log)
+    def finalise(
+        self,
+        request: ExtractionRequest,
+        df: pd.DataFrame,
+        extraction_log: dict,
+        output_dir: Path | None = None,
+        start_clock: float | None = None,
+    ) -> PersistResult:
+        return self._persist_dataframe(request, df, extraction_log, output_dir, start_clock)
 
-    # ---------------------------------------------------------------- Extraction
-    def extract(  # noqa: PLR0911 - Multiple returns for error handling and early exits
-        self, request: ExtractionRequest, *, chunk_strategy: ChunkStrategy | None = None
+    # ----------------------------------------------------------- Helper Methods
+    def _build_failure_result(
+        self, request: ExtractionRequest, duration: float, error: str, rows: int = 0
     ) -> ExtractionResult:
-        start_clock = time.monotonic()
-        request.validate()
+        """Build a failure ExtractionResult with common fields."""
+        return ExtractionResult(
+            request=request,
+            success=False,
+            output_file=None,
+            rows_extracted=rows,
+            extraction_time_seconds=duration,
+            error=error,
+        )
 
-        # Resolve output path early to check for existing files
-        output_path = self._resolve_output_path(request).with_suffix(f".{request.output_format}")
+    def _handle_skip_existing_file(
+        self, request: ExtractionRequest, output_path: Path, start_clock: float
+    ) -> ExtractionResult | None:
+        """
+        Check if extraction should be skipped due to existing file.
 
-        # Check if we should skip based on existing file
+        Returns:
+            ExtractionResult if should skip, None if should continue
+        """
         should_skip, _reason = self._check_existing_file(request, output_path)
-        if should_skip:
-            self.logger.info(f"Skipping extraction - file already exists: {output_path}")
-            print(f"\n[SKIP] Output file already exists with matching parameters: {output_path}")
-            print("[SKIP] Use --replace flag to overwrite existing files")
+        if not should_skip:
+            return None
 
-            # Try to read existing file stats
-            existing_stats = {}
-            try:
-                extraction_log = self._read_extraction_log(output_path)
-                if extraction_log:
-                    existing_stats = extraction_log.get("statistics", {})
-                    rows = existing_stats.get("final_rows", "unknown")
-                    file_size = existing_stats.get("file_size_mb", "unknown")
-                    print(f"[SKIP] Existing file contains: {rows} rows, {file_size} MB")
-            except Exception:
-                pass
+        self.logger.info(f"Skipping extraction - file already exists: {output_path}")
+        print(f"\n[SKIP] Output file already exists with matching parameters: {output_path}")
+        print("[SKIP] Use --replace flag to overwrite existing files")
 
-            duration = time.monotonic() - start_clock
-            return ExtractionResult(
-                request=request,
-                success=True,
-                output_file=output_path,
-                rows_extracted=existing_stats.get("final_rows", 0),
-                extraction_time_seconds=duration,
-                file_size_mb=existing_stats.get("file_size_mb", None),
-                error=None,
+        # Try to read existing file stats
+        existing_stats = {}
+        try:
+            extraction_log = self._read_extraction_log(output_path)
+            if extraction_log:
+                existing_stats = extraction_log.get("statistics", {})
+                rows = existing_stats.get("final_rows", "unknown")
+                file_size = existing_stats.get("file_size_mb", "unknown")
+                print(f"[SKIP] Existing file contains: {rows} rows, {file_size} MB")
+        except Exception:
+            pass
+
+        duration = time.monotonic() - start_clock
+        return ExtractionResult(
+            request=request,
+            success=True,
+            output_file=output_path,
+            rows_extracted=existing_stats.get("final_rows", 0),
+            extraction_time_seconds=duration,
+            file_size_mb=existing_stats.get("file_size_mb", None),
+            error=None,
+        )
+
+    def _setup_progress_tracker(
+        self, request: ExtractionRequest, chunk_strategy: ChunkStrategy | None
+    ) -> tuple[ProgressTracker | None, ChunkStrategy, bool]:
+        """
+        Setup progress tracker for chunked extractions.
+
+        Returns:
+            Tuple of (progress_tracker, strategy, use_chunking)
+        """
+        strategy = chunk_strategy or ChunkStrategy(
+            chunk_size_minutes=request.chunk_size_minutes, logger=self.logger
+        )
+        use_chunking, chunks = strategy.should_use_chunking(
+            request.date_range.start, request.date_range.end
+        )
+
+        progress_tracker = None
+        if use_chunking and len(chunks) > 1:
+            progress_tracker = ProgressTracker(
+                extraction_history=self.extraction_history,
+                verbose_timing=self.verbose_timing,
+                logger=self.logger,
+            )
+            progress_tracker.start_extraction(
+                total_chunks=len(chunks),
+                pmu_id=request.pmu_id,
+                estimated_rows=0,
             )
 
-        extraction_log = self._initialise_log(request)
-        df = self.data_extractor.extract(request, chunk_strategy=chunk_strategy)
-        if df is None:
-            duration = time.monotonic() - start_clock
-            return ExtractionResult(
-                request=request,
-                success=False,
-                output_file=None,
-                rows_extracted=0,
-                extraction_time_seconds=duration,
-                error="Extraction returned no data",
-            )
+        return progress_tracker, strategy, use_chunking
 
-        extraction_log["statistics"]["original_rows"] = len(df)
-        extraction_log["statistics"]["original_columns"] = len(df.columns)
-        extraction_log["statistics"]["original_column_names"] = list(df.columns)
+    def _process_and_calculate(
+        self,
+        df: pd.DataFrame,
+        request: ExtractionRequest,
+        extraction_log: dict,
+        start_clock: float,
+    ) -> tuple[pd.DataFrame | None, ExtractionResult | None]:
+        """
+        Process data and calculate power values.
 
+        Returns:
+            Tuple of (processed_df, failure_result).
+            If failure_result is not None, extraction should return early.
+        """
+        result_df: pd.DataFrame | None = df
         if request.clean or request.processed:
-            df, _ = self.data_processor.process(
+            result_df, _ = self.data_processor.process(
                 df,
                 extraction_log=extraction_log,
                 clean=request.clean,
                 validate=request.clean,
             )
-            if df is None:
+            if result_df is None:
                 duration = time.monotonic() - start_clock
-                return ExtractionResult(
-                    request=request,
-                    success=False,
-                    output_file=None,
-                    rows_extracted=0,
-                    extraction_time_seconds=duration,
-                    error="Data processing returned no data",
+                return None, self._build_failure_result(
+                    request, duration, "Data processing returned no data"
                 )
 
-        if request.processed and df is not None:
-            df, _ = self.power_calculator.process_phasor_data(df, extraction_log=extraction_log)
-            if df is None:
+        if request.processed and result_df is not None:
+            result_df, _ = self.power_calculator.process_phasor_data(
+                result_df, extraction_log=extraction_log
+            )
+            if result_df is None:
                 duration = time.monotonic() - start_clock
-                return ExtractionResult(
-                    request=request,
-                    success=False,
-                    output_file=None,
-                    rows_extracted=0,
-                    extraction_time_seconds=duration,
-                    error="Power calculation returned no data",
+                return None, self._build_failure_result(
+                    request, duration, "Power calculation returned no data"
                 )
 
-        if df is None or len(df) == 0:
-            duration = time.monotonic() - start_clock
-            return ExtractionResult(
-                request=request,
+        return result_df, None
+
+    def _resolve_batch_output_dir(self, output_dir: Path | None) -> Path:
+        """Resolve and create output directory for batch extraction."""
+        if output_dir:
+            resolved_dir = Path(output_dir)
+        else:
+            config = self._config()
+            if config and "output" in config:
+                default_dir = config["output"].get("default_output_dir", "data_exports")
+            else:
+                default_dir = "data_exports"
+            resolved_dir = Path(default_dir)
+
+        resolved_dir.mkdir(parents=True, exist_ok=True)
+        return resolved_dir
+
+    def _handle_batch_cancellation(
+        self, requests: list[ExtractionRequest], current_index: int
+    ) -> list[ExtractionResult]:
+        """Create cancelled results for remaining unprocessed requests."""
+        cancelled_results = []
+        for remaining_request in requests[current_index:]:
+            cancelled_result = ExtractionResult(
+                request=remaining_request,
                 success=False,
                 output_file=None,
                 rows_extracted=0,
-                extraction_time_seconds=duration,
-                error="No data available after processing",
+                extraction_time_seconds=0.0,
+                error="Extraction cancelled by user",
+            )
+            cancelled_results.append(cancelled_result)
+        return cancelled_results
+
+    def _print_batch_summary(
+        self, batch_result: BatchExtractionResult, cancellation_manager
+    ) -> None:
+        """Print batch extraction summary."""
+        print("\n" + "=" * 60)
+        print("[DATA] Batch Extraction Summary")
+        print("=" * 60)
+
+        successful = batch_result.successful_results()
+        failed = batch_result.failed_results()
+        total_requests = len(batch_result.results)
+
+        # Check if operation was cancelled
+        if cancellation_manager.is_cancelled():
+            cancelled_count = sum(
+                1
+                for result in batch_result.results
+                if result.error == "Extraction cancelled by user"
+            )
+            self.logger.info(
+                "Batch extraction cancelled: %d/%d successful, %d/%d failed, %d/%d cancelled",
+                len(successful),
+                total_requests,
+                len(failed),
+                total_requests,
+                cancelled_count,
+                total_requests,
+            )
+        else:
+            self.logger.info(
+                "Batch extraction completed: %d/%d successful, %d/%d failed",
+                len(successful),
+                total_requests,
+                len(failed),
+                total_requests,
             )
 
+        if successful:
+            self.logger.info("Successfully extracted:")
+            for result in successful:
+                print(f"   PMU {result.request.pmu_id}: {result.output_file}")
+
+        if failed:
+            self.logger.error("Failed extractions:")
+            for result in failed:
+                print(f"   PMU {result.request.pmu_id}: {result.error}")
+
+    # ---------------------------------------------------------------- Extraction
+    def extract(  # noqa: PLR0911
+        self,
+        request: ExtractionRequest,
+        *,
+        chunk_strategy: ChunkStrategy | None = None,
+        output_dir: Path | None = None,
+    ) -> ExtractionResult:
+        start_clock = time.monotonic()
+        request.validate()
+
+        # Only check for existing files early if not using output_dir
+        # (when output_dir is used, filename depends on actual data timestamps)
+        if not output_dir:
+            # Resolve output path early to check for existing files
+            output_path = self._resolve_output_path(request).with_suffix(
+                f".{request.output_format}"
+            )
+
+            # Check if we should skip based on existing file
+            skip_result = self._handle_skip_existing_file(request, output_path, start_clock)
+            if skip_result:
+                return skip_result
+
+        extraction_log = self._initialise_log(request)
+
+        # Setup progress tracking for chunked extractions
+        progress_tracker, strategy, _use_chunking = self._setup_progress_tracker(
+            request, chunk_strategy
+        )
+
+        # Extract data
+        df = self.data_extractor.extract(
+            request, chunk_strategy=strategy, progress_tracker=progress_tracker
+        )
+
+        # Finish progress display if used
+        if progress_tracker:
+            progress_tracker.finish_extraction()
+
+        # Validate extracted data
+        if df is None:
+            duration = time.monotonic() - start_clock
+            return self._build_failure_result(request, duration, "Extraction returned no data")
+
+        extraction_log["statistics"]["original_rows"] = len(df)
+        extraction_log["statistics"]["original_columns"] = len(df.columns)
+        extraction_log["statistics"]["original_column_names"] = list(df.columns)
+
+        # Process and calculate
+        df, failure_result = self._process_and_calculate(df, request, extraction_log, start_clock)
+        if failure_result:
+            return failure_result
+
+        # Validate processed data
+        if df is None or len(df) == 0:
+            duration = time.monotonic() - start_clock
+            return self._build_failure_result(
+                request, duration, "No data available after processing"
+            )
+
+        # Persist data
         try:
-            output_path, file_size_mb = self._persist_dataframe(request, df, extraction_log)
+            result = self._persist_dataframe(request, df, extraction_log, output_dir, start_clock)
+            if result.skip_result:
+                return result.skip_result
+            output_path = result.output_path
+            file_size_mb = result.file_size_mb
         except Exception as exc:
             duration = time.monotonic() - start_clock
             self.logger.error("Failed to save output: %s", exc)
-            return ExtractionResult(
-                request=request,
-                success=False,
-                output_file=None,
-                rows_extracted=len(df),
-                extraction_time_seconds=duration,
-                error=str(exc),
-            )
+            return self._build_failure_result(request, duration, str(exc), rows=len(df))
 
         duration = time.monotonic() - start_clock
+
+        # Save extraction metrics to history for future time estimates
+        if duration > 0 and len(df) > 0:
+            self.extraction_history.add_extraction(
+                rows=len(df),
+                duration_sec=duration,
+                chunk_size_minutes=request.chunk_size_minutes,
+                parallel_workers=request.parallel_workers,
+            )
+
+        # Flush any pending chunk timings to disk
+        self.extraction_history.flush()
 
         return ExtractionResult(
             request=request,
@@ -399,7 +639,7 @@ class ExtractionManager:
             file_size_mb=round(file_size_mb, 2),
         )
 
-    def batch_extract(  # noqa: PLR0912, PLR0915
+    def batch_extract(
         self,
         requests: list[ExtractionRequest],
         output_dir: Path | None = None,
@@ -423,21 +663,20 @@ class ExtractionManager:
         batch_start = datetime.now()
         batch_id = batch_start.strftime("%Y%m%d_%H%M%S")
 
-        if output_dir:
-            output_dir = Path(output_dir)
-            output_dir.mkdir(parents=True, exist_ok=True)
-        else:
-            config = self._config()
-            if config and "output" in config:
-                default_dir = config["output"].get("default_output_dir", "data_exports")
-            else:
-                default_dir = "data_exports"
-            output_dir = Path(default_dir)
-            output_dir.mkdir(parents=True, exist_ok=True)
+        # Resolve output directory
+        output_dir = self._resolve_batch_output_dir(output_dir)
 
         self.logger.info("Batch extraction for %d requests", len(requests))
         self.logger.info("Output directory: %s", output_dir)
         print("=" * 60)
+
+        # Initialize batch progress tracker
+        batch_progress = ProgressTracker(
+            extraction_history=self.extraction_history,
+            verbose_timing=self.verbose_timing,
+            logger=self.logger,
+        )
+        batch_progress.start_batch(len(requests))
 
         results = []
 
@@ -448,48 +687,29 @@ class ExtractionManager:
                     f"Batch extraction cancelled after {i - 1}/{len(requests)} PMUs processed"
                 )
                 # Add cancelled results for remaining requests
-                for remaining_request in requests[i - 1 :]:
-                    cancelled_result = ExtractionResult(
-                        request=remaining_request,
-                        success=False,
-                        output_file=None,
-                        rows_extracted=0,
-                        extraction_time_seconds=0.0,
-                        error="Extraction cancelled by user",
-                    )
-                    results.append(cancelled_result)
+                cancelled_results = self._handle_batch_cancellation(requests, i - 1)
+                results.extend(cancelled_results)
                 break
 
             self.logger.info("Processing PMU %d (%d/%d)", request.pmu_id, i, len(requests))
 
-            if not request.output_file and output_dir:
-                station_name = self._get_station_name(request.pmu_id)
-                start_str = request.date_range.start.strftime("%Y%m%d_%H%M%S")
-                end_str = request.date_range.end.strftime("%Y%m%d_%H%M%S")
-                filename = f"pmu_{request.pmu_id}_{station_name}_{request.resolution}hz_{start_str}_to_{end_str}.{request.output_format}"
-                request.output_file = output_dir / filename
-
             try:
-                result = self.extract(request, chunk_strategy=chunk_strategy)
+                result = self.extract(request, chunk_strategy=chunk_strategy, output_dir=output_dir)
                 results.append(result)
+
+                # Update batch progress after PMU completes
+                batch_progress.update_pmu_progress(i - 1, request.pmu_id)
             except Exception as exc:
                 self.logger.error("Error processing PMU %d: %s", request.pmu_id, exc)
-                error_result = ExtractionResult(
-                    request=request,
-                    success=False,
-                    output_file=None,
-                    rows_extracted=0,
-                    extraction_time_seconds=0.0,
-                    error=str(exc),
-                )
+                error_result = self._build_failure_result(request, 0.0, str(exc))
                 results.append(error_result)
 
         batch_end = datetime.now()
 
-        print("\n" + "=" * 60)
-        print("[DATA] Batch Extraction Summary")
-        print("=" * 60)
+        # Finish batch progress tracking
+        batch_progress.finish_batch()
 
+        # Build batch result
         batch_result = BatchExtractionResult(
             batch_id=batch_id,
             results=results,
@@ -497,40 +717,7 @@ class ExtractionManager:
             finished_at=batch_end,
         )
 
-        successful = batch_result.successful_results()
-        failed = batch_result.failed_results()
-
-        # Check if operation was cancelled
-        if cancellation_manager.is_cancelled():
-            cancelled_count = sum(
-                1 for result in results if result.error == "Extraction cancelled by user"
-            )
-            self.logger.info(
-                "Batch extraction cancelled: %d/%d successful, %d/%d failed, %d/%d cancelled",
-                len(successful),
-                len(requests),
-                len(failed),
-                len(requests),
-                cancelled_count,
-                len(requests),
-            )
-        else:
-            self.logger.info(
-                "Batch extraction completed: %d/%d successful, %d/%d failed",
-                len(successful),
-                len(requests),
-                len(failed),
-                len(requests),
-            )
-
-        if successful:
-            self.logger.info("Successfully extracted:")
-            for result in successful:
-                print(f"   PMU {result.request.pmu_id}: {result.output_file}")
-
-        if failed:
-            self.logger.error("Failed extractions:")
-            for result in failed:
-                print(f"   PMU {result.request.pmu_id}: {result.error}")
+        # Print summary
+        self._print_batch_summary(batch_result, cancellation_manager)
 
         return batch_result

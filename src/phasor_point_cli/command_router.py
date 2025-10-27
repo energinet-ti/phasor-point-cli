@@ -6,7 +6,6 @@ user input and the various manager classes.
 """
 
 import argparse
-import sys
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -14,6 +13,7 @@ from .config import ConfigurationManager
 from .date_utils import DateRangeCalculator
 from .extraction_manager import ExtractionManager
 from .models import ExtractionRequest
+from .progress_tracker import ScanProgressTracker
 from .query_executor import QueryExecutor
 from .table_manager import TableManager
 
@@ -21,26 +21,44 @@ if TYPE_CHECKING:
     from .cli import PhasorPointCLI
 
 
-def _print_progress(completed: int, total: int, found_count: int) -> None:
+def _create_scan_progress_callback(tracker: ScanProgressTracker):
     """
-    Print scan progress in-place using carriage return.
+    Create a progress callback for table scanning.
 
     Args:
-        completed: Number of tables checked so far
-        total: Total number of tables to check
-        found_count: Number of tables found so far
+        tracker: ScanProgressTracker instance to update
+
+    Returns:
+        Callback function for progress updates
     """
-    percentage = int((completed / total) * 100) if total > 0 else 0
 
-    # Use carriage return to overwrite the same line
-    # Pad with spaces to clear any leftover characters from previous output
-    message = f"\rScanning: {completed}/{total} ({percentage}%) - {found_count} tables found..."
-    print(message, end="", flush=True)
+    def callback(completed: int, total: int, found_count: int) -> None:
+        """Progress callback for table scanning."""
+        tracker.update(completed, total, found_count)
 
-    # If this is the final update, print a newline and completion message
-    if completed == total:
-        print(f"\rScanning: {completed}/{total} (100%) - {found_count} tables found ✓")
-        sys.stdout.flush()
+    return callback
+
+
+def _print_no_tables_found_error() -> None:
+    """Print detailed error message when no PMU tables are found."""
+    print("\n" + "=" * 70)
+    print("WARNING: No PMU Tables Found")
+    print("=" * 70)
+    print("\nCould not find any accessible PMU tables in the database.")
+    print("\n[POSSIBLE CAUSES]")
+    print("   • Database connection issues")
+    print("   • No PMUs configured in the database")
+    print("   • Insufficient database permissions")
+    print("   • Wrong database selected")
+    print("\n[TROUBLESHOOTING]")
+    print("   1. Check connection: Verify DB_HOST, DB_PORT, DB_NAME are correct")
+    print("   2. Try specific PMU: phasor-cli list-tables --pmu 45020")
+    print("   3. Check permissions: Ensure user can read PMU tables")
+    print("   4. Run setup: phasor-cli setup --refresh-pmus")
+    print("\n[NEXT STEPS]")
+    print("   • Verify database connection settings in your .env or config.json")
+    print("   • Contact your database administrator if issue persists")
+    print("=" * 70 + "\n")
 
 
 class CommandRouter:
@@ -96,10 +114,10 @@ class CommandRouter:
             args: Parsed command-line arguments
         """
         ConfigurationManager.setup_configuration_files(
-            force=args.force if hasattr(args, "force") else False,
-            local=args.local if hasattr(args, "local") else False,
-            interactive=args.interactive if hasattr(args, "interactive") else False,
-            refresh_pmus=args.refresh_pmus if hasattr(args, "refresh_pmus") else False,
+            force=getattr(args, "force", False),
+            local=getattr(args, "local", False),
+            interactive=getattr(args, "interactive", False),
+            refresh_pmus=getattr(args, "refresh_pmus", False),
         )
 
     def handle_config_path(self, _args: argparse.Namespace) -> None:  # noqa: PLR0912, PLR0915
@@ -210,8 +228,8 @@ class CommandRouter:
             args: Parsed command-line arguments
         """
         ConfigurationManager.cleanup_configuration_files(
-            local=args.local if hasattr(args, "local") else False,
-            all_locations=args.all if hasattr(args, "all") else False,
+            local=getattr(args, "local", False),
+            all_locations=getattr(args, "all", False),
         )
 
     def handle_about(self, _args: argparse.Namespace) -> None:
@@ -243,42 +261,34 @@ class CommandRouter:
         Args:
             args: Parsed command-line arguments
         """
-        pmu_ids = args.pmu if hasattr(args, "pmu") and args.pmu else None
-        max_pmus = (
-            None
-            if (hasattr(args, "all") and args.all)
-            else (args.max_pmus if hasattr(args, "max_pmus") else 10)
-        )
+        pmu_ids = getattr(args, "pmu", None)
+        max_pmus = None if getattr(args, "all", False) else getattr(args, "max_pmus", 10)
         resolutions = None  # Use default resolutions
 
+        # Create and start scan progress tracker
+        scan_tracker = ScanProgressTracker()
+        scan_tracker.start()
+
         manager = TableManager(self._cli.connection_pool, self._cli.config, self._logger)
-        result = manager.list_available_tables(
-            pmu_ids=pmu_ids,
-            resolutions=resolutions,
-            max_pmus=max_pmus,
-            progress_callback=_print_progress,
-        )
+
+        try:
+            result = manager.list_available_tables(
+                pmu_ids=pmu_ids,
+                resolutions=resolutions,
+                max_pmus=max_pmus,
+                progress_callback=_create_scan_progress_callback(scan_tracker),
+            )
+
+            # Finish scan progress display
+            scan_tracker.finish()
+        except Exception:
+            # Stop tracker on error
+            scan_tracker.stop()
+            raise
 
         if not result or not result.found_pmus:
             self._logger.error("No accessible PMU tables found")
-            print("\n" + "=" * 70)
-            print("WARNING: No PMU Tables Found")
-            print("=" * 70)
-            print("\nCould not find any accessible PMU tables in the database.")
-            print("\n[POSSIBLE CAUSES]")
-            print("   • Database connection issues")
-            print("   • No PMUs configured in the database")
-            print("   • Insufficient database permissions")
-            print("   • Wrong database selected")
-            print("\n[TROUBLESHOOTING]")
-            print("   1. Check connection: Verify DB_HOST, DB_PORT, DB_NAME are correct")
-            print("   2. Try specific PMU: phasor-cli list-tables --pmu 45020")
-            print("   3. Check permissions: Ensure user can read PMU tables")
-            print("   4. Run setup: phasor-cli setup --refresh-pmus")
-            print("\n[NEXT STEPS]")
-            print("   • Verify database connection settings in your .env or config.json")
-            print("   • Contact your database administrator if issue persists")
-            print("=" * 70 + "\n")
+            _print_no_tables_found_error()
             return
 
         # Display results
@@ -408,8 +418,8 @@ class CommandRouter:
             chunk_size_minutes=args.chunk_size,
             parallel_workers=args.parallel,
             output_format=args.format,
-            skip_existing=args.skip_existing if hasattr(args, "skip_existing") else True,
-            replace=args.replace if hasattr(args, "replace") else False,
+            skip_existing=getattr(args, "skip_existing", True),
+            replace=getattr(args, "replace", False),
         )
 
         if (
@@ -418,7 +428,13 @@ class CommandRouter:
         ):
             self._cli.update_connection_pool_size(args.connection_pool)
 
-        manager = ExtractionManager(self._cli.connection_pool, self._cli.config, self._logger)
+        verbose_timing = getattr(args, "verbose_timing", False)
+        manager = ExtractionManager(
+            self._cli.connection_pool,
+            self._cli.config,
+            self._logger,
+            verbose_timing=verbose_timing,
+        )
         result = manager.extract(request)
 
         if result.success:
@@ -460,8 +476,8 @@ class CommandRouter:
                 chunk_size_minutes=args.chunk_size,
                 parallel_workers=args.parallel,
                 output_format=args.format,
-                skip_existing=args.skip_existing if hasattr(args, "skip_existing") else True,
-                replace=args.replace if hasattr(args, "replace") else False,
+                skip_existing=getattr(args, "skip_existing", True),
+                replace=getattr(args, "replace", False),
             )
             requests.append(request)
 
@@ -474,7 +490,13 @@ class CommandRouter:
 
         # Execute batch extraction
         output_dir = Path(args.output_dir) if args.output_dir else None
-        manager = ExtractionManager(self._cli.connection_pool, self._cli.config, self._logger)
+        verbose_timing = getattr(args, "verbose_timing", False)
+        manager = ExtractionManager(
+            self._cli.connection_pool,
+            self._cli.config,
+            self._logger,
+            verbose_timing=verbose_timing,
+        )
         batch_result = manager.batch_extract(requests, output_dir=output_dir)
 
         # Display summary

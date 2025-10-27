@@ -290,6 +290,15 @@ class ChunkResult:
 
 
 @dataclass_compat(slots=True)
+class PersistResult:
+    """Result of persisting a DataFrame to disk."""
+
+    output_path: Path
+    file_size_mb: float
+    skip_result: ExtractionResult | None = None
+
+
+@dataclass_compat(slots=True)
 class ExtractionResult:
     """Outcome of attempting a single extraction."""
 

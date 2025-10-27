@@ -19,10 +19,17 @@ from .models import ExtractionRequest
 class DataExtractor:
     """Perform single or chunked extractions using a database connection pool."""
 
-    def __init__(self, connection_pool, logger, chunk_strategy: ChunkStrategy | None = None):
+    def __init__(
+        self,
+        connection_pool,
+        logger,
+        chunk_strategy: ChunkStrategy | None = None,
+        extraction_history=None,
+    ):
         self.connection_pool = connection_pool
         self.logger = logger
         self.chunk_strategy = chunk_strategy
+        self.extraction_history = extraction_history
 
     # ------------------------------------------------------------------ Helpers
     def _ensure_strategy(self, chunk_size_minutes: int) -> ChunkStrategy:
@@ -86,6 +93,8 @@ class DataExtractor:
         self,
         table_name: str,
         chunks: Sequence[tuple[pd.Timestamp, pd.Timestamp]],
+        progress_tracker=None,
+        chunk_size_minutes: int = 15,
     ) -> list[pd.DataFrame]:
         """Extract data for each chunk sequentially."""
         from .signal_handler import get_cancellation_manager  # noqa: PLC0415
@@ -103,7 +112,7 @@ class DataExtractor:
 
             chunk_start_str = chunk_start.strftime("%Y-%m-%d %H:%M:%S")
             chunk_end_str = chunk_end.strftime("%Y-%m-%d %H:%M:%S")
-            self.logger.info(
+            self.logger.debug(
                 f"Processing chunk {index + 1}/{len(chunks)}: {chunk_start_str} to {chunk_end_str}"
             )
 
@@ -112,13 +121,29 @@ class DataExtractor:
                 self.logger.error(f"Could not create connection for chunk {index + 1}")
                 continue
 
+            chunk_start_time = time.time()
             try:
                 query = self._build_query(table_name, chunk_start_str, chunk_end_str)
                 chunk_df = self._read_dataframe(conn, query)
                 if chunk_df is not None and len(chunk_df) > 0:
                     all_chunks.append(chunk_df)
+
+                    # Save timing metrics after successful chunk
+                    chunk_duration = time.time() - chunk_start_time
+                    if self.extraction_history and chunk_duration > 0:
+                        self.extraction_history.add_extraction(
+                            rows=len(chunk_df),
+                            duration_sec=chunk_duration,
+                            chunk_size_minutes=chunk_size_minutes,
+                            parallel_workers=1,
+                        )
+
+                    if progress_tracker:
+                        progress_tracker.update_chunk_progress(index, len(chunk_df))
                 else:
                     self.logger.warning(f"No data found for chunk {index + 1}")
+                    if progress_tracker:
+                        progress_tracker.update_chunk_progress(index, 0)
             except Exception as exc:
                 self.logger.error(f"Error processing chunk {index + 1}: {exc}")
             finally:
@@ -173,6 +198,8 @@ class DataExtractor:
         table_name: str,
         chunks: Sequence[tuple[pd.Timestamp, pd.Timestamp]],
         parallel_workers: int,
+        progress_tracker=None,
+        chunk_size_minutes: int = 15,
     ) -> list[tuple[int, pd.DataFrame]]:
         """Extract data chunks using a thread pool."""
         from .signal_handler import get_cancellation_manager  # noqa: PLC0415
@@ -203,11 +230,26 @@ class DataExtractor:
                 chunk_df, error, timing_info = future.result()
                 if chunk_df is not None:
                     results.append((idx, chunk_df))
-                    self.logger.info(
+
+                    # Save timing metrics after successful chunk
+                    chunk_duration = timing_info.get("total_time", 0)
+                    if self.extraction_history and chunk_duration > 0:
+                        self.extraction_history.add_extraction(
+                            rows=len(chunk_df),
+                            duration_sec=chunk_duration,
+                            chunk_size_minutes=chunk_size_minutes,
+                            parallel_workers=parallel_workers,
+                        )
+
+                    if progress_tracker:
+                        progress_tracker.update_chunk_progress(idx, len(chunk_df))
+                    self.logger.debug(
                         f"Chunk {idx + 1} completed ({len(chunk_df)} rows). Timing: {timing_info}"
                     )
                 else:
                     self.logger.warning(f"Chunk {idx + 1} failed: {error}")
+                    if progress_tracker:
+                        progress_tracker.update_chunk_progress(idx, 0)
         return results
 
     def combine_chunks(self, chunks: Iterable) -> pd.DataFrame | None:
@@ -244,6 +286,7 @@ class DataExtractor:
         request: ExtractionRequest,
         *,
         chunk_strategy: ChunkStrategy | None = None,
+        progress_tracker=None,
     ) -> pd.DataFrame | None:
         """
         Main entry point that accepts an ``ExtractionRequest`` and returns a dataframe.
@@ -262,15 +305,31 @@ class DataExtractor:
         if not use_chunking:
             return self.extract_single(table_name, start_str, end_str)
 
+        # Pause progress display before logging (clears line and moves to new line)
+        if progress_tracker:
+            progress_tracker.pause_display()
+
         self.logger.info(
             "Using chunked extraction with chunk size %s minutes (%s chunks total)",
             strategy.chunk_size_minutes,
             len(chunks),
         )
 
+        # Resume progress display after logging
+        if progress_tracker:
+            progress_tracker.resume_display()
+
         if request.parallel_workers > 1:
-            chunk_frames = self.extract_chunk_parallel(table_name, chunks, request.parallel_workers)
+            chunk_frames = self.extract_chunk_parallel(
+                table_name,
+                chunks,
+                request.parallel_workers,
+                progress_tracker,
+                strategy.chunk_size_minutes,
+            )
         else:
-            chunk_frames = self.extract_chunk_sequential(table_name, chunks)
+            chunk_frames = self.extract_chunk_sequential(
+                table_name, chunks, progress_tracker, strategy.chunk_size_minutes
+            )
 
         return self.combine_chunks(chunk_frames)
