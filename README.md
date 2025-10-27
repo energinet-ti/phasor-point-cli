@@ -1,143 +1,155 @@
-# PhasorPoint CLI Tool
+# PhasorPoint CLI
 
-A comprehensive command-line interface for extracting, processing, and analyzing PMU (Phasor Measurement Unit) data from PhasorPoint databases.
+Command-line interface for extracting and processing PMU (Phasor Measurement Unit) data from PhasorPoint databases.
 
 **Author:** Frederik Fast (Energinet)  
 **Repository:** [energinet-ti/phasor-point-cli](https://github.com/energinet-ti/phasor-point-cli)
 
 ## Features
 
-- **Data Extraction**: Flexible time ranges (minutes, hours, days, or custom dates)
-- **Data Processing**: Automatic power calculations (S, P, Q) and quality validation
-- **Extraction Logs**: Automatic metadata tracking of all transformations
-- **Multiple Formats**: Parquet (recommended) or CSV
+- **Flexible Time Ranges**: Extract by relative time (hours, days) or absolute dates
+- **Automatic Processing**: Power calculations (S, P, Q) and data quality validation
+- **Performance Options**: Chunking, parallel processing, connection pooling
 - **Batch Operations**: Extract from multiple PMUs simultaneously
-- **Performance Options**: Chunking, parallel processing, and connection pooling
-- **Custom Queries**: Execute arbitrary SQL queries
-- **Cross-Platform**: Windows, Linux, and macOS
+- **Extraction Logs**: Automatic metadata tracking with timezone information
+- **Multiple Formats**: Parquet (recommended) or CSV
 
-## Quick Start
+## Installation
 
-### Installation
+### From GitHub Releases (Recommended)
 
-#### Install from GitHub Releases (Recommended)
-
-Download the latest `.whl` file from the [Releases page](https://github.com/energinet-ti/phasor-point-cli/releases) and install:
+Download the latest `.whl` file from the [Releases page](https://github.com/energinet-ti/phasor-point-cli/releases):
 
 ```bash
 pip install phasor_point_cli-<version>-py3-none-any.whl
 phasor-cli --help
 ```
 
-#### Install from Source
+### From Source
 
-**Clone the repository:**
+Clone and install:
+
 ```bash
 git clone https://github.com/energinet-ti/phasor-point-cli.git
 cd phasor-point-cli
+./scripts/setup.sh           # Linux/macOS
+# .\scripts\setup.ps1         # Windows PowerShell
 ```
 
-**Quick setup using scripts:**
+Manual installation:
 
-Linux/macOS:
-```bash
-./scripts/setup.sh
-```
-
-Windows (PowerShell):
-```powershell
-.\scripts\setup.ps1
-```
-
-**Manual setup:**
 ```bash
 python3 -m venv venv
-source venv/bin/activate    # Linux/macOS
-# venv\Scripts\Activate.ps1  # Windows
+source venv/bin/activate      # Linux/macOS
+# venv\Scripts\Activate.ps1   # Windows
 
-pip install -e .[dev]       # Developers (editable mode)
-# pip install .             # Users (standard install)
+pip install -e .[dev]         # Development mode
+# pip install .               # Standard install
 ```
 
-**Note:** Requires the PhasorPoint ODBC driver ("Psymetrix PhasorPoint").
+**Requirements:**
+- Python 3.8+
+- PhasorPoint ODBC driver ("Psymetrix PhasorPoint")
 
-### Configuration
+## Quick Start
+
+### Setup
 
 ```bash
 # Create configuration files
-phasor-cli setup              # User-level (works from anywhere)
-phasor-cli setup --local      # Project-specific
+phasor-cli setup              # User-level (~/.config/phasor-cli/)
+phasor-cli setup --local      # Project-specific (./)
 
 # View active configuration
 phasor-cli config-path
 ```
 
-**Configuration priority:** Environment Variables > Local Files (`./.env`, `./config.json`) > User Config (`~/.config/phasor-cli/`) > Defaults
-
-After setup, edit:
+Edit the generated files:
 - `.env` - Database credentials (never commit!)
-- `config.json` - Settings and preferences
+- `config.json` - Settings and PMU metadata
+
+**Configuration priority:** Environment Variables > Local Files > User Config > Defaults
 
 ### Basic Usage
 
 ```bash
+# List available PMUs
+phasor-cli list-tables
+
+# Get PMU information
+phasor-cli table-info --pmu 45020
+
 # Extract 1 hour of data
 phasor-cli extract --pmu 45020 --hours 1 --output data.parquet
 
-# Extract with processing (power calculations)
+# Extract with power calculations
 phasor-cli extract --pmu 45020 --hours 1 --processed --output data.parquet
-
-# List available PMU tables
-phasor-cli list-tables
-
-# Get info about a specific PMU
-phasor-cli table-info --pmu 45020
 ```
 
 ## Command Reference
 
 ### Data Extraction
 
+**Relative time (from now, going backwards):**
+
 ```bash
-# Time-based extraction (relative to NOW)
-phasor-cli extract --pmu <pmu_number> --hours <hours> --output <file>
-phasor-cli extract --pmu <pmu_number> --minutes <minutes> --output <file>
-phasor-cli extract --pmu <pmu_number> --days <days> --output <file>
+phasor-cli extract --pmu 45020 --minutes 30 --output data.parquet
+phasor-cli extract --pmu 45020 --hours 2 --output data.parquet
+phasor-cli extract --pmu 45020 --days 1 --output data.parquet
+```
 
-# Custom date range (absolute times)
-phasor-cli extract --pmu <pmu_number> --start "YYYY-MM-DD HH:MM:SS" --end "YYYY-MM-DD HH:MM:SS" --output <file>
+**Absolute date range:**
 
-# Start time + duration (goes FORWARD from start time)
-phasor-cli extract --pmu <pmu_number> --start "2025-10-10 10:00:00" --minutes 30 --output <file>  # 10:00 to 10:30
-phasor-cli extract --pmu <pmu_number> --start "2025-10-10 08:00:00" --hours 2 --output <file>     # 08:00 to 10:00
+```bash
+phasor-cli extract --pmu 45020 \
+  --start "2024-07-15 08:00:00" \
+  --end "2024-07-15 10:00:00" \
+  --output data.parquet
+```
 
-# With processing (power calculations)
-phasor-cli extract --pmu <pmu_number> --hours 1 --processed --output <file>
+**Start time + duration (goes forward):**
 
-# Large time range with chunking (automatically enabled for >5 minutes)
-phasor-cli extract --pmu <pmu_number> --hours 24 --output <file>
+```bash
+phasor-cli extract --pmu 45020 \
+  --start "2024-07-15 08:00:00" \
+  --hours 2 \
+  --output data.parquet
+```
 
-# Custom chunk size for very large extractions
-phasor-cli extract --pmu <pmu_number> --hours 48 --chunk-size 10 --output <file>
+**With processing (power calculations):**
 
-# Parallel processing for faster extraction (4 workers)
-phasor-cli extract --pmu <pmu_number> --hours 24 --parallel 4 --output <file>
+```bash
+phasor-cli extract --pmu 45020 --hours 1 --processed --output data.parquet
+```
 
-# Performance diagnostics to identify bottlenecks
-phasor-cli extract --pmu <pmu_number> --hours 1 --parallel 4 --diagnostics --output <file>
+**Performance optimization:**
 
-# I/O optimization for slow endpoints (larger chunks + connection pooling)
-phasor-cli extract --pmu <pmu_number> --hours 2 --chunk-size 15 --connection-pool 3 --diagnostics --output <file>
+```bash
+# Parallel processing (4 workers)
+phasor-cli extract --pmu 45020 --hours 24 --parallel 4 --output data.parquet
+
+# Custom chunk size + connection pooling
+phasor-cli extract --pmu 45020 --hours 48 \
+  --chunk-size 15 \
+  --connection-pool 3 \
+  --output data.parquet
+
+# Performance diagnostics
+phasor-cli extract --pmu 45020 --hours 1 --diagnostics --output data.parquet
 ```
 
 ### Batch Extraction
 
+Extract from multiple PMUs:
+
 ```bash
-# Extract from multiple PMUs
 phasor-cli batch-extract --pmus "45020,45022,45052" --hours 1 --output-dir ./data/
 
 # With performance optimization
-phasor-cli batch-extract --pmus "45020,45022" --hours 24 --chunk-size 30 --parallel 2 --output-dir ./data/
+phasor-cli batch-extract --pmus "45020,45022" --hours 24 \
+  --chunk-size 30 \
+  --parallel 2 \
+  --output-dir ./data/
 ```
 
 Files are named: `pmu_{number}_{resolution}hz_{start_date}_to_{end_date}.{format}`
@@ -148,185 +160,246 @@ Files are named: `pmu_{number}_{resolution}hz_{start_date}_to_{end_date}.{format
 # List all PMU tables
 phasor-cli list-tables
 
-# Get information about a specific PMU
+# Get PMU information
 phasor-cli table-info --pmu 45020
 
-# Execute custom SQL query
+# Custom SQL query
 phasor-cli query --sql "SELECT TOP 100 * FROM pmu_45020_1"
 ```
 
 ## Data Structure
 
-Extracted data uses the original PhasorPoint database column names:
+### Columns
 
 **Timestamps:**
-- `ts` - Local timestamp (converted from UTC)
-- `ts_utc` - Original UTC timestamp
+- `ts_utc` - UTC timestamp (authoritative, unambiguous)
+- `ts` - Local wall-clock time (converted from UTC)
 
-**Measurements:** (column names from database, e.g., `f`, `dfdt`, `va1_m`, `va1_a`, `ia1_m`, `ia1_a`)
+**Measurements:** Original PhasorPoint column names (e.g., `f`, `dfdt`, `va1_m`, `va1_a`, `ia1_m`, `ia1_a`)
 
-**Calculated Power (with --processed flag):**
-- `apparent_power_mva`, `active_power_mw`, `reactive_power_mvar`
+**Calculated Power** (with `--processed` flag):
+- `apparent_power_mva` - Apparent power (S)
+- `active_power_mw` - Active power (P)
+- `reactive_power_mvar` - Reactive power (Q)
 
-### Usage in Pandas
+### Daylight Saving Time (DST)
+
+DST transitions are handled automatically:
+
+**User Input:**
+- Specify dates in local wall-clock time
+- The system applies the correct DST offset for that date, not the current season
+- Example: "2024-07-15 10:00:00" is interpreted as summer time even if requested in January
+
+**Output Data:**
+- `ts_utc`: Authoritative UTC timestamps (always unambiguous)
+- `ts`: Local wall-clock times (may have duplicates during fall-back transition)
+
+**Ambiguous Times:**
+- During DST fall-back, ambiguous times (e.g., "02:30") use the first occurrence (DST active)
+
+**Extraction Log:**
+- Check `_extraction_log.json` for UTC offset information:
+  ```json
+  {
+    "extraction_info": {
+      "timezone": "Europe/Copenhagen",
+      "utc_offset_start": "+02:00",
+      "utc_offset_end": "+01:00"
+    }
+  }
+  ```
+
+### Using Data in Python
 
 ```python
 import pandas as pd
 
 df = pd.read_parquet('data.parquet')
+
+# Access measurements
 print(df.f.mean())  # frequency
-print(df.active_power_mw.std())  # calculated power
+print(df.va1_m.describe())  # voltage magnitude
+
+# Use ts_utc for unambiguous time operations
+df_sorted = df.sort_values('ts_utc')
+df_filtered = df[df.ts_utc >= '2024-07-15 08:00:00']
+
+# Access calculated power (if --processed was used)
+print(df.active_power_mw.sum())
 ```
 
 ## Extraction Logs
 
-Each extraction automatically creates a companion `_extraction_log.json` file that documents column changes, data quality issues, and transformation details.
+Each extraction creates a `_extraction_log.json` file documenting:
+- Extraction parameters and timestamps
+- Timezone and UTC offset information
+- Column transformations and calculations
+- Data quality issues detected
+- Processing steps applied
 
-## Performance Features
+## Performance
 
-- **Automatic Chunking**: Large time ranges (>5 minutes) are automatically split for memory efficiency
-- **Parallel Processing**: Use `--parallel N` to process multiple chunks simultaneously
-- **Connection Pooling**: Use `--connection-pool N` to reuse database connections
-- **Performance Diagnostics**: Use `--diagnostics` to identify bottlenecks
+**Automatic Chunking:**
+- Large time ranges (>5 minutes) are automatically chunked for memory efficiency
+- Customize with `--chunk-size N` (in minutes)
 
-Recommended for large extractions:
+**Parallel Processing:**
+- Use `--parallel N` to process chunks simultaneously
+- Best for large extractions (>1 hour)
+
+**Connection Pooling:**
+- Use `--connection-pool N` to reuse database connections
+- Reduces connection overhead for chunked extractions
+
+**Recommended for large extractions:**
 ```bash
-phasor-cli extract --pmu 45020 --hours 24 --chunk-size 15 --parallel 2 --connection-pool 3 --output <file>
+phasor-cli extract --pmu 45020 --hours 24 \
+  --chunk-size 15 \
+  --parallel 2 \
+  --connection-pool 3 \
+  --output data.parquet
 ```
 
-## Data Quality Features
+## Data Quality
 
-The CLI includes automatic data quality checks:
+Automatic validation includes:
+- Type conversion to proper numeric types
+- Empty column detection and removal
+- Null value detection
+- Frequency range validation (45-65 Hz)
+- Time gap detection
+- Voltage range checks
 
-- **Type Conversion**: Automatic conversion to proper numeric types
-- **NaN Handling**: Detection and removal of null values
-- **Empty Column Detection**: Removal of completely empty columns
-- **Frequency Validation**: Check for valid frequency ranges (45-65 Hz)
-- **Time Gap Detection**: Identify missing samples in time series
-- **Voltage Range Checks**: Validate voltage levels
+Results are logged in `_extraction_log.json`.
 
 ## Output Formats
 
-- **Parquet** (recommended): Compressed, fast, preserves types, best for Python/pandas
-- **CSV**: Human-readable, works in Excel, good for small datasets
+**Parquet** (recommended):
+- Compressed and fast
+- Preserves data types
+- Best for Python/pandas workflows
+
+**CSV**:
+- Human-readable
+- Works in Excel
+- Good for small datasets and manual inspection
 
 ## Security
 
-⚠️ **Never commit `.env` files** to version control. Always add `.env` to `.gitignore`.
+⚠️ **Never commit `.env` files** to version control. They contain database credentials.
+
+Ensure `.env` is in `.gitignore`:
+```bash
+echo ".env" >> .gitignore
+```
 
 ## Troubleshooting
 
 ### Connection Issues
+
+Test database connection:
 ```bash
-# Test database connection
 phasor-cli list-tables
 ```
 
-### Encoding Errors
-- Use `.parquet` format instead of `.csv` for large datasets
-- CSV files use UTF-8 encoding automatically
+Check credentials in `.env` file.
 
 ### Missing Data
+
+Check available date range:
 ```bash
-# Check available date range for a PMU
 phasor-cli table-info --pmu 45020
 ```
 
-## Requirements
+### Encoding Errors
 
-- Python 3.8+
-- PhasorPoint ODBC driver ("Psymetrix PhasorPoint")
-- Dependencies: pandas, numpy, pyodbc, pyarrow, sqlalchemy, and more (see `pyproject.toml`)
+Use Parquet format instead of CSV for large datasets:
+```bash
+phasor-cli extract --pmu 45020 --hours 1 --output data.parquet
+```
 
 ## Development
 
-### Setup Development Environment
+### Setup
 
-Use the provided setup scripts for quick setup:
-
-**Linux/macOS:**
 ```bash
-./scripts/setup.sh
+./scripts/setup.sh           # Linux/macOS
+# .\scripts\setup.ps1         # Windows
 ```
 
-**Windows (PowerShell):**
-```powershell
-.\scripts\setup.ps1
-```
+This creates a virtual environment and installs dev dependencies.
 
-Both scripts will:
-- Create a virtual environment
-- Install the package in editable mode
-- Install all development dependencies (pytest, ruff, etc.)
-
-### Running Tests
+### Testing
 
 ```bash
 # Run all tests
-pytest
+make test
 
 # Run with coverage
-pytest --cov=src/phasor_point_cli --cov-report=html
+make coverage
 
-# Run all checks (lint + format check + tests)
+# Run all quality checks (lint + format + tests)
 make check
+
+# Run type checking
+make type-check
 ```
 
-### Building Distribution Package
-
-To build a wheel distribution package:
+### Code Quality
 
 ```bash
+# Auto-format code
+make format
+
+# Fix linting issues
+make fix
+```
+
+### Building
+
+```bash
+# Build wheel distribution
 make build
 ```
 
-This will create a `.whl` file in the `dist/` directory that can be installed with pip or distributed to others.
+Output: `dist/phasor_point_cli-<version>-py3-none-any.whl`
 
-### Versioning and Releases
+### Versioning
 
-This project uses **setuptools-scm** for automatic version management based on git tags:
-
-- **Version is derived from git tags** - no manual version bumping needed
-- **Development builds** get automatic `.devN` suffixes based on commits since last tag
-- **Clean releases** require a git tag (e.g., `v1.0.0`)
+This project uses **setuptools-scm** for automatic version management:
+- Version is derived from git tags
+- Development builds get automatic `.devN` suffixes
+- Clean releases require a git tag (e.g., `v1.0.0`)
 
 **Creating a release:**
 
-Releases are prepared in dedicated release branches:
-
 ```bash
-# Create a release branch with CHANGELOG updates
-./scripts/create_release.sh 1.0.0 "Description of release"
-
-# This will:
-# 1. Create branch release/1.0.0
-# 2. Update CHANGELOG.md with version and date
-# 3. Push the branch
+# Create release branch
+./scripts/create_release.sh 1.0.0 "Release description"
 
 # Then:
 # 1. Create PR: release/1.0.0 → main
-# 2. Review and merge the PR
-# 3. Create tag v1.0.0 on main (GitHub Release auto-created)
-# 4. Manually trigger PyPI publishing from GitHub Actions
+# 2. Review and merge
+# 3. Create git tag v1.0.0 on main
+# 4. GitHub Actions auto-publishes
 ```
 
-**Development builds** (without tags) will have versions like `0.0.2.dev3` based on commit count.
-
-See [docs/RELEASING.md](docs/RELEASING.md) for detailed release procedures.
+See [docs/RELEASING.md](docs/RELEASING.md) for details.
 
 ## License
 
-Apache License 2.0 - See LICENSE file for details
-
-## Author
-
-**Frederik Fast**  
-Energinet  
-Email: ffb@energinet.dk
+Apache License 2.0
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Submit a Pull Request or open an Issue.
+
+## Contact
+
+**Frederik Fast**  
+Energinet  
+ffb@energinet.dk
 
 ---
 

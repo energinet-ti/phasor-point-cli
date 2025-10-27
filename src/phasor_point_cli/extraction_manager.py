@@ -5,11 +5,13 @@ High-level extraction manager that coordinates data retrieval, processing, and p
 from __future__ import annotations
 
 import json
+import os
 import time
 from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
+import pytz
 
 from .chunk_strategy import ChunkStrategy
 from .data_extractor import DataExtractor
@@ -54,6 +56,51 @@ class ExtractionManager:
         if hasattr(self.config_manager, "config"):
             return self.config_manager.config
         return self.config_manager or {}
+
+    @staticmethod
+    def _get_local_timezone():
+        """Get local timezone, preferring TZ environment variable."""
+        tz_env = os.environ.get("TZ")
+        if tz_env:
+            try:
+                return pytz.timezone(tz_env)
+            except Exception:
+                pass
+        return datetime.now().astimezone().tzinfo
+
+    @staticmethod
+    def _get_utc_offset(dt: datetime, local_tz) -> str:
+        """
+        Get UTC offset string for a specific datetime in the given timezone.
+
+        Args:
+            dt: Naive datetime to check offset for
+            local_tz: Timezone to use for offset calculation
+
+        Returns:
+            Offset string in format "+HH:MM" or "-HH:MM"
+        """
+        try:
+            if local_tz is None:
+                return "+00:00"
+
+            # Localize the naive datetime to get timezone-aware version
+            if hasattr(local_tz, "localize"):
+                # pytz timezone
+                aware_dt = local_tz.localize(dt, is_dst=True)
+            else:
+                # other timezone implementations
+                aware_dt = dt.replace(tzinfo=local_tz)
+
+            # Get offset in seconds
+            offset_seconds = aware_dt.utcoffset().total_seconds() if aware_dt.utcoffset() else 0
+            offset_hours = int(offset_seconds // 3600)
+            offset_minutes = int((abs(offset_seconds) % 3600) // 60)
+
+            sign = "+" if offset_seconds >= 0 else "-"
+            return f"{sign}{abs(offset_hours):02d}:{offset_minutes:02d}"
+        except Exception:
+            return "+00:00"
 
     def _get_station_name(self, pmu_id: int) -> str:
         """Get sanitized station name from PMU ID."""
@@ -155,6 +202,11 @@ class ExtractionManager:
         return params_match, "exact match found" if params_match else "parameters don't match"
 
     def _initialise_log(self, request: ExtractionRequest) -> dict:
+        # Get timezone information for the request period
+        local_tz = self._get_local_timezone()
+        start_offset = self._get_utc_offset(request.date_range.start, local_tz)
+        end_offset = self._get_utc_offset(request.date_range.end, local_tz)
+
         return {
             "extraction_info": {
                 "timestamp": datetime.now().isoformat(),
@@ -165,6 +217,9 @@ class ExtractionManager:
                 "processed": request.processed,
                 "clean": request.clean,
                 "output_format": request.output_format,
+                "timezone": str(local_tz) if local_tz else "UTC",
+                "utc_offset_start": start_offset,
+                "utc_offset_end": end_offset,
             },
             "data_quality": {},
             "column_changes": {"removed": [], "renamed": [], "added": [], "type_conversions": []},
