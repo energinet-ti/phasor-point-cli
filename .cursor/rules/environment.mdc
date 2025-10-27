@@ -1,6 +1,56 @@
 ---
 alwaysApply: true
 ---
-We use virtual environments when we execute python code
-We must avoid the use of emojis in the code, at all times
-You are not able to make any calls to the real database server, at it is not reachable from the environment
+# Cursor Rules the project
+
+## General Code Style
+
+- NEVER use emojis in code, comments, docstrings, or output messages
+- Follow Python best practices and PEP 8
+- Use type hints where appropriate
+- Keep functions focused and modular
+
+## Documentation
+
+- Keep README files short and concise
+- Avoid bloat like detailed project structures that require maintenance
+- Focus on essential information: what, why, how to install, how to use
+- Let the code and file structure speak for itself
+- No repetitive explanations or over-detailed examples
+
+## Code Quality
+
+- Use ruff for linting and formatting (already configured)
+- Run quality checks before committing
+- Write meaningful commit messages
+- Keep dependencies minimal and justified
+
+## Type Checking
+
+- Fix type errors properly, don't use `# type: ignore` as a shortcut
+- Only use `# type: ignore` as a last resort when:
+  - The library has incorrect type stubs
+  - There's a known mypy limitation with a specific pattern
+  - The fix would require major refactoring that's out of scope
+- When using `# type: ignore`, add a comment explaining why it's necessary
+- Prefer proper type annotations, type narrowing, and refactoring over ignoring errors
+
+## Testing
+
+- Write tests for new functionality
+- Keep tests simple and focused
+- Use pytest conventions
+- Always use AAA pattern for the tests
+
+## Communication
+
+- Be direct and technical
+- Avoid unnecessary verbosity
+- Focus on actionable information
+- No marketing language or hype
+
+## Git Workflow
+
+- Don't make commits unless explicitly asked
+- Respect existing branch structure
+- Keep changes atomic and logical

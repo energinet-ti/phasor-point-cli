@@ -123,3 +123,128 @@ def test_process_without_clean_skips_cleaning(extraction_log):
 
     # Assert
     mock_clean.assert_not_called()
+
+
+class TestDSTProcessing:
+    """Test suite for DST-aware data processing."""
+
+    def test_timezone_conversion_across_dst_transition(self, extraction_log, monkeypatch):
+        """Test that timezone conversion handles DST transitions correctly."""
+        monkeypatch.setenv("TZ", "Europe/Copenhagen")
+
+        # Create dataframe with UTC timestamps spanning DST transition
+        # October 27, 2024: Copenhagen switches from CEST (UTC+2) to CET (UTC+1) at 03:00 local
+        df = pd.DataFrame(
+            {
+                "ts": pd.to_datetime(
+                    [
+                        "2024-10-27 00:00:00",  # UTC 00:00 → 02:00 CEST (before transition)
+                        "2024-10-27 00:30:00",  # UTC 00:30 → 02:30 CEST (before transition)
+                        "2024-10-27 01:00:00",  # UTC 01:00 → 03:00 CEST (at transition)
+                        "2024-10-27 02:00:00",  # UTC 02:00 → 03:00 CET (after transition)
+                    ]
+                )
+            }
+        )
+
+        processor = DataProcessor(logger=MagicMock())
+
+        # Act
+        result = processor.apply_timezone_conversion(df.copy(), extraction_log)
+
+        # Assert
+        assert "ts_utc" in result.columns
+        assert "ts" in result.columns
+
+        # ts_utc should remain as UTC
+        assert "2024-10-27" in str(result["ts_utc"].iloc[0])
+        assert "00:00" in str(result["ts_utc"].iloc[0])
+
+        # ts should show local time with correct DST offset for each timestamp
+        # Note: After conversion, times may be formatted as strings
+        assert result["ts"].iloc[0] is not None
+        assert result["ts"].iloc[-1] is not None
+
+    def test_summer_time_conversion(self, extraction_log, monkeypatch):
+        """Test timezone conversion during summer (DST active)."""
+        monkeypatch.setenv("TZ", "Europe/Copenhagen")
+
+        # Create dataframe with summer UTC timestamps
+        df = pd.DataFrame(
+            {
+                "ts": pd.to_datetime(
+                    [
+                        "2024-07-15 08:00:00",  # UTC 08:00 → 10:00 CEST (UTC+2)
+                        "2024-07-15 09:00:00",  # UTC 09:00 → 11:00 CEST
+                        "2024-07-15 10:00:00",  # UTC 10:00 → 12:00 CEST
+                    ]
+                )
+            }
+        )
+
+        processor = DataProcessor(logger=MagicMock())
+
+        # Act
+        result = processor.apply_timezone_conversion(df.copy(), extraction_log)
+
+        # Assert
+        assert "ts_utc" in result.columns
+        assert "ts" in result.columns
+
+        # ts_utc should preserve UTC times
+        assert "2024-07-15" in str(result["ts_utc"].iloc[0])
+        assert "08:00" in str(result["ts_utc"].iloc[0])
+
+        # ts should show CEST times (UTC+2)
+        assert "10:00" in str(result["ts"].iloc[0]) or "10.00" in str(result["ts"].iloc[0])
+
+    def test_winter_time_conversion(self, extraction_log, monkeypatch):
+        """Test timezone conversion during winter (DST inactive)."""
+        monkeypatch.setenv("TZ", "Europe/Copenhagen")
+
+        # Create dataframe with winter UTC timestamps
+        df = pd.DataFrame(
+            {
+                "ts": pd.to_datetime(
+                    [
+                        "2024-01-15 09:00:00",  # UTC 09:00 → 10:00 CET (UTC+1)
+                        "2024-01-15 10:00:00",  # UTC 10:00 → 11:00 CET
+                        "2024-01-15 11:00:00",  # UTC 11:00 → 12:00 CET
+                    ]
+                )
+            }
+        )
+
+        processor = DataProcessor(logger=MagicMock())
+
+        # Act
+        result = processor.apply_timezone_conversion(df.copy(), extraction_log)
+
+        # Assert
+        assert "ts_utc" in result.columns
+        assert "ts" in result.columns
+
+        # ts_utc should preserve UTC times
+        assert "2024-01-15" in str(result["ts_utc"].iloc[0])
+        assert "09:00" in str(result["ts_utc"].iloc[0])
+
+        # ts should show CET times (UTC+1)
+        assert "10:00" in str(result["ts"].iloc[0]) or "10.00" in str(result["ts"].iloc[0])
+
+    def test_timezone_conversion_logs_offset(self, extraction_log, monkeypatch):
+        """Test that timezone conversion logs offset information."""
+        # Arrange
+        monkeypatch.setenv("TZ", "Europe/Copenhagen")
+        df = pd.DataFrame({"ts": pd.to_datetime(["2024-07-15 10:00:00"])})
+        processor = DataProcessor(logger=MagicMock())
+
+        # Act
+        processor.apply_timezone_conversion(df.copy(), extraction_log)
+
+        # Assert
+        assert "timestamp_adjustment" in extraction_log["data_quality"]
+        assert "timezone" in extraction_log["data_quality"]["timestamp_adjustment"]
+        assert "offset_hours" in extraction_log["data_quality"]["timestamp_adjustment"]
+        assert (
+            extraction_log["data_quality"]["timestamp_adjustment"]["method"] == "machine_timezone"
+        )

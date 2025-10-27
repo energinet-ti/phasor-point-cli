@@ -477,3 +477,36 @@ def test_batch_extract_all_failures_returns_summary(tmp_path):
         r.error is not None and "Database connection lost" in r.error
         for r in batch_result.failed_results()
     )
+
+
+def test_get_local_timezone_invalid_tz_warns(monkeypatch):
+    """Test that invalid TZ environment variable issues warning and falls back."""
+    # Arrange
+    monkeypatch.setenv("TZ", "Invalid/Timezone")
+
+    # Act & Assert
+    with pytest.warns(
+        UserWarning,
+        match="Invalid timezone in TZ environment variable: 'Invalid/Timezone'",
+    ):
+        result = ExtractionManager._get_local_timezone()
+
+    # Should still return a timezone (system fallback)
+    assert result is not None
+
+
+def test_get_utc_offset_invalid_timezone_warns():
+    """Test that UTC offset calculation failure issues warning."""
+    # Arrange
+    dt = datetime(2024, 7, 15, 10, 0, 0)
+    invalid_tz = "not_a_timezone_object"  # Will cause attribute errors
+
+    # Act & Assert
+    with pytest.warns(
+        UserWarning,
+        match="Failed to calculate UTC offset.*Defaulting to \\+00:00",
+    ):
+        result = ExtractionManager._get_utc_offset(dt, invalid_tz)
+
+    # Should return default offset
+    assert result == "+00:00"
