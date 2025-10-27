@@ -7,13 +7,9 @@ relative durations and absolute timestamps.
 
 from __future__ import annotations
 
-import os
-import warnings
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 import pandas as pd
-import pytz
-import tzlocal
 
 from .models import DateRange
 
@@ -24,97 +20,24 @@ class DateRangeCalculator:
     @staticmethod
     def _parse_local_datetime(date_string: str) -> datetime:
         """
-        Parse a date string as naive local time and return UTC datetime.
+        Parse a date string as naive local time for database queries.
 
-        This ensures DST is handled correctly based on the date itself, not current time.
-        For example, "2024-07-15 10:00" in summer will be interpreted with summer DST offset,
-        even if the current date is in winter.
-
-        When ambiguous times occur during DST fall-back (e.g., "02:30" occurs twice),
-        this method interprets them as the first occurrence (DST still active).
+        Database expects queries in LOCAL TIME, not UTC. This function simply
+        parses the string without any timezone conversion.
 
         Args:
             date_string: Date string to parse (e.g., "2024-07-15 10:00:00")
 
         Returns:
-            Timezone-naive datetime in UTC (for database queries)
+            Timezone-naive datetime (for database queries in local time)
         """
         import logging  # noqa: PLC0415
 
         logger = logging.getLogger("phasor_cli")
 
-        # Parse as naive datetime
+        # Parse as naive datetime - database expects local time
         naive_dt = pd.to_datetime(date_string).to_pydatetime()
-        logger.debug(f"[DST DEBUG] Parsing input: '{date_string}' -> naive: {naive_dt}")
-
-        # Get local timezone
-        local_tz = None
-        tz_env = os.environ.get("TZ")
-        if tz_env:
-            try:
-                local_tz = pytz.timezone(tz_env)
-                logger.debug(f"[DST DEBUG] Using TZ env var: {tz_env} -> {local_tz}")
-            except pytz.exceptions.UnknownTimeZoneError:
-                warnings.warn(
-                    f"Invalid timezone in TZ environment variable: '{tz_env}'. "
-                    f"Falling back to system timezone. "
-                    f"Use a valid IANA timezone name (e.g., 'Europe/Copenhagen').",
-                    UserWarning,
-                    stacklevel=2,
-                )
-
-        if local_tz is None:
-            try:
-                detected_tz = tzlocal.get_localzone()
-                logger.debug(f"[DST DEBUG] Detected system timezone: {detected_tz}")
-                
-                # Convert to pytz timezone for proper DST handling
-                # tzlocal on Windows may return zoneinfo which doesn't handle historical DST correctly
-                tz_name = str(detected_tz)
-                if tz_name and not tz_name.startswith("UTC"):
-                    try:
-                        local_tz = pytz.timezone(tz_name)
-                        logger.debug(f"[DST DEBUG] Converted to pytz timezone: {local_tz}")
-                    except Exception:
-                        # If conversion fails, use detected timezone as-is
-                        local_tz = detected_tz
-                else:
-                    local_tz = detected_tz
-            except Exception as e:
-                logger.debug(f"[DST DEBUG] Failed to detect timezone: {e}, falling back to UTC")
-                # Final fallback to UTC if tzlocal fails
-                local_tz = pytz.UTC
-
-        # Localize to local timezone - this applies DST rules based on the date
-        if local_tz is not None:
-            try:
-                # For pytz timezones, use localize method with is_dst=True to prefer first occurrence
-                if hasattr(local_tz, "localize"):
-                    # is_dst=True means during ambiguous times (fall-back), use the first occurrence (DST active)
-                    # pytz timezones provide 'localize', but type checker does not recognize it; checked with hasattr above
-                    aware_dt = local_tz.localize(naive_dt, is_dst=True)  # type: ignore[attr-defined]
-                    logger.debug(
-                        f"[DST DEBUG] Localized with pytz: {aware_dt} "
-                        f"(offset: {aware_dt.strftime('%z')})"
-                    )
-                else:
-                    # For other timezone implementations (e.g., zoneinfo)
-                    aware_dt = naive_dt.replace(tzinfo=local_tz)
-                    logger.debug(
-                        f"[DST DEBUG] Localized with replace: {aware_dt} "
-                        f"(offset: {aware_dt.strftime('%z')})"
-                    )
-
-                # Convert to UTC for internal consistency, then remove timezone
-                # Database expects UTC timestamps
-                utc_dt = aware_dt.astimezone(timezone.utc)
-                result = utc_dt.replace(tzinfo=None)
-                logger.debug(f"[DST DEBUG] Final UTC for query: {result}")
-                return result
-            except Exception as e:
-                logger.debug(f"[DST DEBUG] Localization failed: {e}, returning naive datetime")
-                # Fallback: return naive datetime (treat as if already UTC)
-                return naive_dt
+        logger.debug(f"[DST DEBUG] Parsed input as local time for query: {naive_dt}")
 
         return naive_dt
 
@@ -154,12 +77,12 @@ class DateRangeCalculator:
             import logging  # noqa: PLC0415
 
             logger = logging.getLogger("phasor_cli")
-            
+
             start_dt = DateRangeCalculator._parse_local_datetime(args.start)
             duration = DateRangeCalculator._extract_duration(args)
             end_dt = start_dt + duration
-            
-            logger.debug(f"[DST DEBUG] Date range calculation:")
+
+            logger.debug("[DST DEBUG] Date range calculation:")
             logger.debug(f"[DST DEBUG]   Start (UTC): {start_dt}")
             logger.debug(f"[DST DEBUG]   Duration: {duration}")
             logger.debug(f"[DST DEBUG]   End (UTC): {end_dt}")
