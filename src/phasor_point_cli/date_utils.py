@@ -7,9 +7,13 @@ relative durations and absolute timestamps.
 
 from __future__ import annotations
 
+import os
+import warnings
 from datetime import datetime, timedelta
 
 import pandas as pd
+import pytz
+import tzlocal
 
 from .models import DateRange
 
@@ -20,26 +24,85 @@ class DateRangeCalculator:
     @staticmethod
     def _parse_local_datetime(date_string: str) -> datetime:
         """
-        Parse a date string as naive local time for database queries.
+        Parse a date string and convert from system local time to database time (CET).
 
-        Database expects queries in LOCAL TIME, not UTC. This function simply
-        parses the string without any timezone conversion.
+        The database server expects queries in CET (Central European Time, UTC+1 always, NO DST).
+        However, user input is in their system's local time (e.g., CEST = UTC+2 during summer).
+
+        This function converts: System Local Time -> UTC -> CET (for database query)
 
         Args:
             date_string: Date string to parse (e.g., "2024-07-15 10:00:00")
 
         Returns:
-            Timezone-naive datetime (for database queries in local time)
+            Timezone-naive datetime in CET (for database queries)
         """
         import logging  # noqa: PLC0415
 
         logger = logging.getLogger("phasor_cli")
 
-        # Parse as naive datetime - database expects local time
+        # Parse as naive datetime in system local time
         naive_dt = pd.to_datetime(date_string).to_pydatetime()
-        logger.debug(f"[DST DEBUG] Parsed input as local time for query: {naive_dt}")
+        logger.debug(f"[DST DEBUG] Parsed input: '{date_string}' -> naive: {naive_dt}")
 
-        return naive_dt
+        # Get system's local timezone
+        local_tz = None
+        tz_env = os.environ.get("TZ")
+        if tz_env:
+            try:
+                local_tz = pytz.timezone(tz_env)
+                logger.debug(f"[DST DEBUG] Using TZ env var: {tz_env}")
+            except pytz.exceptions.UnknownTimeZoneError:
+                warnings.warn(
+                    f"Invalid timezone in TZ environment variable: '{tz_env}'. "
+                    f"Falling back to system timezone.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+
+        if local_tz is None:
+            try:
+                detected_tz = tzlocal.get_localzone()
+                tz_name = str(detected_tz)
+                if tz_name and not tz_name.startswith("UTC"):
+                    try:
+                        local_tz = pytz.timezone(tz_name)
+                        logger.debug(f"[DST DEBUG] Detected system timezone: {local_tz}")
+                    except Exception:
+                        local_tz = detected_tz
+                else:
+                    local_tz = detected_tz
+            except Exception as e:
+                logger.debug(f"[DST DEBUG] Failed to detect timezone: {e}")
+                local_tz = pytz.UTC
+
+        # Localize to system's local timezone (respects DST)
+        if local_tz and hasattr(local_tz, "localize"):
+            aware_local = local_tz.localize(naive_dt, is_dst=True)  # type: ignore[attr-defined]
+            logger.debug(
+                f"[DST DEBUG] System local time: {aware_local} ({aware_local.strftime('%Z %z')})"
+            )
+        else:
+            aware_local = naive_dt.replace(tzinfo=local_tz if local_tz else pytz.UTC)
+            logger.debug(f"[DST DEBUG] System local time: {aware_local}")
+
+        # Convert to UTC
+        utc_dt = aware_local.astimezone(pytz.UTC)
+        logger.debug(f"[DST DEBUG] UTC time: {utc_dt}")
+
+        # Convert to database timezone (UTC+1 fixed, no DST)
+        # Database uses CET without DST transitions
+        from datetime import timedelta  # noqa: PLC0415
+
+        db_offset = timedelta(hours=1)
+        db_dt = utc_dt + db_offset
+        logger.debug(f"[DST DEBUG] Database time (UTC+1 fixed): {db_dt}")
+
+        # Return as naive datetime for query
+        result = db_dt.replace(tzinfo=None)
+        logger.debug(f"[DST DEBUG] Final query time: {result}")
+
+        return result
 
     @staticmethod
     def calculate(args, reference_time: datetime | None = None) -> DateRange:
@@ -74,18 +137,9 @@ class DateRangeCalculator:
         # Priority: --start + duration, then duration alone, then --start + --end
         if getattr(args, "start", None) and DateRangeCalculator._has_duration(args):
             # --start with duration: start at given time and go forward
-            import logging  # noqa: PLC0415
-
-            logger = logging.getLogger("phasor_cli")
-
             start_dt = DateRangeCalculator._parse_local_datetime(args.start)
             duration = DateRangeCalculator._extract_duration(args)
             end_dt = start_dt + duration
-
-            logger.debug("[DST DEBUG] Date range calculation:")
-            logger.debug(f"[DST DEBUG]   Start (UTC): {start_dt}")
-            logger.debug(f"[DST DEBUG]   Duration: {duration}")
-            logger.debug(f"[DST DEBUG]   End (UTC): {end_dt}")
 
             # Use start time for batch timestamp (consistent filenames)
             batch_timestamp = start_dt.strftime("%Y%m%d_%H%M%S")

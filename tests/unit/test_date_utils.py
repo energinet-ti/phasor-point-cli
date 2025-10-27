@@ -27,8 +27,9 @@ class TestDateRangeCalculator:
 
         result = DateRangeCalculator.calculate(args)
 
-        assert result.start == datetime(2025, 1, 1, 0, 0, 0)
-        assert result.end == datetime(2025, 1, 1, 12, 0, 0)
+        # UTC → Database (UTC+1): adds 1 hour
+        assert result.start == datetime(2025, 1, 1, 1, 0, 0)
+        assert result.end == datetime(2025, 1, 1, 13, 0, 0)
         assert result.batch_timestamp is None
         assert result.is_relative is False
 
@@ -78,9 +79,10 @@ class TestDateRangeCalculator:
 
         result = DateRangeCalculator.calculate(args)
 
-        assert result.start == datetime(2025, 1, 1, 0, 0, 0)
-        assert result.end == datetime(2025, 1, 1, 0, 30, 0)
-        assert result.batch_timestamp == "20250101_000000"
+        # UTC → Database (UTC+1): adds 1 hour
+        assert result.start == datetime(2025, 1, 1, 1, 0, 0)
+        assert result.end == datetime(2025, 1, 1, 1, 30, 0)
+        assert result.batch_timestamp == "20250101_010000"
         assert result.is_relative is False
 
     def test_calculate_start_with_hours_forward(self, monkeypatch):
@@ -93,9 +95,10 @@ class TestDateRangeCalculator:
 
         result = DateRangeCalculator.calculate(args)
 
-        assert result.start == datetime(2025, 1, 1, 0, 0, 0)
-        assert result.end == datetime(2025, 1, 1, 3, 0, 0)
-        assert result.batch_timestamp == "20250101_000000"
+        # UTC → Database (UTC+1): adds 1 hour
+        assert result.start == datetime(2025, 1, 1, 1, 0, 0)
+        assert result.end == datetime(2025, 1, 1, 4, 0, 0)
+        assert result.batch_timestamp == "20250101_010000"
         assert result.is_relative is False
 
     def test_calculate_start_with_days_forward(self, monkeypatch):
@@ -108,9 +111,10 @@ class TestDateRangeCalculator:
 
         result = DateRangeCalculator.calculate(args)
 
-        assert result.start == datetime(2025, 1, 1, 0, 0, 0)
-        assert result.end == datetime(2025, 1, 2, 0, 0, 0)
-        assert result.batch_timestamp == "20250101_000000"
+        # UTC → Database (UTC+1): adds 1 hour
+        assert result.start == datetime(2025, 1, 1, 1, 0, 0)
+        assert result.end == datetime(2025, 1, 2, 1, 0, 0)
+        assert result.batch_timestamp == "20250101_010000"
         assert result.is_relative is False
 
     def test_calculate_missing_args(self):
@@ -150,9 +154,10 @@ class TestDateRangeCalculator:
             start_date="2025-01-01 00:00:00", duration=timedelta(hours=2)
         )
 
-        assert result.start == datetime(2025, 1, 1, 0, 0, 0)
-        assert result.end == datetime(2025, 1, 1, 2, 0, 0)
-        assert result.batch_timestamp == "20250101_000000"
+        # UTC → Database (UTC+1): adds 1 hour
+        assert result.start == datetime(2025, 1, 1, 1, 0, 0)
+        assert result.end == datetime(2025, 1, 1, 3, 0, 0)
+        assert result.batch_timestamp == "20250101_010000"
         assert result.is_relative is False
 
     def test_calculate_priority_start_duration_over_absolute(self, monkeypatch):
@@ -170,8 +175,9 @@ class TestDateRangeCalculator:
         result = DateRangeCalculator.calculate(args)
 
         # Should use start + 30 minutes, not start + end
-        assert result.start == datetime(2025, 1, 1, 0, 0, 0)
-        assert result.end == datetime(2025, 1, 1, 0, 30, 0)
+        # UTC → Database (UTC+1): adds 1 hour
+        assert result.start == datetime(2025, 1, 1, 1, 0, 0)
+        assert result.end == datetime(2025, 1, 1, 1, 30, 0)
 
     def test_calculate_priority_duration_over_absolute(self):
         """Test that duration takes priority over absolute range when start is missing."""
@@ -195,7 +201,7 @@ class TestDSTHandling:
     """Test suite for DST-aware date parsing."""
 
     def test_parse_summer_date_in_copenhagen_timezone(self, monkeypatch):
-        """Test parsing a summer date returns local time for database queries."""
+        """Test parsing a summer date converts to database timezone (UTC+1 fixed)."""
         # Arrange
         monkeypatch.setenv("TZ", "Europe/Copenhagen")
         args = argparse.Namespace(
@@ -210,12 +216,13 @@ class TestDSTHandling:
         result = DateRangeCalculator.calculate(args)
 
         # Assert
-        # Database expects local time in queries, so no conversion
-        assert result.start == datetime(2024, 7, 15, 10, 0, 0)
-        assert result.end == datetime(2024, 7, 15, 11, 0, 0)
+        # Copenhagen summer (CEST) = UTC+2
+        # 10:00 CEST → 08:00 UTC → 09:00 database time (UTC+1)
+        assert result.start == datetime(2024, 7, 15, 9, 0, 0)
+        assert result.end == datetime(2024, 7, 15, 10, 0, 0)
 
     def test_parse_winter_date_in_copenhagen_timezone(self, monkeypatch):
-        """Test parsing a winter date returns local time for database queries."""
+        """Test parsing a winter date when system and database timezones match."""
         # Arrange
         monkeypatch.setenv("TZ", "Europe/Copenhagen")
         args = argparse.Namespace(
@@ -230,12 +237,14 @@ class TestDSTHandling:
         result = DateRangeCalculator.calculate(args)
 
         # Assert
-        # Database expects local time in queries, so no conversion
+        # Copenhagen winter (CET) = UTC+1, database = UTC+1
+        # 10:00 CET → 09:00 UTC → 10:00 database time (UTC+1)
+        # No change since both are UTC+1
         assert result.start == datetime(2024, 1, 15, 10, 0, 0)
         assert result.end == datetime(2024, 1, 15, 11, 0, 0)
 
     def test_parse_summer_date_requested_in_winter(self, monkeypatch):
-        """Test that dates are parsed as local time regardless of current season."""
+        """Test that summer dates use summer DST offset for conversion."""
         # Arrange
         monkeypatch.setenv("TZ", "Europe/Copenhagen")
         args = argparse.Namespace(
@@ -250,12 +259,12 @@ class TestDSTHandling:
         result = DateRangeCalculator.calculate(args)
 
         # Assert
-        # Database expects local time in queries
-        assert result.start == datetime(2024, 7, 15, 14, 0, 0)
-        assert result.end == datetime(2024, 7, 15, 15, 0, 0)
+        # 14:00 CEST (UTC+2) → 12:00 UTC → 13:00 database (UTC+1)
+        assert result.start == datetime(2024, 7, 15, 13, 0, 0)
+        assert result.end == datetime(2024, 7, 15, 14, 0, 0)
 
     def test_parse_winter_date_requested_in_summer(self, monkeypatch):
-        """Test that dates are parsed as local time regardless of current season."""
+        """Test that winter dates use winter DST offset for conversion."""
         # Arrange
         monkeypatch.setenv("TZ", "Europe/Copenhagen")
         args = argparse.Namespace(
@@ -270,7 +279,8 @@ class TestDSTHandling:
         result = DateRangeCalculator.calculate(args)
 
         # Assert
-        # Database expects local time in queries
+        # 14:00 CET (UTC+1) → 13:00 UTC → 14:00 database (UTC+1)
+        # No change since both are UTC+1
         assert result.start == datetime(2024, 12, 15, 14, 0, 0)
         assert result.end == datetime(2024, 12, 15, 15, 0, 0)
 
@@ -279,7 +289,7 @@ class TestDSTHandling:
         # Arrange
         monkeypatch.setenv("TZ", "Europe/Copenhagen")
         # In Copenhagen, DST ends last Sunday of October at 03:00 (becomes 02:00)
-        # 2024-10-27 02:30:00 occurs twice in local time
+        # 2024-10-27 02:30:00 occurs twice - we use first occurrence (DST active)
         args = argparse.Namespace(
             start="2024-10-27 02:30:00",
             end="2024-10-27 02:45:00",
@@ -292,9 +302,9 @@ class TestDSTHandling:
         result = DateRangeCalculator.calculate(args)
 
         # Assert
-        # Database expects local time - ambiguous times are passed as-is
-        assert result.start == datetime(2024, 10, 27, 2, 30, 0)
-        assert result.end == datetime(2024, 10, 27, 2, 45, 0)
+        # First occurrence: 02:30 CEST (UTC+2) → 00:30 UTC → 01:30 database (UTC+1)
+        assert result.start == datetime(2024, 10, 27, 1, 30, 0)
+        assert result.end == datetime(2024, 10, 27, 1, 45, 0)
 
     def test_parse_spring_forward_gap(self, monkeypatch):
         """Test parsing during spring forward gap (non-existent times)."""
@@ -320,7 +330,7 @@ class TestDSTHandling:
         assert result.end is not None
 
     def test_calculate_from_start_and_duration_dst_aware(self, monkeypatch):
-        """Test calculate_from_start_and_duration returns local time."""
+        """Test calculate_from_start_and_duration converts to database timezone."""
         # Arrange
         monkeypatch.setenv("TZ", "Europe/Copenhagen")
 
@@ -331,12 +341,13 @@ class TestDSTHandling:
         )
 
         # Assert
-        # Database expects local time - no conversion
-        assert result.start == datetime(2024, 7, 15, 10, 0, 0)
-        assert result.end == datetime(2024, 7, 15, 12, 0, 0)
+        # 10:00 CEST (UTC+2) → 08:00 UTC → 09:00 database (UTC+1)
+        # Duration: 2 hours → End: 11:00 database time
+        assert result.start == datetime(2024, 7, 15, 9, 0, 0)
+        assert result.end == datetime(2024, 7, 15, 11, 0, 0)
 
     def test_utc_timezone_parsing(self, monkeypatch):
-        """Test that UTC timezone works correctly."""
+        """Test that UTC timezone converts to database timezone."""
         # Arrange
         monkeypatch.setenv("TZ", "UTC")
         args = argparse.Namespace(
@@ -351,12 +362,12 @@ class TestDSTHandling:
         result = DateRangeCalculator.calculate(args)
 
         # Assert
-        # UTC has no DST, so times should match exactly
-        assert result.start == datetime(2024, 7, 15, 10, 0, 0)
-        assert result.end == datetime(2024, 7, 15, 11, 0, 0)
+        # 10:00 UTC → 11:00 database (UTC+1)
+        assert result.start == datetime(2024, 7, 15, 11, 0, 0)
+        assert result.end == datetime(2024, 7, 15, 12, 0, 0)
 
     def test_invalid_timezone_warns_and_falls_back(self, monkeypatch):
-        """Test that invalid TZ environment variable doesn't affect simple parsing."""
+        """Test that invalid TZ environment variable falls back gracefully."""
         # Arrange
         monkeypatch.setenv("TZ", "Invalid/Timezone")
         args = argparse.Namespace(
@@ -371,6 +382,6 @@ class TestDSTHandling:
         result = DateRangeCalculator.calculate(args)
 
         # Assert
-        # Parsing should work regardless of TZ (no conversion performed)
-        assert result.start == datetime(2024, 7, 15, 10, 0, 0)
-        assert result.end == datetime(2024, 7, 15, 11, 0, 0)
+        # Should still parse successfully (falls back to system timezone)
+        assert result.start is not None
+        assert result.end is not None
