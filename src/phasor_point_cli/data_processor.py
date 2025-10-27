@@ -53,6 +53,27 @@ class DataProcessor:
 
     # ----------------------------------------------------------- Static utils --
     @staticmethod
+    def drop_empty_columns(
+        df: pd.DataFrame,
+        extraction_log: dict | None = None,
+    ) -> pd.DataFrame:
+        """Drop columns that are completely null/empty."""
+        empty_cols = df.columns[df.isnull().all()].tolist()
+        if empty_cols:
+            print(f"   [INFO] Dropping {len(empty_cols)} completely empty columns")
+            if extraction_log is not None:
+                for column in empty_cols:
+                    extraction_log["column_changes"]["removed"].append(
+                        {
+                            "column": column,
+                            "reason": "completely_empty",
+                            "description": "All values were null",
+                        }
+                    )
+            df = df.drop(columns=empty_cols)
+        return df
+
+    @staticmethod
     def get_local_timezone() -> datetime.tzinfo | None:
         """Detect local timezone, preferring ``TZ`` environment variable."""
         tz_env = os.environ.get("TZ")
@@ -258,6 +279,9 @@ class DataProcessor:
 
         if self.logger:
             self.logger.info("Cleaning and converting data types...")
+
+        # Drop empty columns FIRST, before any type conversions
+        df = self.drop_empty_columns(df, extraction_log)
 
         if "ts" in df.columns:
             df = self.apply_timezone_conversion(df, extraction_log)
