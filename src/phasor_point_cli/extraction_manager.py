@@ -55,7 +55,9 @@ class ExtractionManager:
             config_manager=config_manager, logger=logger, validator=validator
         )
         self.data_extractor = data_extractor or DataExtractor(
-            connection_pool=connection_pool, logger=logger
+            connection_pool=connection_pool,
+            logger=logger,
+            extraction_history=extraction_history,
         )
         self.power_calculator = power_calculator or PowerCalculator(logger=logger)
 
@@ -567,6 +569,9 @@ class ExtractionManager:
                 chunk_size_minutes=request.chunk_size_minutes,
                 parallel_workers=request.parallel_workers,
             )
+
+        # Flush any pending chunk timings to disk
+        self.extraction_history.flush()
 
         return ExtractionResult(
             request=request,

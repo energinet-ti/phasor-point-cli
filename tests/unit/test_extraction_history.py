@@ -119,6 +119,9 @@ class TestExtractionHistory:
             parallel_workers=3,
         )
 
+        # Flush to ensure pending changes are saved
+        extraction_history.flush()
+
         # Act - create new instance and load
         new_history = ExtractionHistory(
             extraction_history.config_path_manager,

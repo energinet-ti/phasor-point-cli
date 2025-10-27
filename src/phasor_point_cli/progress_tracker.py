@@ -55,6 +55,7 @@ class ProgressTracker:
         self._spinner = Spinner()
         self._display_thread: threading.Thread | None = None
         self._display_running = False
+        self._display_paused = False
         self._display_lock = threading.Lock()
         self._last_eta = "Calculating ETA..."
 
@@ -172,6 +173,16 @@ class ProgressTracker:
             elapsed_str = self._format_time(elapsed)
             print(f"[BATCH] Completed all {self._total_pmus} PMUs in {elapsed_str}")
 
+    def pause_display(self) -> None:
+        """Temporarily pause the progress display updates."""
+        with self._display_lock:
+            self._display_paused = True
+
+    def resume_display(self) -> None:
+        """Resume the progress display updates."""
+        with self._display_lock:
+            self._display_paused = False
+
     def _start_display_thread(self) -> None:
         """Start background thread for updating display with spinner and elapsed time."""
         self._display_running = True
@@ -199,7 +210,11 @@ class ProgressTracker:
         while self._display_running:
             # Check for cancellation
             if cancellation_manager.is_cancelled():
-                self._display_running = False
+                with self._display_lock:
+                    # Clear the progress line and add newline
+                    print("\r" + " " * 120, end="")
+                    print()
+                    self._display_running = False
                 break
 
             # Update display
@@ -211,7 +226,7 @@ class ProgressTracker:
     def _update_display(self) -> None:
         """Update the progress display with spinner, elapsed time, and ETA."""
         with self._display_lock:
-            if self._total_chunks == 0:
+            if self._total_chunks == 0 or self._display_paused:
                 return
 
             # Get current state
@@ -394,7 +409,11 @@ class ScanProgressTracker:
         while self._display_running:
             # Check for cancellation
             if cancellation_manager.is_cancelled():
-                self._display_running = False
+                with self._display_lock:
+                    # Clear the progress line and add newline
+                    print("\r" + " " * 120, end="")
+                    print()
+                    self._display_running = False
                 break
 
             # Update display

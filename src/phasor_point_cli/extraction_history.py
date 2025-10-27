@@ -63,6 +63,8 @@ class ExtractionHistory:
         self.logger = logger
         self._history_file: Path | None = None
         self._extractions: list[ExtractionMetrics] = []
+        self._save_counter = 0
+        self._save_frequency = 1  # Save every N additions to reduce disk I/O
 
     def _get_history_file_path(self) -> Path:
         """Get the path to the extraction history file."""
@@ -159,7 +161,12 @@ class ExtractionHistory:
         )
 
         self._extractions.append(metrics)
-        self.save_history()
+        self._save_counter += 1
+
+        # Save every N additions to reduce disk I/O
+        if self._save_counter >= self._save_frequency:
+            self.save_history()
+            self._save_counter = 0
 
     def get_average_rows_per_sec(self, recent_n: int = 10) -> float | None:
         """
@@ -200,3 +207,9 @@ class ExtractionHistory:
     def get_history_count(self) -> int:
         """Get the number of extraction records in history."""
         return len(self._extractions)
+
+    def flush(self) -> None:
+        """Force save any pending changes to disk."""
+        if self._save_counter > 0:
+            self.save_history()
+            self._save_counter = 0
