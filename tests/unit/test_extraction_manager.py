@@ -11,6 +11,7 @@ from unittest.mock import MagicMock
 import pandas as pd
 import pytest
 
+from phasor_point_cli.extraction_history import ExtractionHistory
 from phasor_point_cli.extraction_manager import ExtractionManager
 from phasor_point_cli.models import DateRange, ExtractionRequest
 
@@ -35,6 +36,27 @@ class ConfigStub:
         return None
 
 
+class MockConfigPathManager:
+    """Mock ConfigPathManager for testing."""
+
+    def __init__(self, temp_dir: Path):
+        self.temp_dir = temp_dir
+
+    def get_local_config_file(self) -> Path:
+        return self.temp_dir / "config.json"
+
+    def get_user_config_dir(self) -> Path:
+        return self.temp_dir
+
+
+@pytest.fixture
+def mock_extraction_history(tmp_path):
+    """Create mock extraction history that uses temp directory."""
+    logger = MagicMock()
+    config_path_manager = MockConfigPathManager(tmp_path)
+    return ExtractionHistory(config_path_manager, logger=logger)
+
+
 def build_request(tmp_path: Path) -> ExtractionRequest:
     date_range = DateRange(
         start=datetime(2025, 1, 1, 0, 0, 0),
@@ -53,7 +75,7 @@ def build_request(tmp_path: Path) -> ExtractionRequest:
     )
 
 
-def test_extraction_manager_success(tmp_path):
+def test_extraction_manager_success(tmp_path, mock_extraction_history):
     # Arrange
     df_raw = pd.DataFrame(
         {
@@ -82,6 +104,7 @@ def test_extraction_manager_success(tmp_path):
         data_extractor=extractor,
         data_processor=processor,
         power_calculator=power_calculator,
+        extraction_history=mock_extraction_history,
     )
     request = build_request(tmp_path)
 
@@ -94,12 +117,13 @@ def test_extraction_manager_success(tmp_path):
     assert result.rows_extracted == len(df_processed)
     assert Path(result.output_file).exists()
     assert Path(str(result.output_file).replace(".csv", "_extraction_log.json")).exists()
-    extractor.extract.assert_called_once_with(request, chunk_strategy=None)
+    extractor.extract.assert_called_once()
+    assert extractor.extract.call_args[0][0] == request  # Check request is passed
     processor.process.assert_called()
     power_calculator.process_phasor_data.assert_called()
 
 
-def test_extraction_manager_handles_empty_extraction(tmp_path):
+def test_extraction_manager_handles_empty_extraction(tmp_path, mock_extraction_history):
     # Arrange
     extractor = MagicMock()
     extractor.extract.return_value = None
@@ -111,6 +135,7 @@ def test_extraction_manager_handles_empty_extraction(tmp_path):
         data_extractor=extractor,
         data_processor=MagicMock(),
         power_calculator=MagicMock(),
+        extraction_history=mock_extraction_history,
     )
     request = build_request(tmp_path)
 
@@ -122,7 +147,7 @@ def test_extraction_manager_handles_empty_extraction(tmp_path):
     assert result.output_file is None
 
 
-def test_batch_extract_success(tmp_path):
+def test_batch_extract_success(tmp_path, mock_extraction_history):
     """Test successful batch extraction of multiple PMUs."""
     # Arrange
     df_raw = pd.DataFrame(
@@ -159,6 +184,7 @@ def test_batch_extract_success(tmp_path):
         data_extractor=extractor,
         data_processor=processor,
         power_calculator=power_calculator,
+        extraction_history=mock_extraction_history,
     )
 
     date_range = DateRange(
@@ -196,7 +222,7 @@ def test_batch_extract_success(tmp_path):
     assert all(result.success for result in batch_result.results)
 
 
-def test_batch_extract_partial_failure(tmp_path):
+def test_batch_extract_partial_failure(tmp_path, mock_extraction_history):
     """Test batch extraction with some failures."""
     # Arrange
     df_raw = pd.DataFrame(
@@ -209,7 +235,7 @@ def test_batch_extract_partial_failure(tmp_path):
 
     call_count = 0
 
-    def mock_extract(request, chunk_strategy=None):
+    def mock_extract(request, chunk_strategy=None, progress_tracker=None):
         nonlocal call_count
         call_count += 1
         if call_count == 1:
@@ -242,6 +268,7 @@ def test_batch_extract_partial_failure(tmp_path):
         data_extractor=extractor,
         data_processor=processor,
         power_calculator=power_calculator,
+        extraction_history=mock_extraction_history,
     )
 
     date_range = DateRange(
@@ -306,7 +333,9 @@ def test_extraction_request_validates_output_format():
     assert "output_format" in str(exc_info.value).lower()
 
 
-def test_extraction_log_write_failure_continues_gracefully(tmp_path, monkeypatch):
+def test_extraction_log_write_failure_continues_gracefully(
+    tmp_path, mock_extraction_history, monkeypatch
+):
     """Test that extraction log write failures don't crash the extraction."""
     # Arrange
     df = pd.DataFrame({"ts": [1, 2, 3], "value": [1, 2, 3]})
@@ -332,6 +361,7 @@ def test_extraction_log_write_failure_continues_gracefully(tmp_path, monkeypatch
         data_extractor=extractor,
         data_processor=processor,
         power_calculator=power_calculator,
+        extraction_history=mock_extraction_history,
     )
 
     request = build_request(tmp_path)
@@ -356,7 +386,7 @@ def test_extraction_log_write_failure_continues_gracefully(tmp_path, monkeypatch
     assert result.output_file is not None
 
 
-def test_extraction_log_read_failure_handled(tmp_path):
+def test_extraction_log_read_failure_handled(tmp_path, mock_extraction_history):
     """Test that corrupted extraction log is handled gracefully."""
     # Arrange
     df = pd.DataFrame({"ts": [1, 2, 3], "value": [1, 2, 3]})
@@ -382,6 +412,7 @@ def test_extraction_log_read_failure_handled(tmp_path):
         data_extractor=extractor,
         data_processor=processor,
         power_calculator=power_calculator,
+        extraction_history=mock_extraction_history,
     )
 
     output_file = tmp_path / "output.csv"
@@ -417,7 +448,7 @@ def test_extraction_log_read_failure_handled(tmp_path):
     logger.warning.assert_called()  # Should log warning about corrupted log
 
 
-def test_batch_extract_all_failures_returns_summary(tmp_path):
+def test_batch_extract_all_failures_returns_summary(tmp_path, mock_extraction_history):
     """Test that batch extraction with all failures returns comprehensive summary."""
     # Arrange
     extractor = MagicMock()
@@ -440,6 +471,7 @@ def test_batch_extract_all_failures_returns_summary(tmp_path):
         data_extractor=extractor,
         data_processor=MagicMock(),
         power_calculator=MagicMock(),
+        extraction_history=mock_extraction_history,
     )
 
     date_range = DateRange(

@@ -112,7 +112,7 @@ class DateRangeCalculator:
         batch_timestamp = reference_time.strftime("%Y%m%d_%H%M%S")
 
         # Priority: --start + duration, then duration alone, then --start + --end
-        if hasattr(args, "start") and args.start and DateRangeCalculator._has_duration(args):
+        if getattr(args, "start", None) and DateRangeCalculator._has_duration(args):
             # --start with duration: start at given time and go forward
             start_dt = DateRangeCalculator._parse_local_datetime(args.start)
             duration = DateRangeCalculator._extract_duration(args)
@@ -135,7 +135,7 @@ class DateRangeCalculator:
                 start=start_dt, end=end_dt, batch_timestamp=batch_timestamp, is_relative=True
             )
 
-        if hasattr(args, "start") and hasattr(args, "end") and args.start and args.end:
+        if getattr(args, "start", None) and getattr(args, "end", None):
             # Absolute time range
             start_dt = DateRangeCalculator._parse_local_datetime(args.start)
             end_dt = DateRangeCalculator._parse_local_datetime(args.end)
@@ -211,19 +211,19 @@ class DateRangeCalculator:
     @staticmethod
     def _has_duration(args) -> bool:
         """Check if args contain any duration specification."""
-        return (
-            (hasattr(args, "minutes") and args.minutes)
-            or (hasattr(args, "hours") and args.hours)
-            or (hasattr(args, "days") and args.days)
+        return bool(
+            getattr(args, "minutes", None)
+            or getattr(args, "hours", None)
+            or getattr(args, "days", None)
         )
 
     @staticmethod
     def _extract_duration(args) -> timedelta:
         """Extract timedelta from args duration fields."""
-        if hasattr(args, "minutes") and args.minutes:
+        if getattr(args, "minutes", None):
             return timedelta(minutes=args.minutes)
-        if hasattr(args, "hours") and args.hours:
+        if getattr(args, "hours", None):
             return timedelta(hours=args.hours)
-        if hasattr(args, "days") and args.days:
+        if getattr(args, "days", None):
             return timedelta(days=args.days)
         raise ValueError("No duration specified in args")

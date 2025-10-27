@@ -86,6 +86,7 @@ class DataExtractor:
         self,
         table_name: str,
         chunks: Sequence[tuple[pd.Timestamp, pd.Timestamp]],
+        progress_tracker=None,
     ) -> list[pd.DataFrame]:
         """Extract data for each chunk sequentially."""
         from .signal_handler import get_cancellation_manager  # noqa: PLC0415
@@ -103,7 +104,7 @@ class DataExtractor:
 
             chunk_start_str = chunk_start.strftime("%Y-%m-%d %H:%M:%S")
             chunk_end_str = chunk_end.strftime("%Y-%m-%d %H:%M:%S")
-            self.logger.info(
+            self.logger.debug(
                 f"Processing chunk {index + 1}/{len(chunks)}: {chunk_start_str} to {chunk_end_str}"
             )
 
@@ -117,8 +118,12 @@ class DataExtractor:
                 chunk_df = self._read_dataframe(conn, query)
                 if chunk_df is not None and len(chunk_df) > 0:
                     all_chunks.append(chunk_df)
+                    if progress_tracker:
+                        progress_tracker.update_chunk_progress(index, len(chunk_df))
                 else:
                     self.logger.warning(f"No data found for chunk {index + 1}")
+                    if progress_tracker:
+                        progress_tracker.update_chunk_progress(index, 0)
             except Exception as exc:
                 self.logger.error(f"Error processing chunk {index + 1}: {exc}")
             finally:
@@ -173,6 +178,7 @@ class DataExtractor:
         table_name: str,
         chunks: Sequence[tuple[pd.Timestamp, pd.Timestamp]],
         parallel_workers: int,
+        progress_tracker=None,
     ) -> list[tuple[int, pd.DataFrame]]:
         """Extract data chunks using a thread pool."""
         from .signal_handler import get_cancellation_manager  # noqa: PLC0415
@@ -203,11 +209,15 @@ class DataExtractor:
                 chunk_df, error, timing_info = future.result()
                 if chunk_df is not None:
                     results.append((idx, chunk_df))
-                    self.logger.info(
+                    if progress_tracker:
+                        progress_tracker.update_chunk_progress(idx, len(chunk_df))
+                    self.logger.debug(
                         f"Chunk {idx + 1} completed ({len(chunk_df)} rows). Timing: {timing_info}"
                     )
                 else:
                     self.logger.warning(f"Chunk {idx + 1} failed: {error}")
+                    if progress_tracker:
+                        progress_tracker.update_chunk_progress(idx, 0)
         return results
 
     def combine_chunks(self, chunks: Iterable) -> pd.DataFrame | None:
@@ -244,6 +254,7 @@ class DataExtractor:
         request: ExtractionRequest,
         *,
         chunk_strategy: ChunkStrategy | None = None,
+        progress_tracker=None,
     ) -> pd.DataFrame | None:
         """
         Main entry point that accepts an ``ExtractionRequest`` and returns a dataframe.
@@ -269,8 +280,10 @@ class DataExtractor:
         )
 
         if request.parallel_workers > 1:
-            chunk_frames = self.extract_chunk_parallel(table_name, chunks, request.parallel_workers)
+            chunk_frames = self.extract_chunk_parallel(
+                table_name, chunks, request.parallel_workers, progress_tracker
+            )
         else:
-            chunk_frames = self.extract_chunk_sequential(table_name, chunks)
+            chunk_frames = self.extract_chunk_sequential(table_name, chunks, progress_tracker)
 
         return self.combine_chunks(chunk_frames)

@@ -296,6 +296,11 @@ Use --all to remove files from both locations.
             "--verbose", "-v", action="store_true", help="Enable verbose logging output"
         )
         extract_parser.add_argument(
+            "--verbose-timing",
+            action="store_true",
+            help="Show detailed timing information during extraction (default: hidden)",
+        )
+        extract_parser.add_argument(
             "--replace",
             action="store_true",
             help="Replace existing output file if it already exists (default: skip existing files)",
@@ -369,6 +374,11 @@ Use --all to remove files from both locations.
         )
         batch_parser.add_argument(
             "--verbose", "-v", action="store_true", help="Enable verbose logging output"
+        )
+        batch_parser.add_argument(
+            "--verbose-timing",
+            action="store_true",
+            help="Show detailed timing information during extraction (default: hidden)",
         )
         batch_parser.add_argument(
             "--replace",

@@ -1,0 +1,246 @@
+"""
+Progress tracker for displaying extraction progress with time estimates.
+
+Provides real-time progress updates with ETA calculations based on historical
+and current extraction performance.
+"""
+
+from __future__ import annotations
+
+import time
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .extraction_history import ExtractionHistory
+
+
+class ProgressTracker:
+    """Track and display extraction progress with time estimates."""
+
+    def __init__(
+        self,
+        extraction_history: ExtractionHistory | None = None,
+        verbose_timing: bool = False,
+        logger=None,
+    ):
+        """
+        Initialize progress tracker.
+
+        Args:
+            extraction_history: Optional extraction history for initial estimates
+            verbose_timing: Show detailed timing information
+            logger: Optional logger instance
+        """
+        self.extraction_history = extraction_history
+        self.verbose_timing = verbose_timing
+        self.logger = logger
+
+        # Current extraction tracking
+        self._total_chunks = 0
+        self._completed_chunks = 0
+        self._start_time = 0.0
+        self._chunk_times: list[float] = []
+        self._estimated_total_rows = 0
+
+        # Batch tracking
+        self._total_pmus = 0
+        self._completed_pmus = 0
+        self._batch_start_time = 0.0
+        self._current_pmu_id: int | None = None
+
+    def start_extraction(
+        self, total_chunks: int, pmu_id: int | None = None, estimated_rows: int = 0
+    ) -> None:
+        """
+        Start tracking a new extraction.
+
+        Args:
+            total_chunks: Total number of chunks to process
+            pmu_id: PMU ID being extracted
+            estimated_rows: Estimated total rows (if known)
+        """
+        self._total_chunks = total_chunks
+        self._completed_chunks = 0
+        self._start_time = time.time()
+        self._chunk_times = []
+        self._current_pmu_id = pmu_id
+        self._estimated_total_rows = estimated_rows
+
+    def start_batch(self, total_pmus: int) -> None:
+        """
+        Start tracking a batch extraction.
+
+        Args:
+            total_pmus: Total number of PMUs to process
+        """
+        self._total_pmus = total_pmus
+        self._completed_pmus = 0
+        self._batch_start_time = time.time()
+
+    def update_chunk_progress(
+        self,
+        chunk_index: int,
+        rows_in_chunk: int = 0,  # noqa: ARG002 - Reserved for future use
+    ) -> None:
+        """
+        Update progress after a chunk completes.
+
+        Args:
+            chunk_index: Index of the completed chunk (0-based)
+            rows_in_chunk: Number of rows in the completed chunk
+        """
+        self._completed_chunks = chunk_index + 1
+        current_time = time.time()
+        elapsed = current_time - self._start_time
+        self._chunk_times.append(elapsed)
+
+        # Calculate progress
+        progress_pct = (
+            (self._completed_chunks / self._total_chunks * 100) if self._total_chunks > 0 else 0
+        )
+
+        # Calculate ETA
+        eta_str = self._calculate_eta()
+
+        # Format message
+        pmu_label = f"PMU {self._current_pmu_id}" if self._current_pmu_id else "Extraction"
+        message = f"\r[{pmu_label}] Chunk {self._completed_chunks}/{self._total_chunks} ({progress_pct:.0f}%) | {eta_str}"
+
+        # Add verbose timing if enabled
+        if self.verbose_timing and self._chunk_times:
+            last_chunk_time = self._chunk_times[-1] - (
+                self._chunk_times[-2] if len(self._chunk_times) > 1 else 0
+            )
+            message += f" | Last chunk: {self._format_time(last_chunk_time)}"
+
+        # Print with carriage return for same-line update
+        print(message, end="", flush=True)
+
+        # Log to logger if available (without overwriting line)
+        if self.logger and self.verbose_timing:
+            self.logger.debug(
+                f"Chunk {self._completed_chunks}/{self._total_chunks} completed in {last_chunk_time:.2f}s"
+            )
+
+    def update_pmu_progress(self, pmu_index: int, pmu_id: int) -> None:
+        """
+        Update progress after a PMU completes in batch extraction.
+
+        Args:
+            pmu_index: Index of the completed PMU (0-based)
+            pmu_id: ID of the completed PMU
+        """
+        self._completed_pmus = pmu_index + 1
+
+        # Clear the current line and print PMU completion
+        print("\r" + " " * 100, end="")  # Clear line
+        print(f"\r[BATCH] PMU {pmu_id} completed ({self._completed_pmus}/{self._total_pmus})")
+
+        # Calculate batch ETA if we have enough data
+        if self._completed_pmus > 0 and self._total_pmus > self._completed_pmus:
+            elapsed = time.time() - self._batch_start_time
+            avg_time_per_pmu = elapsed / self._completed_pmus
+            remaining_pmus = self._total_pmus - self._completed_pmus
+            remaining_time = avg_time_per_pmu * remaining_pmus
+            eta_str = self._format_time(remaining_time)
+
+            progress_pct = self._completed_pmus / self._total_pmus * 100
+            print(
+                f"[BATCH] Overall progress: {self._completed_pmus}/{self._total_pmus} ({progress_pct:.0f}%) | ETA: {eta_str}"
+            )
+
+    def finish_extraction(self) -> None:
+        """Mark extraction as complete and print final message."""
+        if self._completed_chunks > 0:
+            elapsed = time.time() - self._start_time
+            elapsed_str = self._format_time(elapsed)
+
+            # Clear line and print completion
+            print("\r" + " " * 100, end="")  # Clear any remaining progress text
+
+            pmu_label = f"PMU {self._current_pmu_id}" if self._current_pmu_id else "Extraction"
+            print(f"\r[{pmu_label}] Completed {self._total_chunks} chunks in {elapsed_str}")
+
+    def finish_batch(self) -> None:
+        """Mark batch extraction as complete."""
+        if self._completed_pmus > 0:
+            elapsed = time.time() - self._batch_start_time
+            elapsed_str = self._format_time(elapsed)
+            print(f"[BATCH] Completed all {self._total_pmus} PMUs in {elapsed_str}")
+
+    def _calculate_eta(self) -> str:
+        """Calculate and format ETA string."""
+        # Need at least 1 chunk if we have history, or 3 chunks without history
+        min_chunks_needed = (
+            1
+            if (self.extraction_history and self.extraction_history.get_history_count() > 0)
+            else 3
+        )
+
+        if self._completed_chunks < min_chunks_needed:
+            return "Calculating ETA..."
+
+        remaining_chunks = self._total_chunks - self._completed_chunks
+        if remaining_chunks <= 0:
+            return "ETA: 0s"
+
+        # Calculate current run average
+        current_elapsed = time.time() - self._start_time
+        current_avg_time_per_chunk = current_elapsed / self._completed_chunks
+
+        # If we have enough current data (3+ chunks), use weighted average
+        if self._completed_chunks >= 3:
+            # Use 70% current run, 30% historical if available
+            if self.extraction_history and self.extraction_history.get_history_count() > 0:
+                historical_avg = self.extraction_history.get_average_rows_per_sec()
+                if historical_avg and self._estimated_total_rows > 0:
+                    # Estimate based on historical throughput
+                    historical_time_per_chunk = (
+                        self._estimated_total_rows / self._total_chunks
+                    ) / historical_avg
+                    # Weighted average
+                    avg_time_per_chunk = (0.7 * current_avg_time_per_chunk) + (
+                        0.3 * historical_time_per_chunk
+                    )
+                else:
+                    avg_time_per_chunk = current_avg_time_per_chunk
+            else:
+                avg_time_per_chunk = current_avg_time_per_chunk
+        # Use historical average if available, otherwise current
+        elif self.extraction_history and self.extraction_history.get_history_count() > 0:
+            historical_avg = self.extraction_history.get_average_rows_per_sec()
+            if historical_avg and self._estimated_total_rows > 0:
+                avg_time_per_chunk = (
+                    self._estimated_total_rows / self._total_chunks
+                ) / historical_avg
+            else:
+                avg_time_per_chunk = current_avg_time_per_chunk
+        else:
+            avg_time_per_chunk = current_avg_time_per_chunk
+
+        remaining_time = remaining_chunks * avg_time_per_chunk
+        return f"ETA: {self._format_time(remaining_time)}"
+
+    @staticmethod
+    def _format_time(seconds: float) -> str:
+        """
+        Format time duration in human-readable format.
+
+        Args:
+            seconds: Time in seconds
+
+        Returns:
+            Formatted string (e.g., "2m 15s", "45s", "1h 23m")
+        """
+        if seconds < 0:
+            return "0s"
+
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        secs = int(seconds % 60)
+
+        if hours > 0:
+            return f"{hours}h {minutes}m"
+        if minutes > 0:
+            return f"{minutes}m {secs}s"
+        return f"{secs}s"

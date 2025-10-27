@@ -96,10 +96,10 @@ class CommandRouter:
             args: Parsed command-line arguments
         """
         ConfigurationManager.setup_configuration_files(
-            force=args.force if hasattr(args, "force") else False,
-            local=args.local if hasattr(args, "local") else False,
-            interactive=args.interactive if hasattr(args, "interactive") else False,
-            refresh_pmus=args.refresh_pmus if hasattr(args, "refresh_pmus") else False,
+            force=getattr(args, "force", False),
+            local=getattr(args, "local", False),
+            interactive=getattr(args, "interactive", False),
+            refresh_pmus=getattr(args, "refresh_pmus", False),
         )
 
     def handle_config_path(self, _args: argparse.Namespace) -> None:  # noqa: PLR0912, PLR0915
@@ -210,8 +210,8 @@ class CommandRouter:
             args: Parsed command-line arguments
         """
         ConfigurationManager.cleanup_configuration_files(
-            local=args.local if hasattr(args, "local") else False,
-            all_locations=args.all if hasattr(args, "all") else False,
+            local=getattr(args, "local", False),
+            all_locations=getattr(args, "all", False),
         )
 
     def handle_about(self, _args: argparse.Namespace) -> None:
@@ -243,12 +243,8 @@ class CommandRouter:
         Args:
             args: Parsed command-line arguments
         """
-        pmu_ids = args.pmu if hasattr(args, "pmu") and args.pmu else None
-        max_pmus = (
-            None
-            if (hasattr(args, "all") and args.all)
-            else (args.max_pmus if hasattr(args, "max_pmus") else 10)
-        )
+        pmu_ids = getattr(args, "pmu", None)
+        max_pmus = None if getattr(args, "all", False) else getattr(args, "max_pmus", 10)
         resolutions = None  # Use default resolutions
 
         manager = TableManager(self._cli.connection_pool, self._cli.config, self._logger)
@@ -408,8 +404,8 @@ class CommandRouter:
             chunk_size_minutes=args.chunk_size,
             parallel_workers=args.parallel,
             output_format=args.format,
-            skip_existing=args.skip_existing if hasattr(args, "skip_existing") else True,
-            replace=args.replace if hasattr(args, "replace") else False,
+            skip_existing=getattr(args, "skip_existing", True),
+            replace=getattr(args, "replace", False),
         )
 
         if (
@@ -418,7 +414,13 @@ class CommandRouter:
         ):
             self._cli.update_connection_pool_size(args.connection_pool)
 
-        manager = ExtractionManager(self._cli.connection_pool, self._cli.config, self._logger)
+        verbose_timing = getattr(args, "verbose_timing", False)
+        manager = ExtractionManager(
+            self._cli.connection_pool,
+            self._cli.config,
+            self._logger,
+            verbose_timing=verbose_timing,
+        )
         result = manager.extract(request)
 
         if result.success:
@@ -460,8 +462,8 @@ class CommandRouter:
                 chunk_size_minutes=args.chunk_size,
                 parallel_workers=args.parallel,
                 output_format=args.format,
-                skip_existing=args.skip_existing if hasattr(args, "skip_existing") else True,
-                replace=args.replace if hasattr(args, "replace") else False,
+                skip_existing=getattr(args, "skip_existing", True),
+                replace=getattr(args, "replace", False),
             )
             requests.append(request)
 
@@ -474,7 +476,13 @@ class CommandRouter:
 
         # Execute batch extraction
         output_dir = Path(args.output_dir) if args.output_dir else None
-        manager = ExtractionManager(self._cli.connection_pool, self._cli.config, self._logger)
+        verbose_timing = getattr(args, "verbose_timing", False)
+        manager = ExtractionManager(
+            self._cli.connection_pool,
+            self._cli.config,
+            self._logger,
+            verbose_timing=verbose_timing,
+        )
         batch_result = manager.batch_extract(requests, output_dir=output_dir)
 
         # Display summary

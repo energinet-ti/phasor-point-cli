@@ -15,12 +15,15 @@ import pandas as pd
 import pytz
 
 from .chunk_strategy import ChunkStrategy
+from .config_paths import ConfigPathManager
 from .data_extractor import DataExtractor
 from .data_processor import DataProcessor
 from .data_validator import DataValidator
+from .extraction_history import ExtractionHistory
 from .file_utils import FileUtils
 from .models import BatchExtractionResult, ExtractionRequest, ExtractionResult
 from .power_calculator import PowerCalculator
+from .progress_tracker import ProgressTracker
 
 
 class ExtractionManager:
@@ -35,10 +38,13 @@ class ExtractionManager:
         data_extractor: DataExtractor | None = None,
         data_processor: DataProcessor | None = None,
         power_calculator: PowerCalculator | None = None,
+        extraction_history: ExtractionHistory | None = None,
+        verbose_timing: bool = False,
     ) -> None:
         self.connection_pool = connection_pool
         self.config_manager = config_manager
         self.logger = logger
+        self.verbose_timing = verbose_timing
 
         validator = None
         if data_processor is None:
@@ -51,6 +57,13 @@ class ExtractionManager:
             connection_pool=connection_pool, logger=logger
         )
         self.power_calculator = power_calculator or PowerCalculator(logger=logger)
+
+        # Initialize extraction history
+        if extraction_history is None:
+            config_path_manager = ConfigPathManager()
+            extraction_history = ExtractionHistory(config_path_manager, logger=logger)
+            extraction_history.load_history()
+        self.extraction_history = extraction_history
 
     # ------------------------------------------------------------------ Helpers
     def _config(self):
@@ -276,7 +289,7 @@ class ExtractionManager:
         return self._persist_dataframe(request, df, extraction_log)
 
     # ---------------------------------------------------------------- Extraction
-    def extract(  # noqa: PLR0911 - Multiple returns for error handling and early exits
+    def extract(  # noqa: PLR0911, PLR0912, PLR0915 - Complex extraction logic with validation
         self, request: ExtractionRequest, *, chunk_strategy: ChunkStrategy | None = None
     ) -> ExtractionResult:
         start_clock = time.monotonic()
@@ -316,7 +329,36 @@ class ExtractionManager:
             )
 
         extraction_log = self._initialise_log(request)
-        df = self.data_extractor.extract(request, chunk_strategy=chunk_strategy)
+
+        # Initialize progress tracker for chunked extractions
+        progress_tracker = None
+        strategy = chunk_strategy or ChunkStrategy(
+            chunk_size_minutes=request.chunk_size_minutes, logger=self.logger
+        )
+        use_chunking, chunks = strategy.should_use_chunking(
+            request.date_range.start, request.date_range.end
+        )
+
+        if use_chunking and len(chunks) > 1:
+            progress_tracker = ProgressTracker(
+                extraction_history=self.extraction_history,
+                verbose_timing=self.verbose_timing,
+                logger=self.logger,
+            )
+            progress_tracker.start_extraction(
+                total_chunks=len(chunks),
+                pmu_id=request.pmu_id,
+                estimated_rows=0,  # Will be calculated if needed
+            )
+
+        df = self.data_extractor.extract(
+            request, chunk_strategy=chunk_strategy, progress_tracker=progress_tracker
+        )
+
+        # Finish progress display if used
+        if progress_tracker:
+            progress_tracker.finish_extraction()
+
         if df is None:
             duration = time.monotonic() - start_clock
             return ExtractionResult(
@@ -390,6 +432,15 @@ class ExtractionManager:
 
         duration = time.monotonic() - start_clock
 
+        # Save extraction metrics to history for future time estimates
+        if duration > 0 and len(df) > 0:
+            self.extraction_history.add_extraction(
+                rows=len(df),
+                duration_sec=duration,
+                chunk_size_minutes=request.chunk_size_minutes,
+                parallel_workers=request.parallel_workers,
+            )
+
         return ExtractionResult(
             request=request,
             success=True,
@@ -439,6 +490,14 @@ class ExtractionManager:
         self.logger.info("Output directory: %s", output_dir)
         print("=" * 60)
 
+        # Initialize batch progress tracker
+        batch_progress = ProgressTracker(
+            extraction_history=self.extraction_history,
+            verbose_timing=self.verbose_timing,
+            logger=self.logger,
+        )
+        batch_progress.start_batch(len(requests))
+
         results = []
 
         for i, request in enumerate(requests, 1):
@@ -472,6 +531,9 @@ class ExtractionManager:
             try:
                 result = self.extract(request, chunk_strategy=chunk_strategy)
                 results.append(result)
+
+                # Update batch progress after PMU completes
+                batch_progress.update_pmu_progress(i - 1, request.pmu_id)
             except Exception as exc:
                 self.logger.error("Error processing PMU %d: %s", request.pmu_id, exc)
                 error_result = ExtractionResult(
@@ -485,6 +547,9 @@ class ExtractionManager:
                 results.append(error_result)
 
         batch_end = datetime.now()
+
+        # Finish batch progress tracking
+        batch_progress.finish_batch()
 
         print("\n" + "=" * 60)
         print("[DATA] Batch Extraction Summary")
