@@ -265,9 +265,9 @@ class ExtractionManager:
         print(f"   Shape: {df.shape}")
         print(f"   Columns: {list(df.columns[:5])}{'...' if len(df.columns) > 5 else ''}")
         if "ts" in df.columns:
-            print(f"   Local time range: {df['ts'].min()} to {df['ts'].max()}")
-            if "ts_utc" in df.columns:
-                print(f"   UTC time range: {df['ts_utc'].min()} to {df['ts_utc'].max()}")
+            print(f"   UTC time range: {df['ts'].min()} to {df['ts'].max()}")
+            if "ts_local" in df.columns:
+                print(f"   Local time range: {df['ts_local'].min()} to {df['ts_local'].max()}")
 
     def _persist_dataframe(
         self, request: ExtractionRequest, df: pd.DataFrame, extraction_log: dict

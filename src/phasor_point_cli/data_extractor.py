@@ -305,10 +305,9 @@ class DataExtractor:
         if not use_chunking:
             return self.extract_single(table_name, start_str, end_str)
 
-        # Pause progress display before logging
+        # Pause progress display before logging (clears line and moves to new line)
         if progress_tracker:
             progress_tracker.pause_display()
-            print()  # Ensure log starts on new line
 
         self.logger.info(
             "Using chunked extraction with chunk size %s minutes (%s chunks total)",

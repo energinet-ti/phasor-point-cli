@@ -172,8 +172,8 @@ phasor-cli query --sql "SELECT TOP 100 * FROM pmu_45020_1"
 ### Columns
 
 **Timestamps:**
-- `ts_utc` - UTC timestamp (authoritative, unambiguous)
-- `ts` - Local wall-clock time (converted from UTC)
+- `ts` - UTC timestamp (authoritative, unambiguous)
+- `ts_local` - Local wall-clock time (converted from UTC with per-row DST handling)
 
 **Measurements:** Original PhasorPoint column names (e.g., `f`, `dfdt`, `va1_m`, `va1_a`, `ia1_m`, `ia1_a`)
 
@@ -192,8 +192,8 @@ DST transitions are handled automatically:
 - Example: "2024-07-15 10:00:00" is interpreted as summer time even if requested in January
 
 **Output Data:**
-- `ts_utc`: Authoritative UTC timestamps (always unambiguous)
-- `ts`: Local wall-clock times (may have duplicates during fall-back transition)
+- `ts`: Authoritative UTC timestamps (always unambiguous)
+- `ts_local`: Local wall-clock times (may have duplicates during fall-back transition, per-row DST aware)
 
 **Ambiguous Times:**
 - During DST fall-back, ambiguous times (e.g., "02:30") use the first occurrence (DST active)
@@ -221,9 +221,12 @@ df = pd.read_parquet('data.parquet')
 print(df.f.mean())  # frequency
 print(df.va1_m.describe())  # voltage magnitude
 
-# Use ts_utc for unambiguous time operations
-df_sorted = df.sort_values('ts_utc')
-df_filtered = df[df.ts_utc >= '2024-07-15 08:00:00']
+# Use ts (UTC) for unambiguous time operations
+df_sorted = df.sort_values('ts')
+df_filtered = df[df.ts >= '2024-07-15 08:00:00']
+
+# Use ts_local for wall-clock time display
+print(df[['ts', 'ts_local', 'f']].head())
 
 # Access calculated power (if --processed was used)
 print(df.active_power_mw.sum())

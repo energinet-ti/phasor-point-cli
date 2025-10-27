@@ -120,10 +120,12 @@ class TestProgressTracker:
         assert progress_tracker._completed_chunks == 3
         assert len(progress_tracker._chunk_times) == 3
 
+    @patch("sys.stdout.isatty", return_value=True)
     @patch("builtins.print")
-    def test_finish_extraction(self, mock_print, progress_tracker):
+    def test_finish_extraction(self, mock_print, mock_isatty, progress_tracker):
         """Test finishing extraction."""
         # Arrange
+        progress_tracker._is_tty = True  # Reflect mocked isatty
         progress_tracker.start_extraction(total_chunks=5, pmu_id=123)
         progress_tracker._completed_chunks = 5
 
@@ -142,11 +144,13 @@ class TestProgressTracker:
         assert progress_tracker._total_pmus == 15
         assert progress_tracker._completed_pmus == 0
 
+    @patch("sys.stdout.isatty", return_value=True)
     @patch("builtins.print")
     @patch("time.time")
-    def test_update_pmu_progress(self, mock_time, mock_print, progress_tracker):
+    def test_update_pmu_progress(self, mock_time, mock_print, mock_isatty, progress_tracker):
         """Test PMU progress update in batch."""
         # Arrange
+        progress_tracker._is_tty = True  # Reflect mocked isatty
         mock_time.return_value = 100.0
         progress_tracker.start_batch(total_pmus=5)
         progress_tracker._batch_start_time = 80.0
@@ -158,10 +162,12 @@ class TestProgressTracker:
         assert progress_tracker._completed_pmus == 1
         assert mock_print.called
 
+    @patch("sys.stdout.isatty", return_value=True)
     @patch("builtins.print")
-    def test_finish_batch(self, mock_print, progress_tracker):
+    def test_finish_batch(self, mock_print, mock_isatty, progress_tracker):
         """Test finishing batch."""
         # Arrange
+        progress_tracker._is_tty = True  # Reflect mocked isatty
         progress_tracker.start_batch(total_pmus=5)
         progress_tracker._completed_pmus = 5
 

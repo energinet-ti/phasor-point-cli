@@ -7,6 +7,7 @@ and current extraction performance.
 
 from __future__ import annotations
 
+import sys
 import threading
 import time
 from typing import TYPE_CHECKING
@@ -58,6 +59,9 @@ class ProgressTracker:
         self._display_paused = False
         self._display_lock = threading.Lock()
         self._last_eta = "Calculating ETA..."
+
+        # Only show progress in interactive terminals
+        self._is_tty = sys.stdout.isatty()
 
     def start_extraction(
         self, total_chunks: int, pmu_id: int | None = None, estimated_rows: int = 0
@@ -133,22 +137,29 @@ class ProgressTracker:
         """
         self._completed_pmus = pmu_index + 1
 
-        # Clear the current line and print PMU completion
-        print("\r" + " " * 100, end="")  # Clear line
-        print(f"\r[BATCH] PMU {pmu_id} completed ({self._completed_pmus}/{self._total_pmus})")
+        if not self._is_tty:
+            return
 
-        # Calculate batch ETA if we have enough data
-        if self._completed_pmus > 0 and self._total_pmus > self._completed_pmus:
-            elapsed = time.time() - self._batch_start_time
-            avg_time_per_pmu = elapsed / self._completed_pmus
-            remaining_pmus = self._total_pmus - self._completed_pmus
-            remaining_time = avg_time_per_pmu * remaining_pmus
-            eta_str = self._format_time(remaining_time)
+        # Pause display to print batch messages cleanly
+        with self._display_lock:
+            # Clear the current line
+            print("\r" + " " * 120, end="", flush=True)
+            print()  # Move to new line
 
-            progress_pct = self._completed_pmus / self._total_pmus * 100
-            print(
-                f"[BATCH] Overall progress: {self._completed_pmus}/{self._total_pmus} ({progress_pct:.0f}%) | ETA: {eta_str}"
-            )
+            print(f"[BATCH] PMU {pmu_id} completed ({self._completed_pmus}/{self._total_pmus})")
+
+            # Calculate batch ETA if we have enough data
+            if self._completed_pmus > 0 and self._total_pmus > self._completed_pmus:
+                elapsed = time.time() - self._batch_start_time
+                avg_time_per_pmu = elapsed / self._completed_pmus
+                remaining_pmus = self._total_pmus - self._completed_pmus
+                remaining_time = avg_time_per_pmu * remaining_pmus
+                eta_str = self._format_time(remaining_time)
+
+                progress_pct = self._completed_pmus / self._total_pmus * 100
+                print(
+                    f"[BATCH] Overall progress: {self._completed_pmus}/{self._total_pmus} ({progress_pct:.0f}%) | ETA: {eta_str}"
+                )
 
     def finish_extraction(self) -> None:
         """Mark extraction as complete and print final message."""
@@ -156,26 +167,34 @@ class ProgressTracker:
         self._stop_display_thread()
         self._spinner.stop()
 
-        if self._completed_chunks > 0:
+        if self._completed_chunks > 0 and self._is_tty:
             elapsed = time.time() - self._start_time
             elapsed_str = self._format_time(elapsed)
 
-            # Clear line and print completion
-            print("\r" + " " * 120, end="")  # Clear any remaining progress text
+            # Clear line and print completion on new line
+            print("\r" + " " * 120, end="", flush=True)  # Clear any remaining progress text
+            print()  # Move to new line
 
             pmu_label = f"PMU {self._current_pmu_id}" if self._current_pmu_id else "Extraction"
-            print(f"\r[{pmu_label}] Completed {self._total_chunks} chunks in {elapsed_str}")
+            print(f"[{pmu_label}] Completed {self._total_chunks} chunks in {elapsed_str}")
 
     def finish_batch(self) -> None:
         """Mark batch extraction as complete."""
-        if self._completed_pmus > 0:
+        if self._completed_pmus > 0 and self._is_tty:
             elapsed = time.time() - self._batch_start_time
             elapsed_str = self._format_time(elapsed)
+            # Clear any remaining text on current line
+            print("\r" + " " * 120, end="", flush=True)
+            print()  # Move to new line
             print(f"[BATCH] Completed all {self._total_pmus} PMUs in {elapsed_str}")
 
     def pause_display(self) -> None:
         """Temporarily pause the progress display updates."""
         with self._display_lock:
+            if self._is_tty:
+                # Clear the current progress line before pausing
+                print("\r" + " " * 120, end="", flush=True)
+                print()  # Move to new line
             self._display_paused = True
 
     def resume_display(self) -> None:
@@ -226,7 +245,7 @@ class ProgressTracker:
     def _update_display(self) -> None:
         """Update the progress display with spinner, elapsed time, and ETA."""
         with self._display_lock:
-            if self._total_chunks == 0 or self._display_paused:
+            if self._total_chunks == 0 or self._display_paused or not self._is_tty:
                 return
 
             # Get current state
@@ -345,6 +364,9 @@ class ScanProgressTracker:
         self._total = 0
         self._found_count = 0
 
+        # Only show progress in interactive terminals
+        self._is_tty = sys.stdout.isatty()
+
     def start(self) -> None:
         """Start tracking table scan."""
         self._start_time = time.time()
@@ -379,11 +401,15 @@ class ScanProgressTracker:
         """Display final completion message."""
         self.stop()
 
-        # Clear line and print final message
-        print("\r" + " " * 120, end="")
+        if not self._is_tty:
+            return
+
+        # Clear line and print final message on new line
+        print("\r" + " " * 120, end="", flush=True)
+        print()  # Move to new line
         percentage = 100 if self._total > 0 else 0
         print(
-            f"\rScanning: {self._completed}/{self._total} ({percentage}%) - {self._found_count} tables found ✓"
+            f"Scanning: {self._completed}/{self._total} ({percentage}%) - {self._found_count} tables found ✓"
         )
 
     def _start_display_thread(self) -> None:
@@ -425,7 +451,7 @@ class ScanProgressTracker:
     def _update_display(self) -> None:
         """Update the scan progress display."""
         with self._display_lock:
-            if self._total == 0:
+            if self._total == 0 or not self._is_tty:
                 return
 
             spinner_frame = self._spinner.current_frame()

@@ -36,16 +36,16 @@ def test_format_timestamps_with_precision_handles_multiple_columns():
     df = pd.DataFrame(
         {
             "ts": pd.to_datetime(["2025-01-01 12:00:00.123456"]),
-            "ts_utc": pd.to_datetime(["2025-01-01 11:00:00.654321"]),
+            "ts_local": pd.to_datetime(["2025-01-01 11:00:00.654321"]),
         }
     )
 
     # Act
-    result = DataProcessor.format_timestamps_with_precision(df, ["ts", "ts_utc"])
+    result = DataProcessor.format_timestamps_with_precision(df, ["ts", "ts_local"])
 
     # Assert
     assert result["ts"].iloc[0].endswith("123")
-    assert result["ts_utc"].iloc[0].endswith("654")
+    assert result["ts_local"].iloc[0].endswith("654")
 
 
 def test_convert_columns_to_numeric_logs_conversion(extraction_log):
@@ -80,7 +80,7 @@ def test_clean_and_convert_types_applies_timezone_and_numeric(extraction_log):
 
     # Assert
     assert result is not None
-    assert "ts_utc" in result.columns
+    assert "ts_local" in result.columns
     assert pd.api.types.is_numeric_dtype(result["value"])
 
 
@@ -153,17 +153,21 @@ class TestDSTProcessing:
         result = processor.apply_timezone_conversion(df.copy(), extraction_log)
 
         # Assert
-        assert "ts_utc" in result.columns
+        assert "ts_local" in result.columns
         assert "ts" in result.columns
 
-        # ts_utc should remain as UTC
-        assert "2024-10-27" in str(result["ts_utc"].iloc[0])
-        assert "00:00" in str(result["ts_utc"].iloc[0])
+        # ts should remain as UTC (unchanged)
+        assert "2024-10-27" in str(result["ts"].iloc[0])
+        assert "00:00" in str(result["ts"].iloc[0])
 
-        # ts should show local time with correct DST offset for each timestamp
+        # ts_local should show local time with correct DST offset for each timestamp
         # Note: After conversion, times may be formatted as strings
-        assert result["ts"].iloc[0] is not None
-        assert result["ts"].iloc[-1] is not None
+        assert result["ts_local"].iloc[0] is not None
+        assert result["ts_local"].iloc[-1] is not None
+
+        # Verify DST transition is detected in extraction log
+        assert "timestamp_adjustment" in extraction_log["data_quality"]
+        assert extraction_log["data_quality"]["timestamp_adjustment"]["dst_transition"] is True
 
     def test_summer_time_conversion(self, extraction_log, monkeypatch):
         """Test timezone conversion during summer (DST active)."""
@@ -188,15 +192,17 @@ class TestDSTProcessing:
         result = processor.apply_timezone_conversion(df.copy(), extraction_log)
 
         # Assert
-        assert "ts_utc" in result.columns
+        assert "ts_local" in result.columns
         assert "ts" in result.columns
 
-        # ts_utc should preserve UTC times
-        assert "2024-07-15" in str(result["ts_utc"].iloc[0])
-        assert "08:00" in str(result["ts_utc"].iloc[0])
+        # ts should remain as UTC (unchanged)
+        assert "2024-07-15" in str(result["ts"].iloc[0])
+        assert "08:00" in str(result["ts"].iloc[0])
 
-        # ts should show CEST times (UTC+2)
-        assert "10:00" in str(result["ts"].iloc[0]) or "10.00" in str(result["ts"].iloc[0])
+        # ts_local should show CEST times (UTC+2)
+        assert "10:00" in str(result["ts_local"].iloc[0]) or "10.00" in str(
+            result["ts_local"].iloc[0]
+        )
 
     def test_winter_time_conversion(self, extraction_log, monkeypatch):
         """Test timezone conversion during winter (DST inactive)."""
@@ -221,15 +227,17 @@ class TestDSTProcessing:
         result = processor.apply_timezone_conversion(df.copy(), extraction_log)
 
         # Assert
-        assert "ts_utc" in result.columns
+        assert "ts_local" in result.columns
         assert "ts" in result.columns
 
-        # ts_utc should preserve UTC times
-        assert "2024-01-15" in str(result["ts_utc"].iloc[0])
-        assert "09:00" in str(result["ts_utc"].iloc[0])
+        # ts should remain as UTC (unchanged)
+        assert "2024-01-15" in str(result["ts"].iloc[0])
+        assert "09:00" in str(result["ts"].iloc[0])
 
-        # ts should show CET times (UTC+1)
-        assert "10:00" in str(result["ts"].iloc[0]) or "10.00" in str(result["ts"].iloc[0])
+        # ts_local should show CET times (UTC+1)
+        assert "10:00" in str(result["ts_local"].iloc[0]) or "10.00" in str(
+            result["ts_local"].iloc[0]
+        )
 
     def test_timezone_conversion_logs_offset(self, extraction_log, monkeypatch):
         """Test that timezone conversion logs offset information."""
@@ -244,7 +252,9 @@ class TestDSTProcessing:
         # Assert
         assert "timestamp_adjustment" in extraction_log["data_quality"]
         assert "timezone" in extraction_log["data_quality"]["timestamp_adjustment"]
-        assert "offset_hours" in extraction_log["data_quality"]["timestamp_adjustment"]
+        assert "offset_hours_start" in extraction_log["data_quality"]["timestamp_adjustment"]
+        assert "offset_hours_end" in extraction_log["data_quality"]["timestamp_adjustment"]
+        assert "dst_transition" in extraction_log["data_quality"]["timestamp_adjustment"]
         assert (
-            extraction_log["data_quality"]["timestamp_adjustment"]["method"] == "machine_timezone"
+            extraction_log["data_quality"]["timestamp_adjustment"]["method"] == "per_row_dst_aware"
         )

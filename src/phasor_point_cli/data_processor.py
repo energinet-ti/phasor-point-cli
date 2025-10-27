@@ -10,7 +10,7 @@ from __future__ import annotations
 import contextlib
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Iterable, Sequence
 
 import pandas as pd
@@ -99,7 +99,7 @@ class DataProcessor:
         extraction_log: dict | None = None,
         logger: logging.Logger | None = None,
     ) -> pd.DataFrame:
-        non_ts_cols = [column for column in df.columns if column not in ["ts", "ts_utc"]]
+        non_ts_cols = [column for column in df.columns if column not in ["ts", "ts_local"]]
         converted_count = 0
 
         for column in non_ts_cols:
@@ -164,7 +164,7 @@ class DataProcessor:
         try:
             local_tz = timezone_factory() if timezone_factory else cls.get_local_timezone()
         except Exception as exc:
-            df = cls.format_timestamps_with_precision(df, ["ts", "ts_utc"])
+            df = cls.format_timestamps_with_precision(df, ["ts"])
             if extraction_log is not None:
                 extraction_log["issues_found"].append(
                     {
@@ -176,39 +176,59 @@ class DataProcessor:
 
         try:
             if local_tz is not None:
-                if df["ts"].dt.tz is None:
-                    df["ts"] = df["ts"].dt.tz_localize("UTC")
+                # Database returns ts in UTC - keep it unchanged
+                # Create ts_local with per-row DST-aware conversion
+                df["ts_local"] = pd.to_datetime(df["ts"])
+                df["ts_local"] = df["ts_local"].dt.tz_localize("UTC")
+                df["ts_local"] = df["ts_local"].dt.tz_convert(local_tz)
+                df["ts_local"] = df["ts_local"].dt.tz_localize(None)  # Remove tz info
 
-                df["ts_utc"] = df["ts"].copy()
-                df["ts"] = df["ts"].dt.tz_convert(local_tz)
-                df["ts"] = df["ts"].dt.tz_localize(None)
+                # Format both timestamp columns with precision
+                df = cls.format_timestamps_with_precision(df, ["ts", "ts_local"])
 
-                df = cls.format_timestamps_with_precision(df, ["ts", "ts_utc"])
+                # Calculate offset from actual data timestamps (not current time)
+                first_utc = pd.to_datetime(df["ts"].iloc[0])
+                first_local = pd.to_datetime(df["ts_local"].iloc[0])
+                last_utc = pd.to_datetime(df["ts"].iloc[-1])
+                last_local = pd.to_datetime(df["ts_local"].iloc[-1])
 
-                utc_time = datetime.now(timezone.utc)
-                local_time = datetime.now()
-                offset_hours = (local_time - utc_time.replace(tzinfo=None)).total_seconds() / 3600
-                print(
-                    "[TIME] Created dual timestamp columns: ts_utc (original UTC) and ts "
-                    f"(local time, {offset_hours:+.1f} hour(s) offset from machine timezone) - "
-                    "both formatted consistently with millisecond precision"
-                )
+                first_offset = (first_local - first_utc).total_seconds() / 3600
+                last_offset = (last_local - last_utc).total_seconds() / 3600
+
+                # Check if data crosses DST boundary
+                dst_transition = abs(first_offset - last_offset) > 0.01
+
+                if dst_transition:
+                    print(
+                        "[TIME] Created dual timestamp columns:\n"
+                        "  - ts: UTC (authoritative)\n"
+                        f"  - ts_local: Local time (UTC{first_offset:+.1f} at start, "
+                        f"UTC{last_offset:+.1f} at end - DST transition detected)"
+                    )
+                else:
+                    print(
+                        "[TIME] Created dual timestamp columns:\n"
+                        "  - ts: UTC (authoritative)\n"
+                        f"  - ts_local: Local time (UTC{first_offset:+.1f} offset)"
+                    )
+
                 if extraction_log is not None:
                     extraction_log["data_quality"]["timestamp_adjustment"] = {
-                        "method": "machine_timezone",
-                        "offset_hours": round(offset_hours, 2),
+                        "method": "per_row_dst_aware",
+                        "offset_hours_start": round(first_offset, 2),
+                        "offset_hours_end": round(last_offset, 2),
+                        "dst_transition": dst_transition,
                         "timezone": str(local_tz),
                         "description": (
-                            "Created ts_utc (original UTC) and converted ts to local time using "
-                            f"machine timezone ({local_tz}) - both formatted consistently with "
-                            "millisecond precision"
+                            "ts column kept as UTC (from database). Created ts_local with per-row "
+                            f"DST-aware conversion using timezone {local_tz}"
                         ),
-                        "columns_added": ["ts_utc"],
-                        "columns_modified": ["ts"],
+                        "columns_added": ["ts_local"],
+                        "columns_modified": [],
                     }
             else:
                 print("[WARNING]  Could not determine machine timezone, keeping UTC timestamps")
-                df = cls.format_timestamps_with_precision(df, ["ts", "ts_utc"])
+                df = cls.format_timestamps_with_precision(df, ["ts"])
                 if extraction_log is not None:
                     extraction_log["issues_found"].append(
                         {
@@ -217,7 +237,7 @@ class DataProcessor:
                         }
                     )
         except Exception as exc:  # pragma: no cover - still format columns
-            df = cls.format_timestamps_with_precision(df, ["ts", "ts_utc"])
+            df = cls.format_timestamps_with_precision(df, ["ts"])
             if extraction_log is not None:
                 extraction_log["issues_found"].append(
                     {
@@ -242,7 +262,9 @@ class DataProcessor:
         if "ts" in df.columns:
             df = self.apply_timezone_conversion(df, extraction_log)
 
-        df = self.format_timestamps_with_precision(df, ["ts", "ts_utc"])
+        # Format timestamps - check which columns exist
+        ts_cols = [col for col in ["ts", "ts_local"] if col in df.columns]
+        df = self.format_timestamps_with_precision(df, ts_cols)
         return self.convert_columns_to_numeric(df, extraction_log, self.logger)
 
     def process(
