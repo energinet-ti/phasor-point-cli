@@ -260,7 +260,7 @@ This test suite is designed to run in CI/CD pipelines:
 # Example GitHub Actions configuration
 - name: Run tests
   run: |
-    pip install -r requirements.txt
+    make setup
     pytest --cov=src --cov-report=xml
 ```
 

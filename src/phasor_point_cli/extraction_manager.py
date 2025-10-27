@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pandas as pd
 import pytz
+import tzlocal
 
 from .chunk_strategy import ChunkStrategy
 from .config_paths import ConfigPathManager
@@ -86,7 +87,11 @@ class ExtractionManager:
                     UserWarning,
                     stacklevel=3,
                 )
-        return datetime.now().astimezone().tzinfo
+        try:
+            return tzlocal.get_localzone()
+        except Exception:
+            # Final fallback to UTC if tzlocal fails
+            return pytz.UTC
 
     @staticmethod
     def _get_utc_offset(dt: datetime, local_tz) -> str:
