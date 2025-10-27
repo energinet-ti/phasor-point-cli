@@ -46,12 +46,14 @@ class DataExtractor:
             return pd.read_sql(query, conn)
 
     def _build_query(self, table_name: str, start: str, end: str) -> str:
-        return f"""
+        query = f"""
         SELECT *
         FROM {table_name}
         WHERE ts BETWEEN '{start}' AND '{end}'
         ORDER BY ts
         """
+        self.logger.debug(f"[DST DEBUG] SQL Query: ts BETWEEN '{start}' AND '{end}'")
+        return query
 
     # ---------------------------------------------------------- Public methods
     def extract_single(

@@ -151,9 +151,18 @@ class DateRangeCalculator:
         # Priority: --start + duration, then duration alone, then --start + --end
         if getattr(args, "start", None) and DateRangeCalculator._has_duration(args):
             # --start with duration: start at given time and go forward
+            import logging  # noqa: PLC0415
+
+            logger = logging.getLogger("phasor_cli")
+            
             start_dt = DateRangeCalculator._parse_local_datetime(args.start)
             duration = DateRangeCalculator._extract_duration(args)
             end_dt = start_dt + duration
+            
+            logger.debug(f"[DST DEBUG] Date range calculation:")
+            logger.debug(f"[DST DEBUG]   Start (UTC): {start_dt}")
+            logger.debug(f"[DST DEBUG]   Duration: {duration}")
+            logger.debug(f"[DST DEBUG]   End (UTC): {end_dt}")
 
             # Use start time for batch timestamp (consistent filenames)
             batch_timestamp = start_dt.strftime("%Y%m%d_%H%M%S")
