@@ -6,7 +6,6 @@ user input and the various manager classes.
 """
 
 import argparse
-import sys
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -14,6 +13,7 @@ from .config import ConfigurationManager
 from .date_utils import DateRangeCalculator
 from .extraction_manager import ExtractionManager
 from .models import ExtractionRequest
+from .progress_tracker import ScanProgressTracker
 from .query_executor import QueryExecutor
 from .table_manager import TableManager
 
@@ -21,26 +21,44 @@ if TYPE_CHECKING:
     from .cli import PhasorPointCLI
 
 
-def _print_progress(completed: int, total: int, found_count: int) -> None:
+def _create_scan_progress_callback(tracker: ScanProgressTracker):
     """
-    Print scan progress in-place using carriage return.
+    Create a progress callback for table scanning.
 
     Args:
-        completed: Number of tables checked so far
-        total: Total number of tables to check
-        found_count: Number of tables found so far
+        tracker: ScanProgressTracker instance to update
+
+    Returns:
+        Callback function for progress updates
     """
-    percentage = int((completed / total) * 100) if total > 0 else 0
 
-    # Use carriage return to overwrite the same line
-    # Pad with spaces to clear any leftover characters from previous output
-    message = f"\rScanning: {completed}/{total} ({percentage}%) - {found_count} tables found..."
-    print(message, end="", flush=True)
+    def callback(completed: int, total: int, found_count: int) -> None:
+        """Progress callback for table scanning."""
+        tracker.update(completed, total, found_count)
 
-    # If this is the final update, print a newline and completion message
-    if completed == total:
-        print(f"\rScanning: {completed}/{total} (100%) - {found_count} tables found ✓")
-        sys.stdout.flush()
+    return callback
+
+
+def _print_no_tables_found_error() -> None:
+    """Print detailed error message when no PMU tables are found."""
+    print("\n" + "=" * 70)
+    print("WARNING: No PMU Tables Found")
+    print("=" * 70)
+    print("\nCould not find any accessible PMU tables in the database.")
+    print("\n[POSSIBLE CAUSES]")
+    print("   • Database connection issues")
+    print("   • No PMUs configured in the database")
+    print("   • Insufficient database permissions")
+    print("   • Wrong database selected")
+    print("\n[TROUBLESHOOTING]")
+    print("   1. Check connection: Verify DB_HOST, DB_PORT, DB_NAME are correct")
+    print("   2. Try specific PMU: phasor-cli list-tables --pmu 45020")
+    print("   3. Check permissions: Ensure user can read PMU tables")
+    print("   4. Run setup: phasor-cli setup --refresh-pmus")
+    print("\n[NEXT STEPS]")
+    print("   • Verify database connection settings in your .env or config.json")
+    print("   • Contact your database administrator if issue persists")
+    print("=" * 70 + "\n")
 
 
 class CommandRouter:
@@ -247,34 +265,30 @@ class CommandRouter:
         max_pmus = None if getattr(args, "all", False) else getattr(args, "max_pmus", 10)
         resolutions = None  # Use default resolutions
 
+        # Create and start scan progress tracker
+        scan_tracker = ScanProgressTracker()
+        scan_tracker.start()
+
         manager = TableManager(self._cli.connection_pool, self._cli.config, self._logger)
-        result = manager.list_available_tables(
-            pmu_ids=pmu_ids,
-            resolutions=resolutions,
-            max_pmus=max_pmus,
-            progress_callback=_print_progress,
-        )
+
+        try:
+            result = manager.list_available_tables(
+                pmu_ids=pmu_ids,
+                resolutions=resolutions,
+                max_pmus=max_pmus,
+                progress_callback=_create_scan_progress_callback(scan_tracker),
+            )
+
+            # Finish scan progress display
+            scan_tracker.finish()
+        except Exception:
+            # Stop tracker on error
+            scan_tracker.stop()
+            raise
 
         if not result or not result.found_pmus:
             self._logger.error("No accessible PMU tables found")
-            print("\n" + "=" * 70)
-            print("WARNING: No PMU Tables Found")
-            print("=" * 70)
-            print("\nCould not find any accessible PMU tables in the database.")
-            print("\n[POSSIBLE CAUSES]")
-            print("   • Database connection issues")
-            print("   • No PMUs configured in the database")
-            print("   • Insufficient database permissions")
-            print("   • Wrong database selected")
-            print("\n[TROUBLESHOOTING]")
-            print("   1. Check connection: Verify DB_HOST, DB_PORT, DB_NAME are correct")
-            print("   2. Try specific PMU: phasor-cli list-tables --pmu 45020")
-            print("   3. Check permissions: Ensure user can read PMU tables")
-            print("   4. Run setup: phasor-cli setup --refresh-pmus")
-            print("\n[NEXT STEPS]")
-            print("   • Verify database connection settings in your .env or config.json")
-            print("   • Contact your database administrator if issue persists")
-            print("=" * 70 + "\n")
+            _print_no_tables_found_error()
             return
 
         # Display results

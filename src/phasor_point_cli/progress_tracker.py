@@ -7,8 +7,11 @@ and current extraction performance.
 
 from __future__ import annotations
 
+import threading
 import time
 from typing import TYPE_CHECKING
+
+from .spinner import Spinner
 
 if TYPE_CHECKING:
     from .extraction_history import ExtractionHistory
@@ -48,6 +51,13 @@ class ProgressTracker:
         self._batch_start_time = 0.0
         self._current_pmu_id: int | None = None
 
+        # Spinner and display thread
+        self._spinner = Spinner()
+        self._display_thread: threading.Thread | None = None
+        self._display_running = False
+        self._display_lock = threading.Lock()
+        self._last_eta = "Calculating ETA..."
+
     def start_extraction(
         self, total_chunks: int, pmu_id: int | None = None, estimated_rows: int = 0
     ) -> None:
@@ -65,6 +75,11 @@ class ProgressTracker:
         self._chunk_times = []
         self._current_pmu_id = pmu_id
         self._estimated_total_rows = estimated_rows
+        self._last_eta = "Calculating ETA..."
+
+        # Start spinner and display thread
+        self._spinner.start()
+        self._start_display_thread()
 
     def start_batch(self, total_pmus: int) -> None:
         """
@@ -89,38 +104,23 @@ class ProgressTracker:
             chunk_index: Index of the completed chunk (0-based)
             rows_in_chunk: Number of rows in the completed chunk
         """
-        self._completed_chunks = chunk_index + 1
-        current_time = time.time()
-        elapsed = current_time - self._start_time
-        self._chunk_times.append(elapsed)
+        with self._display_lock:
+            self._completed_chunks = chunk_index + 1
+            current_time = time.time()
+            elapsed = current_time - self._start_time
+            self._chunk_times.append(elapsed)
 
-        # Calculate progress
-        progress_pct = (
-            (self._completed_chunks / self._total_chunks * 100) if self._total_chunks > 0 else 0
-        )
+            # Calculate and store ETA (will be displayed by display thread)
+            self._last_eta = self._calculate_eta()
 
-        # Calculate ETA
-        eta_str = self._calculate_eta()
-
-        # Format message
-        pmu_label = f"PMU {self._current_pmu_id}" if self._current_pmu_id else "Extraction"
-        message = f"\r[{pmu_label}] Chunk {self._completed_chunks}/{self._total_chunks} ({progress_pct:.0f}%) | {eta_str}"
-
-        # Add verbose timing if enabled
-        if self.verbose_timing and self._chunk_times:
-            last_chunk_time = self._chunk_times[-1] - (
-                self._chunk_times[-2] if len(self._chunk_times) > 1 else 0
-            )
-            message += f" | Last chunk: {self._format_time(last_chunk_time)}"
-
-        # Print with carriage return for same-line update
-        print(message, end="", flush=True)
-
-        # Log to logger if available (without overwriting line)
-        if self.logger and self.verbose_timing:
-            self.logger.debug(
-                f"Chunk {self._completed_chunks}/{self._total_chunks} completed in {last_chunk_time:.2f}s"
-            )
+            # Log to logger if available
+            if self.logger and self.verbose_timing and self._chunk_times:
+                last_chunk_time = self._chunk_times[-1] - (
+                    self._chunk_times[-2] if len(self._chunk_times) > 1 else 0
+                )
+                self.logger.debug(
+                    f"Chunk {self._completed_chunks}/{self._total_chunks} completed in {last_chunk_time:.2f}s"
+                )
 
     def update_pmu_progress(self, pmu_index: int, pmu_id: int) -> None:
         """
@@ -151,12 +151,16 @@ class ProgressTracker:
 
     def finish_extraction(self) -> None:
         """Mark extraction as complete and print final message."""
+        # Stop display thread and spinner
+        self._stop_display_thread()
+        self._spinner.stop()
+
         if self._completed_chunks > 0:
             elapsed = time.time() - self._start_time
             elapsed_str = self._format_time(elapsed)
 
             # Clear line and print completion
-            print("\r" + " " * 100, end="")  # Clear any remaining progress text
+            print("\r" + " " * 120, end="")  # Clear any remaining progress text
 
             pmu_label = f"PMU {self._current_pmu_id}" if self._current_pmu_id else "Extraction"
             print(f"\r[{pmu_label}] Completed {self._total_chunks} chunks in {elapsed_str}")
@@ -167,6 +171,70 @@ class ProgressTracker:
             elapsed = time.time() - self._batch_start_time
             elapsed_str = self._format_time(elapsed)
             print(f"[BATCH] Completed all {self._total_pmus} PMUs in {elapsed_str}")
+
+    def _start_display_thread(self) -> None:
+        """Start background thread for updating display with spinner and elapsed time."""
+        self._display_running = True
+        self._display_thread = threading.Thread(target=self._display_loop, daemon=True)
+        self._display_thread.start()
+
+    def _stop_display_thread(self) -> None:
+        """Stop display thread and wait for it to finish."""
+        self._display_running = False
+        if self._display_thread and self._display_thread.is_alive():
+            self._display_thread.join(timeout=1.0)
+        self._display_thread = None
+
+    def _display_loop(self) -> None:
+        """
+        Background thread loop that updates display with spinner and elapsed time.
+
+        Updates every 250ms with current spinner frame and elapsed time.
+        """
+        from .signal_handler import get_cancellation_manager  # noqa: PLC0415
+
+        cancellation_manager = get_cancellation_manager()
+        update_interval = 0.25  # 250ms
+
+        while self._display_running:
+            # Check for cancellation
+            if cancellation_manager.is_cancelled():
+                self._display_running = False
+                break
+
+            # Update display
+            self._update_display()
+
+            # Sleep for update interval
+            time.sleep(update_interval)
+
+    def _update_display(self) -> None:
+        """Update the progress display with spinner, elapsed time, and ETA."""
+        with self._display_lock:
+            if self._total_chunks == 0:
+                return
+
+            # Get current state
+            spinner_frame = self._spinner.current_frame()
+            elapsed = time.time() - self._start_time
+            elapsed_str = self._format_time(elapsed)
+            progress_pct = (
+                (self._completed_chunks / self._total_chunks * 100) if self._total_chunks > 0 else 0
+            )
+
+            # Format message
+            pmu_label = f"PMU {self._current_pmu_id}" if self._current_pmu_id else "Extraction"
+            message = f"\r[{pmu_label}] Chunk {self._completed_chunks}/{self._total_chunks} ({progress_pct:.0f}%) {spinner_frame} Elapsed: {elapsed_str} | {self._last_eta}"
+
+            # Add verbose timing if enabled
+            if self.verbose_timing and self._chunk_times and len(self._chunk_times) > 0:
+                last_chunk_time = self._chunk_times[-1] - (
+                    self._chunk_times[-2] if len(self._chunk_times) > 1 else 0
+                )
+                message += f" | Last chunk: {self._format_time(last_chunk_time)}"
+
+            # Print with carriage return for same-line update
+            print(message, end="", flush=True)
 
     def _calculate_eta(self) -> str:
         """Calculate and format ETA string."""
@@ -244,3 +312,107 @@ class ProgressTracker:
         if minutes > 0:
             return f"{minutes}m {secs}s"
         return f"{secs}s"
+
+
+class ScanProgressTracker:
+    """Track and display table scanning progress with spinner."""
+
+    def __init__(self):
+        """Initialize scan progress tracker."""
+        self._spinner = Spinner()
+        self._start_time = 0.0
+        self._display_thread: threading.Thread | None = None
+        self._display_running = False
+        self._display_lock = threading.Lock()
+
+        # Current scan state
+        self._completed = 0
+        self._total = 0
+        self._found_count = 0
+
+    def start(self) -> None:
+        """Start tracking table scan."""
+        self._start_time = time.time()
+        self._spinner.start()
+        self._start_display_thread()
+
+    def stop(self) -> None:
+        """Stop tracking and display final message."""
+        self._stop_display_thread()
+        self._spinner.stop()
+
+    def update(self, completed: int, total: int, found_count: int) -> None:
+        """
+        Update scan progress.
+
+        Args:
+            completed: Number of tables checked so far
+            total: Total number of tables to check
+            found_count: Number of tables found so far
+        """
+        with self._display_lock:
+            self._completed = completed
+            self._total = total
+            self._found_count = found_count
+
+            # If scan is complete, stop and show final message
+            if completed >= total:
+                # Stop display updates
+                self._display_running = False
+
+    def finish(self) -> None:
+        """Display final completion message."""
+        self.stop()
+
+        # Clear line and print final message
+        print("\r" + " " * 120, end="")
+        percentage = 100 if self._total > 0 else 0
+        print(
+            f"\rScanning: {self._completed}/{self._total} ({percentage}%) - {self._found_count} tables found ✓"
+        )
+
+    def _start_display_thread(self) -> None:
+        """Start background thread for updating display."""
+        self._display_running = True
+        self._display_thread = threading.Thread(target=self._display_loop, daemon=True)
+        self._display_thread.start()
+
+    def _stop_display_thread(self) -> None:
+        """Stop display thread."""
+        self._display_running = False
+        if self._display_thread and self._display_thread.is_alive():
+            self._display_thread.join(timeout=1.0)
+        self._display_thread = None
+
+    def _display_loop(self) -> None:
+        """Background thread loop for updating display."""
+        from .signal_handler import get_cancellation_manager  # noqa: PLC0415
+
+        cancellation_manager = get_cancellation_manager()
+        update_interval = 0.25  # 250ms
+
+        while self._display_running:
+            # Check for cancellation
+            if cancellation_manager.is_cancelled():
+                self._display_running = False
+                break
+
+            # Update display
+            self._update_display()
+
+            # Sleep
+            time.sleep(update_interval)
+
+    def _update_display(self) -> None:
+        """Update the scan progress display."""
+        with self._display_lock:
+            if self._total == 0:
+                return
+
+            spinner_frame = self._spinner.current_frame()
+            elapsed = time.time() - self._start_time
+            elapsed_str = ProgressTracker._format_time(elapsed)
+            percentage = int((self._completed / self._total) * 100) if self._total > 0 else 0
+
+            message = f"\rScanning: {self._completed}/{self._total} ({percentage}%) {spinner_frame} Elapsed: {elapsed_str} - {self._found_count} tables found..."
+            print(message, end="", flush=True)
