@@ -65,6 +65,7 @@ class DateRangeCalculator:
                 # For pytz timezones, use localize method with is_dst=True to prefer first occurrence
                 if hasattr(local_tz, "localize"):
                     # is_dst=True means during ambiguous times (fall-back), use the first occurrence (DST active)
+                    # pytz timezones provide 'localize', but type checker does not recognize it; checked with hasattr above
                     aware_dt = local_tz.localize(naive_dt, is_dst=True)  # type: ignore[attr-defined]
                 else:
                     # For other timezone implementations (e.g., zoneinfo)
