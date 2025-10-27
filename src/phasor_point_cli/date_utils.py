@@ -7,8 +7,8 @@ relative durations and absolute timestamps.
 
 from __future__ import annotations
 
-import contextlib
 import os
+import warnings
 from datetime import datetime, timedelta, timezone
 
 import pandas as pd
@@ -45,8 +45,16 @@ class DateRangeCalculator:
         local_tz = None
         tz_env = os.environ.get("TZ")
         if tz_env:
-            with contextlib.suppress(Exception):
+            try:
                 local_tz = pytz.timezone(tz_env)
+            except pytz.exceptions.UnknownTimeZoneError:
+                warnings.warn(
+                    f"Invalid timezone in TZ environment variable: '{tz_env}'. "
+                    f"Falling back to system timezone. "
+                    f"Use a valid IANA timezone name (e.g., 'Europe/Copenhagen').",
+                    UserWarning,
+                    stacklevel=2,
+                )
 
         if local_tz is None:
             local_tz = datetime.now().astimezone().tzinfo

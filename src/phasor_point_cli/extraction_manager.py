@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 import os
 import time
+import warnings
 from datetime import datetime
 from pathlib import Path
 
@@ -64,8 +65,14 @@ class ExtractionManager:
         if tz_env:
             try:
                 return pytz.timezone(tz_env)
-            except Exception:
-                pass
+            except pytz.exceptions.UnknownTimeZoneError:
+                warnings.warn(
+                    f"Invalid timezone in TZ environment variable: '{tz_env}'. "
+                    f"Falling back to system timezone. "
+                    f"Use a valid IANA timezone name (e.g., 'Europe/Copenhagen').",
+                    UserWarning,
+                    stacklevel=3,
+                )
         return datetime.now().astimezone().tzinfo
 
     @staticmethod
@@ -99,7 +106,13 @@ class ExtractionManager:
 
             sign = "+" if offset_seconds >= 0 else "-"
             return f"{sign}{abs(offset_hours):02d}:{offset_minutes:02d}"
-        except Exception:
+        except Exception as e:
+            warnings.warn(
+                f"Failed to calculate UTC offset for datetime {dt} with timezone {local_tz}: {e}. "
+                f"Defaulting to +00:00. Check timezone configuration.",
+                UserWarning,
+                stacklevel=3,
+            )
             return "+00:00"
 
     def _get_station_name(self, pmu_id: int) -> str:

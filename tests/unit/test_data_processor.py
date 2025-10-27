@@ -133,18 +133,15 @@ class TestDSTProcessing:
         monkeypatch.setenv("TZ", "Europe/Copenhagen")
 
         # Create dataframe with UTC timestamps spanning DST transition
-        # October 27, 2024: Copenhagen switches from CEST (UTC+2) to CET (UTC+1) at 03:00
-        # UTC times: 00:00, 01:00, 02:00, 03:00
-        # Local times before DST end: 02:00, 03:00, 04:00 (CEST)
-        # Local time at 01:00 UTC (after DST ends): 02:00 (CET) - this is the ambiguous hour
+        # October 27, 2024: Copenhagen switches from CEST (UTC+2) to CET (UTC+1) at 03:00 local
         df = pd.DataFrame(
             {
                 "ts": pd.to_datetime(
                     [
-                        "2024-10-27 00:00:00",  # 02:00 CEST (before transition)
-                        "2024-10-27 00:30:00",  # 02:30 CEST (before transition)
-                        "2024-10-27 01:00:00",  # 03:00 CEST (at transition)
-                        "2024-10-27 02:00:00",  # 03:00 CET (after transition)
+                        "2024-10-27 00:00:00",  # UTC 00:00 → 02:00 CEST (before transition)
+                        "2024-10-27 00:30:00",  # UTC 00:30 → 02:30 CEST (before transition)
+                        "2024-10-27 01:00:00",  # UTC 01:00 → 03:00 CEST (at transition)
+                        "2024-10-27 02:00:00",  # UTC 02:00 → 03:00 CET (after transition)
                     ]
                 )
             }
@@ -177,9 +174,9 @@ class TestDSTProcessing:
             {
                 "ts": pd.to_datetime(
                     [
-                        "2024-07-15 08:00:00",  # 10:00 CEST (UTC+2)
-                        "2024-07-15 09:00:00",  # 11:00 CEST
-                        "2024-07-15 10:00:00",  # 12:00 CEST
+                        "2024-07-15 08:00:00",  # UTC 08:00 → 10:00 CEST (UTC+2)
+                        "2024-07-15 09:00:00",  # UTC 09:00 → 11:00 CEST
+                        "2024-07-15 10:00:00",  # UTC 10:00 → 12:00 CEST
                     ]
                 )
             }
@@ -210,9 +207,9 @@ class TestDSTProcessing:
             {
                 "ts": pd.to_datetime(
                     [
-                        "2024-01-15 09:00:00",  # 10:00 CET (UTC+1)
-                        "2024-01-15 10:00:00",  # 11:00 CET
-                        "2024-01-15 11:00:00",  # 12:00 CET
+                        "2024-01-15 09:00:00",  # UTC 09:00 → 10:00 CET (UTC+1)
+                        "2024-01-15 10:00:00",  # UTC 10:00 → 11:00 CET
+                        "2024-01-15 11:00:00",  # UTC 11:00 → 12:00 CET
                     ]
                 )
             }

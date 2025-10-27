@@ -363,3 +363,26 @@ class TestDSTHandling:
         # UTC has no DST, so times should match exactly
         assert result.start == datetime(2024, 7, 15, 10, 0, 0)
         assert result.end == datetime(2024, 7, 15, 11, 0, 0)
+
+    def test_invalid_timezone_warns_and_falls_back(self, monkeypatch):
+        """Test that invalid TZ environment variable issues warning and falls back."""
+        # Arrange
+        monkeypatch.setenv("TZ", "Invalid/Timezone")
+        args = argparse.Namespace(
+            start="2024-07-15 10:00:00",
+            end="2024-07-15 11:00:00",
+            minutes=None,
+            hours=None,
+            days=None,
+        )
+
+        # Act & Assert
+        with pytest.warns(
+            UserWarning,
+            match="Invalid timezone in TZ environment variable: 'Invalid/Timezone'",
+        ):
+            result = DateRangeCalculator.calculate(args)
+
+        # Should still work using system timezone fallback
+        assert result.start is not None
+        assert result.end is not None
