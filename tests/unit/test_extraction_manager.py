@@ -1299,4 +1299,6 @@ def test_unified_filename_single_vs_batch(tmp_path, mock_extraction_history):
     assert single_path.name == batch_path.name
     # Full paths differ only by directory
     assert batch_path.parent == batch_dir
-    assert single_path.parent == Path()
+    # Single path should be just a filename with no directory component
+    assert single_path == Path(single_path.name)
+    assert str(single_path.parent) == "."

@@ -199,7 +199,15 @@ class TableListResult:
 
 @dataclass
 class DateRange:
-    """Simple inclusive date range used within extraction flows."""
+    """
+    Simple inclusive date range used within extraction flows.
+
+    Stores user-provided local times and provides conversion methods
+    for different use cases (database queries, filenames, logging).
+
+    Note: Conversion methods import DateRangeCalculator inline to avoid
+    circular imports (date_utils imports DateRange).
+    """
 
     start: datetime  # User's local time as provided
     end: datetime  # User's local time as provided

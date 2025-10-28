@@ -33,7 +33,7 @@ format:
 
 type-check:
 	@echo "Running type checker..."
-	./venv/bin/pyright src/ tests/
+	PYRIGHT_PYTHON_FORCE_VERSION=latest ./venv/bin/pyright src/ tests/
 
 fix:
 	./venv/bin/ruff check --no-cache --fix src/ tests/
