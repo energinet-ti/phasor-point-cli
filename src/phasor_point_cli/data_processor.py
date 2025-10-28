@@ -10,8 +10,8 @@ from __future__ import annotations
 import contextlib
 import logging
 import os
+from collections.abc import Iterable, Sequence
 from datetime import datetime
-from typing import Iterable, Sequence
 
 import pandas as pd
 import pytz
