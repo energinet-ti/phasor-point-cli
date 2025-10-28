@@ -5,15 +5,11 @@ High-level extraction manager that coordinates data retrieval, processing, and p
 from __future__ import annotations
 
 import json
-import os
 import time
-import warnings
 from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
-import pytz
-import tzlocal
 
 from .chunk_strategy import ChunkStrategy
 from .config_paths import ConfigPathManager
@@ -74,67 +70,6 @@ class ExtractionManager:
             return self.config_manager.config
         return self.config_manager or {}
 
-    @staticmethod
-    def _get_local_timezone():
-        """Get local timezone, preferring TZ environment variable."""
-        tz_env = os.environ.get("TZ")
-        if tz_env:
-            try:
-                return pytz.timezone(tz_env)
-            except pytz.exceptions.UnknownTimeZoneError:
-                warnings.warn(
-                    f"Invalid timezone in TZ environment variable: '{tz_env}'. "
-                    f"Falling back to system timezone. "
-                    f"Use a valid IANA timezone name (e.g., 'Europe/Copenhagen').",
-                    UserWarning,
-                    stacklevel=3,
-                )
-        try:
-            return tzlocal.get_localzone()
-        except Exception:
-            # Final fallback to UTC if tzlocal fails
-            return pytz.UTC
-
-    @staticmethod
-    def _get_utc_offset(dt: datetime, local_tz) -> str:
-        """
-        Get UTC offset string for a specific datetime in the given timezone.
-
-        Args:
-            dt: Naive datetime to check offset for
-            local_tz: Timezone to use for offset calculation
-
-        Returns:
-            Offset string in format "+HH:MM" or "-HH:MM"
-        """
-        try:
-            if local_tz is None:
-                return "+00:00"
-
-            # Localize the naive datetime to get timezone-aware version
-            if hasattr(local_tz, "localize"):
-                # pytz timezone
-                aware_dt = local_tz.localize(dt, is_dst=True)
-            else:
-                # other timezone implementations
-                aware_dt = dt.replace(tzinfo=local_tz)
-
-            # Get offset in seconds
-            offset_seconds = aware_dt.utcoffset().total_seconds() if aware_dt.utcoffset() else 0
-            offset_hours = int(offset_seconds // 3600)
-            offset_minutes = int((abs(offset_seconds) % 3600) // 60)
-
-            sign = "+" if offset_seconds >= 0 else "-"
-            return f"{sign}{abs(offset_hours):02d}:{offset_minutes:02d}"
-        except Exception as e:
-            warnings.warn(
-                f"Failed to calculate UTC offset for datetime {dt} with timezone {local_tz}: {e}. "
-                f"Defaulting to +00:00. Check timezone configuration.",
-                UserWarning,
-                stacklevel=3,
-            )
-            return "+00:00"
-
     def _get_station_name(self, pmu_id: int) -> str:
         """Get sanitized station name from PMU ID."""
         pmu_info = self.config_manager.get_pmu_info(pmu_id)
@@ -155,8 +90,7 @@ class ExtractionManager:
             Expected output path
         """
         station_name = self._get_station_name(request.pmu_id)
-        start_str = request.date_range.filename_start_str
-        end_str = request.date_range.filename_end_str
+        start_str, end_str = request.date_range.as_filename_format()
         filename = f"pmu_{request.pmu_id}_{station_name}_{request.resolution}hz_{start_str}_to_{end_str}.{request.output_format}"
 
         if output_dir:
@@ -222,21 +156,25 @@ class ExtractionManager:
 
     def _initialise_log(self, request: ExtractionRequest) -> dict:
         # Get timezone information for the request period
-        local_tz = self._get_local_timezone()
-        start_offset = self._get_utc_offset(request.date_range.start, local_tz)
-        end_offset = self._get_utc_offset(request.date_range.end, local_tz)
+        timezone_name = request.date_range.get_timezone_name()
+        start_offset, end_offset = request.date_range.as_utc_offset_strings()
+
+        # Get database times for logging
+        db_start, db_end = request.date_range.as_database_time()
 
         return {
             "extraction_info": {
                 "timestamp": datetime.now().isoformat(),
                 "pmu_id": request.pmu_id,
                 "resolution": request.resolution,
-                "start_date": request.date_range.start.isoformat(),
-                "end_date": request.date_range.end.isoformat(),
+                "start_date": db_start.isoformat(),
+                "end_date": db_end.isoformat(),
+                "start_date_local": request.date_range.start.isoformat(),
+                "end_date_local": request.date_range.end.isoformat(),
                 "processed": request.processed,
                 "clean": request.clean,
                 "output_format": request.output_format,
-                "timezone": str(local_tz) if local_tz else "UTC",
+                "timezone": timezone_name,
                 "utc_offset_start": start_offset,
                 "utc_offset_end": end_offset,
             },
@@ -359,9 +297,8 @@ class ExtractionManager:
         strategy = chunk_strategy or ChunkStrategy(
             chunk_size_minutes=request.chunk_size_minutes, logger=self.logger
         )
-        use_chunking, chunks = strategy.should_use_chunking(
-            request.date_range.start, request.date_range.end
-        )
+        db_start, db_end = request.date_range.as_database_time()
+        use_chunking, chunks = strategy.should_use_chunking(db_start, db_end)
 
         progress_tracker = None
         if use_chunking and len(chunks) > 1:

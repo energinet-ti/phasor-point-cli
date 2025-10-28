@@ -513,6 +513,8 @@ def test_batch_extract_all_failures_returns_summary(tmp_path, mock_extraction_hi
 
 def test_get_local_timezone_invalid_tz_warns(monkeypatch):
     """Test that invalid TZ environment variable issues warning and falls back."""
+    from phasor_point_cli.date_utils import DateRangeCalculator
+
     # Arrange
     monkeypatch.setenv("TZ", "Invalid/Timezone")
 
@@ -521,38 +523,22 @@ def test_get_local_timezone_invalid_tz_warns(monkeypatch):
         UserWarning,
         match="Invalid timezone in TZ environment variable: 'Invalid/Timezone'",
     ):
-        result = ExtractionManager._get_local_timezone()
+        result = DateRangeCalculator.get_local_timezone()
 
     # Should still return a timezone (system fallback)
     assert result is not None
 
 
-def test_get_utc_offset_invalid_timezone_warns():
-    """Test that UTC offset calculation failure issues warning."""
-    # Arrange
-    dt = datetime(2024, 7, 15, 10, 0, 0)
-    invalid_tz = "not_a_timezone_object"  # Will cause attribute errors
-
-    # Act & Assert
-    with pytest.warns(
-        UserWarning,
-        match="Failed to calculate UTC offset.*Defaulting to \\+00:00",
-    ):
-        result = ExtractionManager._get_utc_offset(dt, invalid_tz)
-
-    # Should return default offset
-    assert result == "+00:00"
-
-
 def test_get_utc_offset_summer_date_copenhagen(monkeypatch):
     """Test UTC offset calculation for summer date (DST active)."""
+    from phasor_point_cli.date_utils import DateRangeCalculator
+
     # Arrange
     monkeypatch.setenv("TZ", "Europe/Copenhagen")
     dt = datetime(2024, 7, 15, 10, 0, 0)
-    local_tz = ExtractionManager._get_local_timezone()
 
     # Act
-    result = ExtractionManager._get_utc_offset(dt, local_tz)
+    result = DateRangeCalculator.get_utc_offset(dt)
 
     # Assert
     # Copenhagen summer time is UTC+2 (CEST)
@@ -561,13 +547,14 @@ def test_get_utc_offset_summer_date_copenhagen(monkeypatch):
 
 def test_get_utc_offset_winter_date_copenhagen(monkeypatch):
     """Test UTC offset calculation for winter date (DST inactive)."""
+    from phasor_point_cli.date_utils import DateRangeCalculator
+
     # Arrange
     monkeypatch.setenv("TZ", "Europe/Copenhagen")
     dt = datetime(2024, 1, 15, 10, 0, 0)
-    local_tz = ExtractionManager._get_local_timezone()
 
     # Act
-    result = ExtractionManager._get_utc_offset(dt, local_tz)
+    result = DateRangeCalculator.get_utc_offset(dt)
 
     # Assert
     # Copenhagen winter time is UTC+1 (CET)
@@ -576,16 +563,17 @@ def test_get_utc_offset_winter_date_copenhagen(monkeypatch):
 
 def test_get_utc_offset_different_dates_different_offsets(monkeypatch):
     """Test that same local time gets different UTC offsets based on date."""
+    from phasor_point_cli.date_utils import DateRangeCalculator
+
     # Arrange
     monkeypatch.setenv("TZ", "Europe/Copenhagen")
-    local_tz = ExtractionManager._get_local_timezone()
 
     summer_dt = datetime(2024, 7, 15, 14, 0, 0)
     winter_dt = datetime(2024, 1, 15, 14, 0, 0)
 
     # Act
-    summer_offset = ExtractionManager._get_utc_offset(summer_dt, local_tz)
-    winter_offset = ExtractionManager._get_utc_offset(winter_dt, local_tz)
+    summer_offset = DateRangeCalculator.get_utc_offset(summer_dt)
+    winter_offset = DateRangeCalculator.get_utc_offset(winter_dt)
 
     # Assert
     # Same local time (14:00), different offsets due to DST
@@ -595,11 +583,13 @@ def test_get_utc_offset_different_dates_different_offsets(monkeypatch):
 
 def test_get_local_timezone_returns_dst_aware_timezone(monkeypatch):
     """Test that _get_local_timezone returns a DST-aware timezone object."""
+    from phasor_point_cli.date_utils import DateRangeCalculator
+
     # Arrange
     monkeypatch.setenv("TZ", "Europe/Copenhagen")
 
     # Act
-    tz = ExtractionManager._get_local_timezone()
+    tz = DateRangeCalculator.get_local_timezone()
 
     # Assert
     assert tz is not None
@@ -607,8 +597,8 @@ def test_get_local_timezone_returns_dst_aware_timezone(monkeypatch):
     summer_dt = datetime(2024, 7, 15, 10, 0, 0)
     winter_dt = datetime(2024, 1, 15, 10, 0, 0)
 
-    summer_offset = ExtractionManager._get_utc_offset(summer_dt, tz)
-    winter_offset = ExtractionManager._get_utc_offset(winter_dt, tz)
+    summer_offset = DateRangeCalculator.get_utc_offset(summer_dt)
+    winter_offset = DateRangeCalculator.get_utc_offset(winter_dt)
 
     # If it's DST-aware, offsets should differ
     assert summer_offset != winter_offset
@@ -1127,12 +1117,10 @@ def test_single_precheck_skips_when_file_exists_without_replace(
         extraction_history=mock_extraction_history,
     )
 
-    # Build request with filename strings
+    # Build request
     date_range = DateRange(
         start=datetime(2025, 1, 1, 0, 0, 0),
         end=datetime(2025, 1, 1, 0, 10, 0),
-        filename_start_str="20250101_000000",
-        filename_end_str="20250101_001000",
     )
     request = ExtractionRequest(
         pmu_id=45012,
@@ -1178,12 +1166,10 @@ def test_batch_precheck_skips_when_file_exists_without_replace(tmp_path, mock_ex
         extraction_history=mock_extraction_history,
     )
 
-    # Build request with filename strings
+    # Build request
     date_range = DateRange(
         start=datetime(2025, 1, 1, 0, 0, 0),
         end=datetime(2025, 1, 1, 0, 10, 0),
-        filename_start_str="20250101_000000",
-        filename_end_str="20250101_001000",
     )
     request = ExtractionRequest(
         pmu_id=45012,
@@ -1241,12 +1227,10 @@ def test_overwrites_when_replace_true(tmp_path, mock_extraction_history, monkeyp
         extraction_history=mock_extraction_history,
     )
 
-    # Build request with filename strings
+    # Build request
     date_range = DateRange(
         start=datetime(2025, 1, 1, 0, 0, 0),
         end=datetime(2025, 1, 1, 0, 10, 0),
-        filename_start_str="20250101_000000",
-        filename_end_str="20250101_001000",
     )
     request = ExtractionRequest(
         pmu_id=45012,
@@ -1290,12 +1274,10 @@ def test_unified_filename_single_vs_batch(tmp_path, mock_extraction_history):
         extraction_history=mock_extraction_history,
     )
 
-    # Build request with filename strings
+    # Build request
     date_range = DateRange(
         start=datetime(2025, 1, 1, 0, 0, 0),
         end=datetime(2025, 1, 1, 0, 10, 0),
-        filename_start_str="20250101_000000",
-        filename_end_str="20250101_001000",
     )
     request = ExtractionRequest(
         pmu_id=45012,

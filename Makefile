@@ -33,7 +33,7 @@ format:
 
 type-check:
 	@echo "Running type checker..."
-	pyright src/ tests/
+	./venv/bin/pyright src/ tests/
 
 fix:
 	./venv/bin/ruff check --no-cache --fix src/ tests/
