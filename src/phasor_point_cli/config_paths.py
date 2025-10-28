@@ -10,7 +10,7 @@ import os
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 class ConfigPathManager:
@@ -23,7 +23,7 @@ class ConfigPathManager:
 
     def __init__(self):
         """Initialize the configuration path manager."""
-        self._user_config_dir: Optional[Path] = None
+        self._user_config_dir: Path | None = None
 
     def get_user_config_dir(self) -> Path:
         """
@@ -77,7 +77,7 @@ class ConfigPathManager:
         """Get the path to the local project .env file."""
         return Path.cwd() / ".env"
 
-    def find_config_file(self, config_arg: Optional[str] = None) -> Optional[Path]:
+    def find_config_file(self, config_arg: str | None = None) -> Path | None:
         """
         Find the configuration file using priority order.
 
@@ -113,7 +113,7 @@ class ConfigPathManager:
         # Priority 4: None (will use embedded defaults)
         return None
 
-    def find_env_file(self) -> Optional[Path]:
+    def find_env_file(self) -> Path | None:
         """
         Find the .env file using priority order.
 
@@ -167,7 +167,7 @@ class ConfigPathManager:
         log_dir.mkdir(parents=True, exist_ok=True)
         return log_dir
 
-    def get_latest_log_file(self) -> Optional[Path]:
+    def get_latest_log_file(self) -> Path | None:
         """
         Get the most recently created log file.
 
@@ -205,7 +205,7 @@ class ConfigPathManager:
 
         return removed_count
 
-    def get_config_locations_info(self) -> Dict[str, Any]:
+    def get_config_locations_info(self) -> dict[str, Any]:
         """
         Get information about all config file locations and their status.
 

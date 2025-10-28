@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import time
 import warnings
+from collections.abc import Iterable, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Iterable, Sequence
 
 import pandas as pd
 

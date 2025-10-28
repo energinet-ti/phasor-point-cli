@@ -9,7 +9,8 @@ power metrics.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Iterable, Sequence
+from collections.abc import Iterable, Sequence
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd

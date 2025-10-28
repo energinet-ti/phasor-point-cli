@@ -13,27 +13,13 @@ corresponding service/manager classes introduced during the migration.
 
 from __future__ import annotations
 
-import sys
+from collections.abc import Iterable, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Iterable, Sequence
+from typing import Any
 
 import pandas as pd
-
-# Compatibility wrapper: Python < 3.10 does not support dataclass(slots=...)
-if TYPE_CHECKING:
-    # For type checking, always use the real dataclass decorator
-    dataclass_compat = dataclass
-elif sys.version_info >= (3, 10):
-    dataclass_compat = dataclass
-else:
-    # For older Python at runtime, strip the slots argument
-    def dataclass_compat(_cls=None, /, **kwargs):  # type: ignore[misc]
-        kwargs.pop("slots", None)
-        if _cls is None:
-            return lambda cls: dataclass(**kwargs)(cls)
-        return dataclass(**kwargs)(_cls)
 
 
 def _serialise_optional_datetime(value: datetime | None) -> str | None:
@@ -41,7 +27,7 @@ def _serialise_optional_datetime(value: datetime | None) -> str | None:
     return value.isoformat() if isinstance(value, datetime) else None
 
 
-@dataclass_compat(slots=True)
+@dataclass(slots=True)
 class PMUInfo:
     """Metadata describing an individual PMU."""
 
@@ -73,7 +59,7 @@ class PMUInfo:
         )
 
 
-@dataclass_compat(slots=True)
+@dataclass(slots=True)
 class DataQualityThresholds:
     """Threshold configuration used by validation logic."""
 
@@ -101,7 +87,7 @@ class DataQualityThresholds:
         }
 
 
-@dataclass_compat(slots=True)
+@dataclass(slots=True)
 class TableStatistics:
     """Summary statistics captured while inspecting a PMU table."""
 
@@ -129,7 +115,7 @@ class TableStatistics:
         return None
 
 
-@dataclass_compat(slots=True)
+@dataclass(slots=True)
 class TableDiscoveryResult:
     """Outcome from attempting to locate a PMU table."""
 
@@ -149,7 +135,7 @@ class TableDiscoveryResult:
         }
 
 
-@dataclass_compat(slots=True)
+@dataclass(slots=True)
 class TableInfo:
     """Combined information about a PMU table after discovery."""
 
@@ -176,7 +162,7 @@ class TableInfo:
         return payload
 
 
-@dataclass_compat(slots=True)
+@dataclass(slots=True)
 class TableListResult:
     """Result of listing available PMU tables."""
 
@@ -275,7 +261,7 @@ class DateRange:
         return str(local_tz) if local_tz else "UTC"
 
 
-@dataclass_compat(slots=True)
+@dataclass(slots=True)
 class ExtractionRequest:
     """Parameters describing a single extraction run."""
 
@@ -321,7 +307,7 @@ class ExtractionRequest:
         return payload
 
 
-@dataclass_compat(slots=True)
+@dataclass(slots=True)
 class ChunkResult:
     """Record of a single chunk extraction attempt."""
 
@@ -343,7 +329,7 @@ class ChunkResult:
         }
 
 
-@dataclass_compat(slots=True)
+@dataclass(slots=True)
 class PersistResult:
     """Result of persisting a DataFrame to disk."""
 
@@ -352,7 +338,7 @@ class PersistResult:
     skip_result: ExtractionResult | None = None
 
 
-@dataclass_compat(slots=True)
+@dataclass(slots=True)
 class ExtractionResult:
     """Outcome of attempting a single extraction."""
 
@@ -381,7 +367,7 @@ class ExtractionResult:
         return not self.success or any(chunk.error for chunk in self.chunk_results)
 
 
-@dataclass_compat(slots=True)
+@dataclass(slots=True)
 class BatchExtractionResult:
     """Aggregated outcome for a batch extraction session."""
 
@@ -405,7 +391,7 @@ class BatchExtractionResult:
         }
 
 
-@dataclass_compat(slots=True)
+@dataclass(slots=True)
 class ValidationCheck:
     """Represents an individual validation rule result."""
 
@@ -417,7 +403,7 @@ class ValidationCheck:
         return {"name": self.name, "passed": bool(self.passed), "details": self.details}
 
 
-@dataclass_compat(slots=True)
+@dataclass(slots=True)
 class ValidationResult:
     """Aggregate validation outcome for a dataset."""
 
@@ -438,7 +424,7 @@ class ValidationResult:
         }
 
 
-@dataclass_compat(slots=True)
+@dataclass(slots=True)
 class PhasorColumnMap:
     """Describes the per-phase column selections used for phasor calculations."""
 
@@ -462,7 +448,7 @@ class PhasorColumnMap:
         return columns
 
 
-@dataclass_compat(slots=True)
+@dataclass(slots=True)
 class QueryResult:
     """Outcome of executing an ad-hoc query command."""
 
