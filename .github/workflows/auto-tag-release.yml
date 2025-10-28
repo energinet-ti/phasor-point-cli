@@ -1,0 +1,75 @@
+name: Auto Tag Release
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  tag-release:
+    if: |
+      github.event.pull_request.merged == true &&
+      startsWith(github.event.pull_request.head.ref, 'release/')
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Extract version from branch name
+        id: version
+        run: |
+          BRANCH="${{ github.event.pull_request.head.ref }}"
+          VERSION=${BRANCH#release/}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+          echo "Extracted version: $VERSION from branch: $BRANCH"
+      
+      - name: Create and push tag
+        id: tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          if git rev-parse "${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+            echo "Tag '${{ steps.version.outputs.tag }}' already exists. Skipping tag creation."
+            echo "status=skipped" >> $GITHUB_OUTPUT
+            echo "message=Tag already existed" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          git tag -a "${{ steps.version.outputs.tag }}" -m "Release ${{ steps.version.outputs.tag }}"
+          git push origin "${{ steps.version.outputs.tag }}"
+          echo "status=created" >> $GITHUB_OUTPUT
+          echo "message=Tag created successfully" >> $GITHUB_OUTPUT
+      
+      - name: Comment on PR
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const status = '${{ steps.tag.outputs.status }}';
+            let message;
+            
+            if (status === 'created') {
+              message = `✅ Release tag \`${{ steps.version.outputs.tag }}\` created automatically.\n\nThe [Actions page](https://github.com/${{ github.repository }}/actions) is now building and publishing the GitHub release.`;
+            } else if (status === 'skipped') {
+              message = `⚠️ Release tag \`${{ steps.version.outputs.tag }}\` already exists. Skipping tag creation.\n\nCheck the [Actions page](https://github.com/${{ github.repository }}/actions) for the existing release.`;
+            } else {
+              message = `❌ Failed to create release tag \`${{ steps.version.outputs.tag }}\`.\n\nCheck the [workflow logs](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.`;
+            }
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: message
+            });
+
