@@ -9,7 +9,7 @@ Provides standardized configuration directory locations following OS conventions
 import os
 import sys
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 class ConfigPathManager:
@@ -22,7 +22,7 @@ class ConfigPathManager:
 
     def __init__(self):
         """Initialize the configuration path manager."""
-        self._user_config_dir: Optional[Path] = None
+        self._user_config_dir: Path | None = None
 
     def get_user_config_dir(self) -> Path:
         """
@@ -76,7 +76,7 @@ class ConfigPathManager:
         """Get the path to the local project .env file."""
         return Path.cwd() / ".env"
 
-    def find_config_file(self, config_arg: Optional[str] = None) -> Optional[Path]:
+    def find_config_file(self, config_arg: str | None = None) -> Path | None:
         """
         Find the configuration file using priority order.
 
@@ -112,7 +112,7 @@ class ConfigPathManager:
         # Priority 4: None (will use embedded defaults)
         return None
 
-    def find_env_file(self) -> Optional[Path]:
+    def find_env_file(self) -> Path | None:
         """
         Find the .env file using priority order.
 
@@ -137,7 +137,7 @@ class ConfigPathManager:
         # Priority 3: None
         return None
 
-    def get_config_locations_info(self) -> Dict[str, Any]:
+    def get_config_locations_info(self) -> dict[str, Any]:
         """
         Get information about all config file locations and their status.
 

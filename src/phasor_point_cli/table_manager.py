@@ -8,10 +8,9 @@ and sampling logic for working with PMU data tables.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import suppress
-from typing import Sequence
 
 import pandas as pd
 

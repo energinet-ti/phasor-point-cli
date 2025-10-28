@@ -6,9 +6,9 @@ from __future__ import annotations
 
 import time
 import warnings
+from collections.abc import Sequence
 from contextlib import suppress
 from pathlib import Path
-from typing import Sequence
 
 import pandas as pd
 
