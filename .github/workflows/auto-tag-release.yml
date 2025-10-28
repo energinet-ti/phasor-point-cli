@@ -47,6 +47,6 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `✅ Release tag \`${{ steps.version.outputs.tag }}\` created automatically.\n\nThe [release workflow](https://github.com/${{ github.repository }}/actions/workflows/release.yml) is now building and publishing the GitHub release.`
+              body: `✅ Release tag \`${{ steps.version.outputs.tag }}\` created automatically.\n\nThe [Actions page](https://github.com/${{ github.repository }}/actions) is now building and publishing the GitHub release.`
             })
 
