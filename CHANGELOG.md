@@ -10,6 +10,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Nothing yet
 
+## [0.2.0] - 2025-10-28
+
+### Added
+- Timestamped log files with automatic cleanup of old logs
+- Log file location displayed in output when verbose mode is off
+
+### Changed
+- **BREAKING**: Minimum Python version raised from 3.8 to 3.10
+- **BREAKING**: Removed `--skip-existing` flag from extraction commands
+- Improved filename handling to reflect specified date ranges in output files
+- Cleaner CLI output with better separation of user messages and technical logs
+- Enhanced date handling for more consistent database time conversions
+
+### Fixed
+- Release versioning and tagging workflow issues
+
 ## [0.1.0] - 2025-10-27
 
 ### Added
