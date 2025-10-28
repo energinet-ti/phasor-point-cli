@@ -189,7 +189,7 @@ class ExtractionManager:
     def _print_summary(self, df: pd.DataFrame) -> None:
         if self.output:
             self.output.blank_line()
-            self.output.data_summary(df, "[DATA] Data Summary")
+            self.output.data_summary(df, "Data Summary")
 
     def _persist_dataframe(
         self,

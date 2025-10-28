@@ -84,6 +84,7 @@ class HumanFormatter(OutputFormatter):
                 if pd.notna(start_time) and pd.notna(end_time):
                     lines.append(f"   Time range: {start_time} to {end_time}")
             except Exception:
+                # Silently skip time range if timestamp parsing fails
                 pass
 
         # Column info
@@ -176,6 +177,7 @@ class JsonFormatter(OutputFormatter):
                         "end": str(end_time),
                     }
             except Exception:
+                # Silently skip time range if timestamp parsing fails
                 pass
 
         return self._to_json(data)

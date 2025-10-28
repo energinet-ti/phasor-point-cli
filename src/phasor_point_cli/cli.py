@@ -278,6 +278,11 @@ def main():
         # These commands don't require database access, so CLI instance is optional
         router = CommandRouter(None, logger, output)  # type: ignore[arg-type]
         router.route(args.command, args)
+
+        # Show log file location (only if not verbose)
+        if not getattr(args, "verbose", False):
+            output.blank_line()
+            output.info(f"Full diagnostic log saved to: {log_file}", tag="LOG")
         return
 
     # Determine config file to use (will check multiple locations with priority)
