@@ -24,34 +24,23 @@ class DateRangeCalculator:
     @staticmethod
     def _parse_local_datetime(date_string: str) -> datetime:
         """
-        Parse a date string and convert from system local time to database time (CET).
-
-        The database server expects queries in CET (Central European Time, UTC+1 always, NO DST).
-        However, user input is in their system's local time (e.g., CEST = UTC+2 during summer).
-
-        This function converts: System Local Time -> UTC -> CET (for database query)
+        Parse a date string as user's local time.
 
         Args:
             date_string: Date string to parse (e.g., "2024-07-15 10:00:00")
 
         Returns:
-            Timezone-naive datetime in CET (for database queries)
+            Naive datetime representing user's local time input
         """
-        import logging  # noqa: PLC0415
+        return pd.to_datetime(date_string).to_pydatetime()
 
-        logger = logging.getLogger("phasor_cli")
-
-        # Parse as naive datetime in system local time
-        naive_dt = pd.to_datetime(date_string).to_pydatetime()
-        logger.debug(f"[DST DEBUG] Parsed input: '{date_string}' -> naive: {naive_dt}")
-
-        # Get system's local timezone
-        local_tz = None
+    @staticmethod
+    def get_local_timezone():
+        """Get system's local timezone, preferring TZ environment variable."""
         tz_env = os.environ.get("TZ")
         if tz_env:
             try:
-                local_tz = pytz.timezone(tz_env)
-                logger.debug(f"[DST DEBUG] Using TZ env var: {tz_env}")
+                return pytz.timezone(tz_env)
             except pytz.exceptions.UnknownTimeZoneError:
                 warnings.warn(
                     f"Invalid timezone in TZ environment variable: '{tz_env}'. "
@@ -60,47 +49,84 @@ class DateRangeCalculator:
                     stacklevel=2,
                 )
 
-        if local_tz is None:
-            try:
-                detected_tz = tzlocal.get_localzone()
-                tz_name = str(detected_tz)
-                if tz_name and not tz_name.startswith("UTC"):
-                    try:
-                        local_tz = pytz.timezone(tz_name)
-                        logger.debug(f"[DST DEBUG] Detected system timezone: {local_tz}")
-                    except Exception:
-                        local_tz = detected_tz
-                else:
-                    local_tz = detected_tz
-            except Exception as e:
-                logger.debug(f"[DST DEBUG] Failed to detect timezone: {e}")
-                local_tz = pytz.UTC
+        try:
+            detected_tz = tzlocal.get_localzone()
+            tz_name = str(detected_tz)
+            if tz_name and not tz_name.startswith("UTC"):
+                try:
+                    return pytz.timezone(tz_name)
+                except Exception:
+                    return detected_tz
+            return detected_tz
+        except Exception:
+            return pytz.UTC
 
-        # Localize to system's local timezone (respects DST)
+    @staticmethod
+    def convert_to_database_time(local_dt: datetime) -> datetime:
+        """
+        Convert user's local time to database time (CET, UTC+1 fixed, no DST).
+
+        Args:
+            local_dt: Naive datetime in user's local timezone
+
+        Returns:
+            Naive datetime in database timezone (UTC+1) for SQL queries
+        """
+        local_tz = DateRangeCalculator.get_local_timezone()
+
+        # Localize to system's local timezone
         if local_tz and hasattr(local_tz, "localize"):
-            aware_local = local_tz.localize(naive_dt, is_dst=True)  # type: ignore[attr-defined]
-            logger.debug(
-                f"[DST DEBUG] System local time: {aware_local} ({aware_local.strftime('%Z %z')})"
-            )
+            aware_dt = local_tz.localize(local_dt, is_dst=True)  # type: ignore[attr-defined]
         else:
-            aware_local = naive_dt.replace(tzinfo=local_tz if local_tz else pytz.UTC)
-            logger.debug(f"[DST DEBUG] System local time: {aware_local}")
+            aware_dt = local_dt.replace(tzinfo=local_tz if local_tz else pytz.UTC)
 
         # Convert to UTC
-        utc_dt = aware_local.astimezone(pytz.UTC)
-        logger.debug(f"[DST DEBUG] UTC time: {utc_dt}")
+        utc_dt = aware_dt.astimezone(pytz.UTC)
 
         # Convert to database timezone (UTC+1 fixed, no DST)
-        # Database uses CET without DST transitions
         db_offset = timedelta(hours=1)
         db_dt = utc_dt + db_offset
-        logger.debug(f"[DST DEBUG] Database time (UTC+1 fixed): {db_dt}")
 
         # Return as naive datetime for query
-        result = db_dt.replace(tzinfo=None)
-        logger.debug(f"[DST DEBUG] Final query time: {result}")
+        return db_dt.replace(tzinfo=None)
 
-        return result
+    @staticmethod
+    def get_utc_offset(local_dt: datetime) -> str:
+        """
+        Get UTC offset string for a datetime in user's local timezone.
+
+        Args:
+            local_dt: Naive datetime in user's local timezone
+
+        Returns:
+            Offset string in format "+HH:MM" or "-HH:MM"
+        """
+        try:
+            local_tz = DateRangeCalculator.get_local_timezone()
+            if local_tz is None:
+                return "+00:00"
+
+            # Localize the naive datetime to get timezone-aware version
+            if hasattr(local_tz, "localize"):
+                aware_dt = local_tz.localize(local_dt, is_dst=True)  # type: ignore[attr-defined]
+            else:
+                aware_dt = local_dt.replace(tzinfo=local_tz)
+
+            # Get offset in seconds
+            offset_seconds = aware_dt.utcoffset().total_seconds() if aware_dt.utcoffset() else 0
+            offset_hours = int(offset_seconds // 3600)
+            offset_minutes = int((abs(offset_seconds) % 3600) // 60)
+
+            sign = "+" if offset_seconds >= 0 else "-"
+            return f"{sign}{abs(offset_hours):02d}:{offset_minutes:02d}"
+        except Exception as e:
+            warnings.warn(
+                f"Failed to calculate UTC offset for datetime {local_dt}: {e}. "
+                f"Defaulting to +00:00. Check timezone configuration.",
+                UserWarning,
+                stacklevel=2,
+            )
+            return "+00:00"
 
     @staticmethod
     def calculate(args, reference_time: datetime | None = None) -> DateRange:
@@ -130,45 +156,26 @@ class DateRangeCalculator:
         if reference_time is None:
             reference_time = datetime.now()
 
-        batch_timestamp = reference_time.strftime("%Y%m%d_%H%M%S")
-
         # Priority: --start + duration, then duration alone, then --start + --end
         if getattr(args, "start", None) and DateRangeCalculator._has_duration(args):
             # --start with duration: start at given time and go forward
             start_dt = DateRangeCalculator._parse_local_datetime(args.start)
             duration = DateRangeCalculator._extract_duration(args)
             end_dt = start_dt + duration
-
-            # Use ORIGINAL input time for batch timestamp (consistent with user intent)
-            # Parse the input string again without timezone conversion
-            original_dt = pd.to_datetime(args.start).to_pydatetime()
-            batch_timestamp = original_dt.strftime("%Y%m%d_%H%M%S")
-
-            return DateRange(
-                start=start_dt, end=end_dt, batch_timestamp=batch_timestamp, is_relative=False
-            )
+            return DateRange(start=start_dt, end=end_dt)
 
         if DateRangeCalculator._has_duration(args):
             # Duration alone: go back N minutes/hours/days from now
             duration = DateRangeCalculator._extract_duration(args)
             end_dt = reference_time
             start_dt = end_dt - duration
-
-            return DateRange(
-                start=start_dt, end=end_dt, batch_timestamp=batch_timestamp, is_relative=True
-            )
+            return DateRange(start=start_dt, end=end_dt)
 
         if getattr(args, "start", None) and getattr(args, "end", None):
             # Absolute time range
             start_dt = DateRangeCalculator._parse_local_datetime(args.start)
             end_dt = DateRangeCalculator._parse_local_datetime(args.end)
-
-            return DateRange(
-                start=start_dt,
-                end=end_dt,
-                batch_timestamp=None,  # No batch timestamp for absolute ranges
-                is_relative=False,
-            )
+            return DateRange(start=start_dt, end=end_dt)
 
         raise ValueError("Please specify either --start/--end dates, --minutes, --hours, or --days")
 
@@ -197,11 +204,7 @@ class DateRangeCalculator:
 
         end_dt = reference_time
         start_dt = end_dt - timedelta(minutes=duration_minutes)
-        batch_timestamp = reference_time.strftime("%Y%m%d_%H%M%S")
-
-        return DateRange(
-            start=start_dt, end=end_dt, batch_timestamp=batch_timestamp, is_relative=True
-        )
+        return DateRange(start=start_dt, end=end_dt)
 
     @staticmethod
     def calculate_from_start_and_duration(start_date: str, duration: timedelta) -> DateRange:
@@ -225,14 +228,7 @@ class DateRangeCalculator:
         """
         start_dt = DateRangeCalculator._parse_local_datetime(start_date)
         end_dt = start_dt + duration
-
-        # Use ORIGINAL input time for batch timestamp (consistent with user intent)
-        original_dt = pd.to_datetime(start_date).to_pydatetime()
-        batch_timestamp = original_dt.strftime("%Y%m%d_%H%M%S")
-
-        return DateRange(
-            start=start_dt, end=end_dt, batch_timestamp=batch_timestamp, is_relative=False
-        )
+        return DateRange(start=start_dt, end=end_dt)
 
     @staticmethod
     def _has_duration(args) -> bool:

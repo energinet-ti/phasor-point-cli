@@ -418,7 +418,6 @@ class CommandRouter:
             chunk_size_minutes=args.chunk_size,
             parallel_workers=args.parallel,
             output_format=args.format,
-            skip_existing=getattr(args, "skip_existing", True),
             replace=getattr(args, "replace", False),
         )
 
@@ -476,7 +475,6 @@ class CommandRouter:
                 chunk_size_minutes=args.chunk_size,
                 parallel_workers=args.parallel,
                 output_format=args.format,
-                skip_existing=getattr(args, "skip_existing", True),
                 replace=getattr(args, "replace", False),
             )
             requests.append(request)

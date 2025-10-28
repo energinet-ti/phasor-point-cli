@@ -27,11 +27,14 @@ class TestDateRangeCalculator:
 
         result = DateRangeCalculator.calculate(args)
 
-        # UTC → Database (UTC+1): adds 1 hour
-        assert result.start == datetime(2025, 1, 1, 1, 0, 0)
-        assert result.end == datetime(2025, 1, 1, 13, 0, 0)
-        assert result.batch_timestamp is None
-        assert result.is_relative is False
+        # DateRange stores user's input time
+        assert result.start == datetime(2025, 1, 1, 0, 0, 0)
+        assert result.end == datetime(2025, 1, 1, 12, 0, 0)
+
+        # Conversion to database time adds 1 hour (UTC → UTC+1)
+        db_start, db_end = result.as_database_time()
+        assert db_start == datetime(2025, 1, 1, 1, 0, 0)
+        assert db_end == datetime(2025, 1, 1, 13, 0, 0)
 
     def test_calculate_minutes_backward(self):
         """Test calculation with minutes (backward from now)."""
@@ -42,8 +45,6 @@ class TestDateRangeCalculator:
 
         assert result.start == datetime(2025, 1, 1, 11, 0, 0)
         assert result.end == datetime(2025, 1, 1, 12, 0, 0)
-        assert result.batch_timestamp == "20250101_120000"
-        assert result.is_relative is True
 
     def test_calculate_hours_backward(self):
         """Test calculation with hours (backward from now)."""
@@ -54,8 +55,6 @@ class TestDateRangeCalculator:
 
         assert result.start == datetime(2025, 1, 1, 10, 0, 0)
         assert result.end == datetime(2025, 1, 1, 12, 0, 0)
-        assert result.batch_timestamp == "20250101_120000"
-        assert result.is_relative is True
 
     def test_calculate_days_backward(self):
         """Test calculation with days (backward from now)."""
@@ -66,8 +65,6 @@ class TestDateRangeCalculator:
 
         assert result.start == datetime(2025, 1, 3, 12, 0, 0)
         assert result.end == datetime(2025, 1, 5, 12, 0, 0)
-        assert result.batch_timestamp == "20250105_120000"
-        assert result.is_relative is True
 
     def test_calculate_start_with_minutes_forward(self, monkeypatch):
         """Test calculation with start + minutes (forward)."""
@@ -79,12 +76,14 @@ class TestDateRangeCalculator:
 
         result = DateRangeCalculator.calculate(args)
 
-        # UTC → Database (UTC+1): adds 1 hour
-        assert result.start == datetime(2025, 1, 1, 1, 0, 0)
-        assert result.end == datetime(2025, 1, 1, 1, 30, 0)
-        # Batch timestamp uses original input time
-        assert result.batch_timestamp == "20250101_000000"
-        assert result.is_relative is False
+        # DateRange stores user's input time
+        assert result.start == datetime(2025, 1, 1, 0, 0, 0)
+        assert result.end == datetime(2025, 1, 1, 0, 30, 0)
+
+        # Conversion to database time adds 1 hour (UTC → UTC+1)
+        db_start, db_end = result.as_database_time()
+        assert db_start == datetime(2025, 1, 1, 1, 0, 0)
+        assert db_end == datetime(2025, 1, 1, 1, 30, 0)
 
     def test_calculate_start_with_hours_forward(self, monkeypatch):
         """Test calculation with start + hours (forward)."""
@@ -96,12 +95,14 @@ class TestDateRangeCalculator:
 
         result = DateRangeCalculator.calculate(args)
 
-        # UTC → Database (UTC+1): adds 1 hour
-        assert result.start == datetime(2025, 1, 1, 1, 0, 0)
-        assert result.end == datetime(2025, 1, 1, 4, 0, 0)
-        # Batch timestamp uses original input time
-        assert result.batch_timestamp == "20250101_000000"
-        assert result.is_relative is False
+        # DateRange stores user's input time
+        assert result.start == datetime(2025, 1, 1, 0, 0, 0)
+        assert result.end == datetime(2025, 1, 1, 3, 0, 0)
+
+        # Conversion to database time adds 1 hour (UTC → UTC+1)
+        db_start, db_end = result.as_database_time()
+        assert db_start == datetime(2025, 1, 1, 1, 0, 0)
+        assert db_end == datetime(2025, 1, 1, 4, 0, 0)
 
     def test_calculate_start_with_days_forward(self, monkeypatch):
         """Test calculation with start + days (forward)."""
@@ -113,12 +114,14 @@ class TestDateRangeCalculator:
 
         result = DateRangeCalculator.calculate(args)
 
-        # UTC → Database (UTC+1): adds 1 hour
-        assert result.start == datetime(2025, 1, 1, 1, 0, 0)
-        assert result.end == datetime(2025, 1, 2, 1, 0, 0)
-        # Batch timestamp uses original input time
-        assert result.batch_timestamp == "20250101_000000"
-        assert result.is_relative is False
+        # DateRange stores user's input time
+        assert result.start == datetime(2025, 1, 1, 0, 0, 0)
+        assert result.end == datetime(2025, 1, 2, 0, 0, 0)
+
+        # Conversion to database time adds 1 hour (UTC → UTC+1)
+        db_start, db_end = result.as_database_time()
+        assert db_start == datetime(2025, 1, 1, 1, 0, 0)
+        assert db_end == datetime(2025, 1, 2, 1, 0, 0)
 
     def test_calculate_missing_args(self):
         """Test calculation with missing required arguments."""
@@ -137,16 +140,12 @@ class TestDateRangeCalculator:
 
         assert result.start == datetime(2025, 1, 1, 10, 0, 0)
         assert result.end == datetime(2025, 1, 1, 12, 0, 0)
-        assert result.batch_timestamp == "20250101_120000"
-        assert result.is_relative is True
 
     def test_calculate_from_duration_default_reference(self):
         """Test calculation from duration with default reference time."""
         result = DateRangeCalculator.calculate_from_duration(duration_minutes=60)
 
         # Should calculate from now
-        assert result.is_relative is True
-        assert result.batch_timestamp is not None
         assert (result.end - result.start) == timedelta(minutes=60)
 
     def test_calculate_from_start_and_duration(self, monkeypatch):
@@ -157,12 +156,14 @@ class TestDateRangeCalculator:
             start_date="2025-01-01 00:00:00", duration=timedelta(hours=2)
         )
 
-        # UTC → Database (UTC+1): adds 1 hour
-        assert result.start == datetime(2025, 1, 1, 1, 0, 0)
-        assert result.end == datetime(2025, 1, 1, 3, 0, 0)
-        # Batch timestamp uses original input time
-        assert result.batch_timestamp == "20250101_000000"
-        assert result.is_relative is False
+        # DateRange stores user's input time
+        assert result.start == datetime(2025, 1, 1, 0, 0, 0)
+        assert result.end == datetime(2025, 1, 1, 2, 0, 0)
+
+        # Conversion to database time adds 1 hour (UTC → UTC+1)
+        db_start, db_end = result.as_database_time()
+        assert db_start == datetime(2025, 1, 1, 1, 0, 0)
+        assert db_end == datetime(2025, 1, 1, 3, 0, 0)
 
     def test_calculate_priority_start_duration_over_absolute(self, monkeypatch):
         """Test that start+duration takes priority over absolute range."""
@@ -179,9 +180,8 @@ class TestDateRangeCalculator:
         result = DateRangeCalculator.calculate(args)
 
         # Should use start + 30 minutes, not start + end
-        # UTC → Database (UTC+1): adds 1 hour
-        assert result.start == datetime(2025, 1, 1, 1, 0, 0)
-        assert result.end == datetime(2025, 1, 1, 1, 30, 0)
+        assert result.start == datetime(2025, 1, 1, 0, 0, 0)
+        assert result.end == datetime(2025, 1, 1, 0, 30, 0)
 
     def test_calculate_priority_duration_over_absolute(self):
         """Test that duration takes priority over absolute range when start is missing."""
@@ -220,10 +220,15 @@ class TestDSTHandling:
         result = DateRangeCalculator.calculate(args)
 
         # Assert
+        # DateRange stores user's input time
+        assert result.start == datetime(2024, 7, 15, 10, 0, 0)
+        assert result.end == datetime(2024, 7, 15, 11, 0, 0)
+
         # Copenhagen summer (CEST) = UTC+2
         # 10:00 CEST → 08:00 UTC → 09:00 database time (UTC+1)
-        assert result.start == datetime(2024, 7, 15, 9, 0, 0)
-        assert result.end == datetime(2024, 7, 15, 10, 0, 0)
+        db_start, db_end = result.as_database_time()
+        assert db_start == datetime(2024, 7, 15, 9, 0, 0)
+        assert db_end == datetime(2024, 7, 15, 10, 0, 0)
 
     def test_parse_winter_date_in_copenhagen_timezone(self, monkeypatch):
         """Test parsing a winter date when system and database timezones match."""
@@ -241,11 +246,16 @@ class TestDSTHandling:
         result = DateRangeCalculator.calculate(args)
 
         # Assert
+        # DateRange stores user's input time
+        assert result.start == datetime(2024, 1, 15, 10, 0, 0)
+        assert result.end == datetime(2024, 1, 15, 11, 0, 0)
+
         # Copenhagen winter (CET) = UTC+1, database = UTC+1
         # 10:00 CET → 09:00 UTC → 10:00 database time (UTC+1)
         # No change since both are UTC+1
-        assert result.start == datetime(2024, 1, 15, 10, 0, 0)
-        assert result.end == datetime(2024, 1, 15, 11, 0, 0)
+        db_start, db_end = result.as_database_time()
+        assert db_start == datetime(2024, 1, 15, 10, 0, 0)
+        assert db_end == datetime(2024, 1, 15, 11, 0, 0)
 
     def test_parse_summer_date_requested_in_winter(self, monkeypatch):
         """Test that summer dates use summer DST offset for conversion."""
@@ -263,9 +273,14 @@ class TestDSTHandling:
         result = DateRangeCalculator.calculate(args)
 
         # Assert
+        # DateRange stores user's input time
+        assert result.start == datetime(2024, 7, 15, 14, 0, 0)
+        assert result.end == datetime(2024, 7, 15, 15, 0, 0)
+
         # 14:00 CEST (UTC+2) → 12:00 UTC → 13:00 database (UTC+1)
-        assert result.start == datetime(2024, 7, 15, 13, 0, 0)
-        assert result.end == datetime(2024, 7, 15, 14, 0, 0)
+        db_start, db_end = result.as_database_time()
+        assert db_start == datetime(2024, 7, 15, 13, 0, 0)
+        assert db_end == datetime(2024, 7, 15, 14, 0, 0)
 
     def test_parse_winter_date_requested_in_summer(self, monkeypatch):
         """Test that winter dates use winter DST offset for conversion."""
@@ -283,10 +298,15 @@ class TestDSTHandling:
         result = DateRangeCalculator.calculate(args)
 
         # Assert
-        # 14:00 CET (UTC+1) → 13:00 UTC → 14:00 database (UTC+1)
-        # No change since both are UTC+1
+        # DateRange stores user's input time
         assert result.start == datetime(2024, 12, 15, 14, 0, 0)
         assert result.end == datetime(2024, 12, 15, 15, 0, 0)
+
+        # 14:00 CET (UTC+1) → 13:00 UTC → 14:00 database (UTC+1)
+        # No change since both are UTC+1
+        db_start, db_end = result.as_database_time()
+        assert db_start == datetime(2024, 12, 15, 14, 0, 0)
+        assert db_end == datetime(2024, 12, 15, 15, 0, 0)
 
     def test_parse_ambiguous_time_during_fall_back(self, monkeypatch):
         """Test parsing ambiguous time during DST fall-back transition."""
@@ -306,9 +326,14 @@ class TestDSTHandling:
         result = DateRangeCalculator.calculate(args)
 
         # Assert
+        # DateRange stores user's input time
+        assert result.start == datetime(2024, 10, 27, 2, 30, 0)
+        assert result.end == datetime(2024, 10, 27, 2, 45, 0)
+
         # First occurrence: 02:30 CEST (UTC+2) → 00:30 UTC → 01:30 database (UTC+1)
-        assert result.start == datetime(2024, 10, 27, 1, 30, 0)
-        assert result.end == datetime(2024, 10, 27, 1, 45, 0)
+        db_start, db_end = result.as_database_time()
+        assert db_start == datetime(2024, 10, 27, 1, 30, 0)
+        assert db_end == datetime(2024, 10, 27, 1, 45, 0)
 
     def test_parse_spring_forward_gap(self, monkeypatch):
         """Test parsing during spring forward gap (non-existent times)."""
@@ -345,10 +370,15 @@ class TestDSTHandling:
         )
 
         # Assert
+        # DateRange stores user's input time
+        assert result.start == datetime(2024, 7, 15, 10, 0, 0)
+        assert result.end == datetime(2024, 7, 15, 12, 0, 0)
+
         # 10:00 CEST (UTC+2) → 08:00 UTC → 09:00 database (UTC+1)
         # Duration: 2 hours → End: 11:00 database time
-        assert result.start == datetime(2024, 7, 15, 9, 0, 0)
-        assert result.end == datetime(2024, 7, 15, 11, 0, 0)
+        db_start, db_end = result.as_database_time()
+        assert db_start == datetime(2024, 7, 15, 9, 0, 0)
+        assert db_end == datetime(2024, 7, 15, 11, 0, 0)
 
     def test_utc_timezone_parsing(self, monkeypatch):
         """Test that UTC timezone converts to database timezone."""
@@ -366,9 +396,14 @@ class TestDSTHandling:
         result = DateRangeCalculator.calculate(args)
 
         # Assert
+        # DateRange stores user's input time
+        assert result.start == datetime(2024, 7, 15, 10, 0, 0)
+        assert result.end == datetime(2024, 7, 15, 11, 0, 0)
+
         # 10:00 UTC → 11:00 database (UTC+1)
-        assert result.start == datetime(2024, 7, 15, 11, 0, 0)
-        assert result.end == datetime(2024, 7, 15, 12, 0, 0)
+        db_start, db_end = result.as_database_time()
+        assert db_start == datetime(2024, 7, 15, 11, 0, 0)
+        assert db_end == datetime(2024, 7, 15, 12, 0, 0)
 
     def test_invalid_timezone_warns_and_falls_back(self, monkeypatch):
         """Test that invalid TZ environment variable falls back gracefully."""
@@ -382,11 +417,13 @@ class TestDSTHandling:
             days=None,
         )
 
-        # Act & Assert
-        # Should warn about invalid timezone but still parse successfully
-        with pytest.warns(UserWarning, match="Invalid timezone in TZ environment variable"):
-            result = DateRangeCalculator.calculate(args)
+        # Act
+        result = DateRangeCalculator.calculate(args)
 
-        # Should still parse successfully (falls back to system timezone)
-        assert result.start is not None
-        assert result.end is not None
+        # Assert - should warn when converting to database time
+        with pytest.warns(UserWarning, match="Invalid timezone in TZ environment variable"):
+            db_start, db_end = result.as_database_time()
+
+        # Should still convert successfully (falls back to system timezone)
+        assert db_start is not None
+        assert db_end is not None

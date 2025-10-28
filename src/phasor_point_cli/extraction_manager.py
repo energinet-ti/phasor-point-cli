@@ -5,15 +5,11 @@ High-level extraction manager that coordinates data retrieval, processing, and p
 from __future__ import annotations
 
 import json
-import os
 import time
-import warnings
 from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
-import pytz
-import tzlocal
 
 from .chunk_strategy import ChunkStrategy
 from .config_paths import ConfigPathManager
@@ -74,86 +70,40 @@ class ExtractionManager:
             return self.config_manager.config
         return self.config_manager or {}
 
-    @staticmethod
-    def _get_local_timezone():
-        """Get local timezone, preferring TZ environment variable."""
-        tz_env = os.environ.get("TZ")
-        if tz_env:
-            try:
-                return pytz.timezone(tz_env)
-            except pytz.exceptions.UnknownTimeZoneError:
-                warnings.warn(
-                    f"Invalid timezone in TZ environment variable: '{tz_env}'. "
-                    f"Falling back to system timezone. "
-                    f"Use a valid IANA timezone name (e.g., 'Europe/Copenhagen').",
-                    UserWarning,
-                    stacklevel=3,
-                )
-        try:
-            return tzlocal.get_localzone()
-        except Exception:
-            # Final fallback to UTC if tzlocal fails
-            return pytz.UTC
-
-    @staticmethod
-    def _get_utc_offset(dt: datetime, local_tz) -> str:
-        """
-        Get UTC offset string for a specific datetime in the given timezone.
-
-        Args:
-            dt: Naive datetime to check offset for
-            local_tz: Timezone to use for offset calculation
-
-        Returns:
-            Offset string in format "+HH:MM" or "-HH:MM"
-        """
-        try:
-            if local_tz is None:
-                return "+00:00"
-
-            # Localize the naive datetime to get timezone-aware version
-            if hasattr(local_tz, "localize"):
-                # pytz timezone
-                aware_dt = local_tz.localize(dt, is_dst=True)
-            else:
-                # other timezone implementations
-                aware_dt = dt.replace(tzinfo=local_tz)
-
-            # Get offset in seconds
-            offset_seconds = aware_dt.utcoffset().total_seconds() if aware_dt.utcoffset() else 0
-            offset_hours = int(offset_seconds // 3600)
-            offset_minutes = int((abs(offset_seconds) % 3600) // 60)
-
-            sign = "+" if offset_seconds >= 0 else "-"
-            return f"{sign}{abs(offset_hours):02d}:{offset_minutes:02d}"
-        except Exception as e:
-            warnings.warn(
-                f"Failed to calculate UTC offset for datetime {dt} with timezone {local_tz}: {e}. "
-                f"Defaulting to +00:00. Check timezone configuration.",
-                UserWarning,
-                stacklevel=3,
-            )
-            return "+00:00"
-
     def _get_station_name(self, pmu_id: int) -> str:
         """Get sanitized station name from PMU ID."""
         pmu_info = self.config_manager.get_pmu_info(pmu_id)
         station_name = pmu_info.station_name if pmu_info else "unknown"
         return FileUtils.sanitize_filename(station_name)
 
-    def _build_default_output_path(self, request: ExtractionRequest) -> Path:
+    def _expected_output_path(
+        self, request: ExtractionRequest, output_dir: Path | None = None
+    ) -> Path:
+        """
+        Build expected output path using user-provided time window strings.
+
+        Args:
+            request: Extraction request with filename strings in date_range
+            output_dir: Optional output directory for batch mode
+
+        Returns:
+            Expected output path
+        """
         station_name = self._get_station_name(request.pmu_id)
-        start_str = request.date_range.start.strftime("%Y%m%d_%H%M%S")
-        end_str = request.date_range.end.strftime("%Y%m%d_%H%M%S")
+        start_str, end_str = request.date_range.as_filename_format()
         filename = f"pmu_{request.pmu_id}_{station_name}_{request.resolution}hz_{start_str}_to_{end_str}.{request.output_format}"
+
+        if output_dir:
+            return output_dir / filename
         return Path(filename)
 
-    def _resolve_output_path(self, request: ExtractionRequest) -> Path:
-        return (
-            Path(request.output_file)
-            if request.output_file
-            else self._build_default_output_path(request)
-        )
+    def _resolve_output_path(
+        self, request: ExtractionRequest, output_dir: Path | None = None
+    ) -> Path:
+        """Resolve output path from explicit file or expected path."""
+        if request.output_file:
+            return Path(request.output_file).with_suffix(f".{request.output_format}")
+        return self._expected_output_path(request, output_dir)
 
     def _write_output(self, df: pd.DataFrame, output_path: Path, output_format: str) -> float:
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -186,7 +136,7 @@ class ExtractionManager:
         self, request: ExtractionRequest, output_path: Path
     ) -> tuple[bool, str]:
         """
-        Check if output file exists and matches the requested parameters.
+        Check if output file exists and should be skipped.
 
         Returns:
             (should_skip, reason) - tuple indicating if extraction should be skipped and why
@@ -195,62 +145,36 @@ class ExtractionManager:
         if request.replace:
             if output_path.exists():
                 self.logger.info(f"Replacing existing file: {output_path}")
-            return False, "replace flag set" if request.replace else "file does not exist"
-
-        # If skip_existing is False, never skip
-        if not request.skip_existing:
-            return False, "skip_existing flag is False"
+            return False, "replace flag set"
 
         # Check if file exists
         if not output_path.exists():
             return False, "file does not exist"
 
-        # Read extraction log to compare parameters
-        extraction_log = self._read_extraction_log(output_path)
-        if not extraction_log:
-            # No log file, can't verify if data matches - allow user to decide
-            self.logger.warning(
-                f"Existing file found but no extraction log - cannot verify if data matches: {output_path}"
-            )
-            return False, "no extraction log found"
-
-        # Compare extraction parameters
-        log_info = extraction_log.get("extraction_info", {})
-
-        # Check if key parameters match
-        params_match = (
-            log_info.get("pmu_id") == request.pmu_id
-            and log_info.get("resolution") == request.resolution
-            and log_info.get("start_date") == request.date_range.start.isoformat()
-            and log_info.get("end_date") == request.date_range.end.isoformat()
-            and log_info.get("processed") == request.processed
-            and log_info.get("clean") == request.clean
-            and log_info.get("output_format") == request.output_format
-        )
-
-        if not params_match:
-            # Parameters don't match
-            self.logger.warning(f"Existing file found but parameters don't match: {output_path}")
-
-        return params_match, "exact match found" if params_match else "parameters don't match"
+        # File exists and replace not set - skip
+        return True, "file already exists"
 
     def _initialise_log(self, request: ExtractionRequest) -> dict:
         # Get timezone information for the request period
-        local_tz = self._get_local_timezone()
-        start_offset = self._get_utc_offset(request.date_range.start, local_tz)
-        end_offset = self._get_utc_offset(request.date_range.end, local_tz)
+        timezone_name = request.date_range.get_timezone_name()
+        start_offset, end_offset = request.date_range.as_utc_offset_strings()
+
+        # Get database times for logging
+        db_start, db_end = request.date_range.as_database_time()
 
         return {
             "extraction_info": {
                 "timestamp": datetime.now().isoformat(),
                 "pmu_id": request.pmu_id,
                 "resolution": request.resolution,
-                "start_date": request.date_range.start.isoformat(),
-                "end_date": request.date_range.end.isoformat(),
+                "start_date": db_start.isoformat(),
+                "end_date": db_end.isoformat(),
+                "start_date_local": request.date_range.start.isoformat(),
+                "end_date_local": request.date_range.end.isoformat(),
                 "processed": request.processed,
                 "clean": request.clean,
                 "output_format": request.output_format,
-                "timezone": str(local_tz) if local_tz else "UTC",
+                "timezone": timezone_name,
                 "utc_offset_start": start_offset,
                 "utc_offset_end": end_offset,
             },
@@ -275,40 +199,9 @@ class ExtractionManager:
         df: pd.DataFrame,
         extraction_log: dict,
         output_dir: Path | None = None,
-        start_clock: float | None = None,
     ) -> PersistResult:
-        # Generate filename with actual data timestamps if in batch mode
-        if output_dir and not request.output_file:
-            station_name = self._get_station_name(request.pmu_id)
-
-            # Use actual first/last ts_local from data if available
-            if "ts_local" in df.columns:
-                first_ts = pd.to_datetime(df["ts_local"].iloc[0])
-                last_ts = pd.to_datetime(df["ts_local"].iloc[-1])
-            else:
-                # Fallback to ts column if ts_local doesn't exist
-                first_ts = pd.to_datetime(df["ts"].iloc[0])
-                last_ts = pd.to_datetime(df["ts"].iloc[-1])
-
-            start_str = first_ts.strftime("%Y%m%d_%H%M%S")
-            end_str = last_ts.strftime("%Y%m%d_%H%M%S")
-            filename = f"pmu_{request.pmu_id}_{station_name}_{request.resolution}hz_{start_str}_to_{end_str}.{request.output_format}"
-            output_path = output_dir / filename
-
-            # Check if file exists and we should skip
-            if start_clock is not None:
-                skip_result = self._handle_skip_existing_file(request, output_path, start_clock)
-                if skip_result:
-                    # Return the skip result info
-                    return PersistResult(
-                        output_path=output_path,
-                        file_size_mb=skip_result.file_size_mb or 0.0,
-                        skip_result=skip_result,
-                    )
-        else:
-            output_path = self._resolve_output_path(request).with_suffix(
-                f".{request.output_format}"
-            )
+        # Use expected path based on user-provided time window
+        output_path = self._resolve_output_path(request, output_dir)
 
         file_size_mb = self._write_output(df, output_path, request.output_format)
 
@@ -335,9 +228,8 @@ class ExtractionManager:
         df: pd.DataFrame,
         extraction_log: dict,
         output_dir: Path | None = None,
-        start_clock: float | None = None,
     ) -> PersistResult:
-        return self._persist_dataframe(request, df, extraction_log, output_dir, start_clock)
+        return self._persist_dataframe(request, df, extraction_log, output_dir)
 
     # ----------------------------------------------------------- Helper Methods
     def _build_failure_result(
@@ -405,9 +297,8 @@ class ExtractionManager:
         strategy = chunk_strategy or ChunkStrategy(
             chunk_size_minutes=request.chunk_size_minutes, logger=self.logger
         )
-        use_chunking, chunks = strategy.should_use_chunking(
-            request.date_range.start, request.date_range.end
-        )
+        db_start, db_end = request.date_range.as_database_time()
+        use_chunking, chunks = strategy.should_use_chunking(db_start, db_end)
 
         progress_tracker = None
         if use_chunking and len(chunks) > 1:
@@ -554,18 +445,13 @@ class ExtractionManager:
         start_clock = time.monotonic()
         request.validate()
 
-        # Only check for existing files early if not using output_dir
-        # (when output_dir is used, filename depends on actual data timestamps)
-        if not output_dir:
-            # Resolve output path early to check for existing files
-            output_path = self._resolve_output_path(request).with_suffix(
-                f".{request.output_format}"
-            )
+        # Determine expected output path early using user-provided time window
+        expected_path = self._resolve_output_path(request, output_dir)
 
-            # Check if we should skip based on existing file
-            skip_result = self._handle_skip_existing_file(request, output_path, start_clock)
-            if skip_result:
-                return skip_result
+        # Check if we should skip based on existing file
+        skip_result = self._handle_skip_existing_file(request, expected_path, start_clock)
+        if skip_result:
+            return skip_result
 
         extraction_log = self._initialise_log(request)
 
@@ -606,7 +492,7 @@ class ExtractionManager:
 
         # Persist data
         try:
-            result = self._persist_dataframe(request, df, extraction_log, output_dir, start_clock)
+            result = self._persist_dataframe(request, df, extraction_log, output_dir)
             if result.skip_result:
                 return result.skip_result
             output_path = result.output_path

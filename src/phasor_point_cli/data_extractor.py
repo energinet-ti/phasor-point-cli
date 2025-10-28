@@ -294,8 +294,7 @@ class DataExtractor:
         request.validate()
 
         table_name = f"pmu_{request.pmu_id}_{request.resolution}"
-        start_dt = request.date_range.start
-        end_dt = request.date_range.end
+        start_dt, end_dt = request.date_range.as_database_time()
         start_str = start_dt.strftime("%Y-%m-%d %H:%M:%S")
         end_str = end_dt.strftime("%Y-%m-%d %H:%M:%S")
 

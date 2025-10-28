@@ -199,12 +199,18 @@ class TableListResult:
 
 @dataclass
 class DateRange:
-    """Simple inclusive date range used within extraction flows."""
+    """
+    Simple inclusive date range used within extraction flows.
 
-    start: datetime
-    end: datetime
-    batch_timestamp: str | None = None  # For consistent batch filenames
-    is_relative: bool = False  # True if calculated from "now"
+    Stores user-provided local times and provides conversion methods
+    for different use cases (database queries, filenames, logging).
+
+    Note: Conversion methods import DateRangeCalculator inline to avoid
+    circular imports (date_utils imports DateRange).
+    """
+
+    start: datetime  # User's local time as provided
+    end: datetime  # User's local time as provided
 
     def validate(self) -> None:
         if self.start > self.end:
@@ -217,6 +223,56 @@ class DateRange:
     def to_strings(self, fmt: str = "%Y-%m-%d %H:%M:%S") -> dict[str, str]:
         """Return formatted start/end strings for SQL or logging."""
         return {"start": self.start.strftime(fmt), "end": self.end.strftime(fmt)}
+
+    def as_database_time(self) -> tuple[datetime, datetime]:
+        """
+        Convert user's local time to database time (CET, UTC+1 fixed, no DST).
+
+        Returns:
+            Tuple of (start, end) in database timezone for SQL queries
+        """
+        from .date_utils import DateRangeCalculator  # noqa: PLC0415 - avoid circular import
+
+        db_start = DateRangeCalculator.convert_to_database_time(self.start)
+        db_end = DateRangeCalculator.convert_to_database_time(self.end)
+        return db_start, db_end
+
+    def as_filename_format(self) -> tuple[str, str]:
+        """
+        Format start/end for filename generation.
+
+        Returns:
+            Tuple of (start_str, end_str) in YYYYMMDD_HHMMSS format
+        """
+        return (
+            self.start.strftime("%Y%m%d_%H%M%S"),
+            self.end.strftime("%Y%m%d_%H%M%S"),
+        )
+
+    def as_utc_offset_strings(self) -> tuple[str, str]:
+        """
+        Get UTC offset strings for start/end times.
+
+        Returns:
+            Tuple of (start_offset, end_offset) in format "+HH:MM" or "-HH:MM"
+        """
+        from .date_utils import DateRangeCalculator  # noqa: PLC0415 - avoid circular import
+
+        start_offset = DateRangeCalculator.get_utc_offset(self.start)
+        end_offset = DateRangeCalculator.get_utc_offset(self.end)
+        return start_offset, end_offset
+
+    def get_timezone_name(self) -> str:
+        """
+        Get the timezone name for the user's local timezone.
+
+        Returns:
+            Timezone name string (e.g., "Europe/Copenhagen", "UTC")
+        """
+        from .date_utils import DateRangeCalculator  # noqa: PLC0415 - avoid circular import
+
+        local_tz = DateRangeCalculator.get_local_timezone()
+        return str(local_tz) if local_tz else "UTC"
 
 
 @dataclass_compat(slots=True)
@@ -232,7 +288,6 @@ class ExtractionRequest:
     chunk_size_minutes: int = 15
     parallel_workers: int = 1
     output_format: str = "parquet"
-    skip_existing: bool = True
     replace: bool = False
 
     def validate(self) -> None:
@@ -257,7 +312,6 @@ class ExtractionRequest:
             "parallel_workers": int(self.parallel_workers),
             "output_format": self.output_format,
             "date_range": self.date_range.to_strings(),
-            "skip_existing": bool(self.skip_existing),
             "replace": bool(self.replace),
         }
         if self.output_file is not None:
