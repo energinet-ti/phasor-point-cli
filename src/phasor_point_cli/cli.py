@@ -5,6 +5,7 @@ A command-line interface for exploring and extracting data from PhasorPoint data
 Enhanced with data cleaning, smoothing, and validation capabilities.
 """
 
+import contextlib
 import logging
 import os
 import sys
@@ -52,15 +53,58 @@ from .connection_pool import JDBCConnectionPool  # noqa: E402 - placed after env
 
 
 def setup_logging(verbose=False):
-    """Set up logging configuration"""
+    """
+    Set up logging configuration.
+
+    Args:
+        verbose: If True, also display logs to console. Otherwise logs go to file only.
+
+    Returns:
+        Tuple of (logger, log_file_path)
+    """
+    from datetime import datetime  # noqa: PLC0415
+
     log_level = logging.INFO if not verbose else logging.DEBUG
 
-    # Configure logging
-    logging.basicConfig(
-        level=log_level, format="%(asctime)s - %(levelname)s - %(message)s", datefmt="%H:%M:%S"
-    )
+    # Get log directory and create timestamped log file
+    path_manager = ConfigPathManager()
+    log_dir = path_manager.get_log_dir()
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_file = log_dir / f"phasor_cli_{timestamp}.log"
 
-    return logging.getLogger("phasor_cli")
+    # Create logger
+    logger = logging.getLogger("phasor_cli")
+    logger.setLevel(log_level)
+
+    # Close existing handlers before clearing to prevent ResourceWarning
+    for handler in logger.handlers[:]:
+        handler.close()
+        logger.removeHandler(handler)
+
+    # Always add file handler
+    file_handler = logging.FileHandler(log_file, encoding="utf-8")
+    file_handler.setLevel(log_level)
+    file_formatter = logging.Formatter(
+        "%(asctime)s - %(levelname)s - %(message)s", datefmt="%H:%M:%S"
+    )
+    file_handler.setFormatter(file_formatter)
+    logger.addHandler(file_handler)
+
+    # Only add stream handler if verbose mode
+    if verbose:
+        stream_handler = logging.StreamHandler()
+        stream_handler.setLevel(log_level)
+        stream_formatter = logging.Formatter(
+            "%(asctime)s - %(levelname)s - %(message)s", datefmt="%H:%M:%S"
+        )
+        stream_handler.setFormatter(stream_formatter)
+        logger.addHandler(stream_handler)
+
+    # Cleanup old logs (keep last 30 days)
+    with contextlib.suppress(Exception):
+        path_manager.cleanup_old_logs(days=30)
+
+    return logger, log_file
 
 
 class PhasorPointCLI:
@@ -221,14 +265,24 @@ def main():
         return
 
     # Initialize logging first
-    logger = setup_logging(verbose=getattr(args, "verbose", False))
+    logger, log_file = setup_logging(verbose=getattr(args, "verbose", False))
+
+    # Create user output instance
+    from .user_output import UserOutput  # noqa: E402, PLC0415
+
+    output = UserOutput(quiet=False)
 
     # Handle setup, config-path, config-clean, about, and aboot commands early (don't need database connection)
     if args.command in ("setup", "config-path", "config-clean", "about", "aboot"):
         # Create a minimal router without CLI instance for non-DB commands
         # These commands don't require database access, so CLI instance is optional
-        router = CommandRouter(None, logger)  # type: ignore[arg-type]
+        router = CommandRouter(None, logger, output)  # type: ignore[arg-type]
         router.route(args.command, args)
+
+        # Show log file location (only if not verbose)
+        if not getattr(args, "verbose", False):
+            output.blank_line()
+            output.info(f"Full diagnostic log saved to: {log_file}", tag="LOG")
         return
 
     # Determine config file to use (will check multiple locations with priority)
@@ -275,11 +329,16 @@ def main():
         # Use context manager to register signal handlers
         with cancellation_manager:
             # Dispatch to command router
-            router = CommandRouter(cli, logger)
+            router = CommandRouter(cli, logger, output)
             router.route(args.command, args)
     finally:
         # Ensure all connections are properly cleaned up
         cli.cleanup_connections()
+
+        # Show log file location (only if not verbose, since verbose already shows everything)
+        if not getattr(args, "verbose", False):
+            output.blank_line()
+            output.info(f"Full diagnostic log saved to: {log_file}", tag="LOG")
 
 
 if __name__ == "__main__":

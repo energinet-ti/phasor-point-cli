@@ -30,9 +30,11 @@ class DataProcessor:
         config_manager: ConfigurationManager | None = None,
         logger: logging.Logger | None = None,
         validator: DataValidator | None = None,
+        output=None,
     ) -> None:
         self.logger = logger or logging.getLogger("phasor_cli")
         self.config_manager = config_manager
+        self.output = output
 
         if validator is not None:
             self.validator = validator
@@ -56,11 +58,13 @@ class DataProcessor:
     def drop_empty_columns(
         df: pd.DataFrame,
         extraction_log: dict | None = None,
+        output=None,
     ) -> pd.DataFrame:
         """Drop columns that are completely null/empty."""
         empty_cols = df.columns[df.isnull().all()].tolist()
         if empty_cols:
-            print(f"   [INFO] Dropping {len(empty_cols)} completely empty columns")
+            if output:
+                output.info(f"Dropping {len(empty_cols)} completely empty columns", tag="INFO")
             if extraction_log is not None:
                 for column in empty_cols:
                     extraction_log["column_changes"]["removed"].append(
@@ -119,6 +123,7 @@ class DataProcessor:
         df: pd.DataFrame,
         extraction_log: dict | None = None,
         logger: logging.Logger | None = None,
+        output=None,
     ) -> pd.DataFrame:
         non_ts_cols = [column for column in df.columns if column not in ["ts", "ts_local"]]
         converted_count = 0
@@ -146,9 +151,10 @@ class DataProcessor:
                     if new_nulls > original_nulls:
                         added_nulls = new_nulls - original_nulls
                         if added_nulls > 0:
-                            print(
-                                f"   [WARNING]  {column}: {added_nulls} non-numeric values converted to NaN"
-                            )
+                            if output:
+                                output.warning(
+                                    f"{column}: {added_nulls} non-numeric values converted to NaN"
+                                )
                             if extraction_log is not None:
                                 extraction_log["issues_found"].append(
                                     {
@@ -181,6 +187,7 @@ class DataProcessor:
         df: pd.DataFrame,
         extraction_log: dict | None = None,
         timezone_factory=None,
+        output=None,
     ) -> pd.DataFrame:
         try:
             local_tz = timezone_factory() if timezone_factory else cls.get_local_timezone()
@@ -219,19 +226,22 @@ class DataProcessor:
                 # Check if data crosses DST boundary
                 dst_transition = abs(first_offset - last_offset) > 0.01
 
-                if dst_transition:
-                    print(
-                        "[TIME] Created dual timestamp columns:\n"
-                        "  - ts: UTC (authoritative)\n"
-                        f"  - ts_local: Local time (UTC{first_offset:+.1f} at start, "
-                        f"UTC{last_offset:+.1f} at end - DST transition detected)"
-                    )
-                else:
-                    print(
-                        "[TIME] Created dual timestamp columns:\n"
-                        "  - ts: UTC (authoritative)\n"
-                        f"  - ts_local: Local time (UTC{first_offset:+.1f} offset)"
-                    )
+                if output:
+                    if dst_transition:
+                        output.info(
+                            f"Created dual timestamp columns:\n"
+                            f"  - ts: UTC (authoritative)\n"
+                            f"  - ts_local: Local time (UTC{first_offset:+.1f} at start, "
+                            f"UTC{last_offset:+.1f} at end - DST transition detected)",
+                            tag="TIME",
+                        )
+                    else:
+                        output.info(
+                            f"Created dual timestamp columns:\n"
+                            f"  - ts: UTC (authoritative)\n"
+                            f"  - ts_local: Local time (UTC{first_offset:+.1f} offset)",
+                            tag="TIME",
+                        )
 
                 if extraction_log is not None:
                     extraction_log["data_quality"]["timestamp_adjustment"] = {
@@ -248,7 +258,8 @@ class DataProcessor:
                         "columns_modified": [],
                     }
             else:
-                print("[WARNING]  Could not determine machine timezone, keeping UTC timestamps")
+                if output:
+                    output.warning("Could not determine machine timezone, keeping UTC timestamps")
                 df = cls.format_timestamps_with_precision(df, ["ts"])
                 if extraction_log is not None:
                     extraction_log["issues_found"].append(
@@ -281,15 +292,15 @@ class DataProcessor:
             self.logger.info("Cleaning and converting data types...")
 
         # Drop empty columns FIRST, before any type conversions
-        df = self.drop_empty_columns(df, extraction_log)
+        df = self.drop_empty_columns(df, extraction_log, self.output)
 
         if "ts" in df.columns:
-            df = self.apply_timezone_conversion(df, extraction_log)
+            df = self.apply_timezone_conversion(df, extraction_log, output=self.output)
 
         # Format timestamps - check which columns exist
         ts_cols = [col for col in ["ts", "ts_local"] if col in df.columns]
         df = self.format_timestamps_with_precision(df, ts_cols)
-        return self.convert_columns_to_numeric(df, extraction_log, self.logger)
+        return self.convert_columns_to_numeric(df, extraction_log, self.logger, self.output)
 
     def process(
         self,
