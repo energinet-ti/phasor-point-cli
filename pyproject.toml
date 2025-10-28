@@ -160,7 +160,7 @@ line-ending = "auto"
 
 [tool.setuptools_scm]
 write_to = "src/phasor_point_cli/_version.py"
-version_scheme = "python-simplified-semver"
+version_scheme = "no-guess-dev"
 local_scheme = "no-local-version"
 
 [tool.pyright]
