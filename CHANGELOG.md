@@ -13,7 +13,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0] - 2025-10-27
 
 ### Added
-- Nothing yet
+- Progress tracking with ETA calculations during data extraction
+- Extraction history for performance estimation
+- Spinner animations for long-running operations
+- Automatic removal of empty columns from extracted data
+
+### Changed
+- Improved timestamp handling with clearer `ts` (UTC) and `ts_local` (local time) columns
+- Enhanced timezone detection with automatic fallbacks
+- Better error messages and error handling throughout
+- Improved progress display without visual artifacts
+
+### Removed
+- `requirements.txt` file (dependencies now in `pyproject.toml`)
 
 ## [0.0.2] - 2025-10-27
 
