@@ -205,6 +205,8 @@ class DateRange:
     end: datetime
     batch_timestamp: str | None = None  # For consistent batch filenames
     is_relative: bool = False  # True if calculated from "now"
+    filename_start_str: str = ""  # User-provided local start time for filenames (YYYYMMDD_HHMMSS)
+    filename_end_str: str = ""  # User-provided local end time for filenames (YYYYMMDD_HHMMSS)
 
     def validate(self) -> None:
         if self.start > self.end:
@@ -232,7 +234,6 @@ class ExtractionRequest:
     chunk_size_minutes: int = 15
     parallel_workers: int = 1
     output_format: str = "parquet"
-    skip_existing: bool = True
     replace: bool = False
 
     def validate(self) -> None:
@@ -257,7 +258,6 @@ class ExtractionRequest:
             "parallel_workers": int(self.parallel_workers),
             "output_format": self.output_format,
             "date_range": self.date_range.to_strings(),
-            "skip_existing": bool(self.skip_existing),
             "replace": bool(self.replace),
         }
         if self.output_file is not None:

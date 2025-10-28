@@ -141,19 +141,35 @@ class ExtractionManager:
         station_name = pmu_info.station_name if pmu_info else "unknown"
         return FileUtils.sanitize_filename(station_name)
 
-    def _build_default_output_path(self, request: ExtractionRequest) -> Path:
+    def _expected_output_path(
+        self, request: ExtractionRequest, output_dir: Path | None = None
+    ) -> Path:
+        """
+        Build expected output path using user-provided time window strings.
+
+        Args:
+            request: Extraction request with filename strings in date_range
+            output_dir: Optional output directory for batch mode
+
+        Returns:
+            Expected output path
+        """
         station_name = self._get_station_name(request.pmu_id)
-        start_str = request.date_range.start.strftime("%Y%m%d_%H%M%S")
-        end_str = request.date_range.end.strftime("%Y%m%d_%H%M%S")
+        start_str = request.date_range.filename_start_str
+        end_str = request.date_range.filename_end_str
         filename = f"pmu_{request.pmu_id}_{station_name}_{request.resolution}hz_{start_str}_to_{end_str}.{request.output_format}"
+
+        if output_dir:
+            return output_dir / filename
         return Path(filename)
 
-    def _resolve_output_path(self, request: ExtractionRequest) -> Path:
-        return (
-            Path(request.output_file)
-            if request.output_file
-            else self._build_default_output_path(request)
-        )
+    def _resolve_output_path(
+        self, request: ExtractionRequest, output_dir: Path | None = None
+    ) -> Path:
+        """Resolve output path from explicit file or expected path."""
+        if request.output_file:
+            return Path(request.output_file).with_suffix(f".{request.output_format}")
+        return self._expected_output_path(request, output_dir)
 
     def _write_output(self, df: pd.DataFrame, output_path: Path, output_format: str) -> float:
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -186,7 +202,7 @@ class ExtractionManager:
         self, request: ExtractionRequest, output_path: Path
     ) -> tuple[bool, str]:
         """
-        Check if output file exists and matches the requested parameters.
+        Check if output file exists and should be skipped.
 
         Returns:
             (should_skip, reason) - tuple indicating if extraction should be skipped and why
@@ -195,44 +211,14 @@ class ExtractionManager:
         if request.replace:
             if output_path.exists():
                 self.logger.info(f"Replacing existing file: {output_path}")
-            return False, "replace flag set" if request.replace else "file does not exist"
-
-        # If skip_existing is False, never skip
-        if not request.skip_existing:
-            return False, "skip_existing flag is False"
+            return False, "replace flag set"
 
         # Check if file exists
         if not output_path.exists():
             return False, "file does not exist"
 
-        # Read extraction log to compare parameters
-        extraction_log = self._read_extraction_log(output_path)
-        if not extraction_log:
-            # No log file, can't verify if data matches - allow user to decide
-            self.logger.warning(
-                f"Existing file found but no extraction log - cannot verify if data matches: {output_path}"
-            )
-            return False, "no extraction log found"
-
-        # Compare extraction parameters
-        log_info = extraction_log.get("extraction_info", {})
-
-        # Check if key parameters match
-        params_match = (
-            log_info.get("pmu_id") == request.pmu_id
-            and log_info.get("resolution") == request.resolution
-            and log_info.get("start_date") == request.date_range.start.isoformat()
-            and log_info.get("end_date") == request.date_range.end.isoformat()
-            and log_info.get("processed") == request.processed
-            and log_info.get("clean") == request.clean
-            and log_info.get("output_format") == request.output_format
-        )
-
-        if not params_match:
-            # Parameters don't match
-            self.logger.warning(f"Existing file found but parameters don't match: {output_path}")
-
-        return params_match, "exact match found" if params_match else "parameters don't match"
+        # File exists and replace not set - skip
+        return True, "file already exists"
 
     def _initialise_log(self, request: ExtractionRequest) -> dict:
         # Get timezone information for the request period
@@ -275,40 +261,9 @@ class ExtractionManager:
         df: pd.DataFrame,
         extraction_log: dict,
         output_dir: Path | None = None,
-        start_clock: float | None = None,
     ) -> PersistResult:
-        # Generate filename with actual data timestamps if in batch mode
-        if output_dir and not request.output_file:
-            station_name = self._get_station_name(request.pmu_id)
-
-            # Use actual first/last ts_local from data if available
-            if "ts_local" in df.columns:
-                first_ts = pd.to_datetime(df["ts_local"].iloc[0])
-                last_ts = pd.to_datetime(df["ts_local"].iloc[-1])
-            else:
-                # Fallback to ts column if ts_local doesn't exist
-                first_ts = pd.to_datetime(df["ts"].iloc[0])
-                last_ts = pd.to_datetime(df["ts"].iloc[-1])
-
-            start_str = first_ts.strftime("%Y%m%d_%H%M%S")
-            end_str = last_ts.strftime("%Y%m%d_%H%M%S")
-            filename = f"pmu_{request.pmu_id}_{station_name}_{request.resolution}hz_{start_str}_to_{end_str}.{request.output_format}"
-            output_path = output_dir / filename
-
-            # Check if file exists and we should skip
-            if start_clock is not None:
-                skip_result = self._handle_skip_existing_file(request, output_path, start_clock)
-                if skip_result:
-                    # Return the skip result info
-                    return PersistResult(
-                        output_path=output_path,
-                        file_size_mb=skip_result.file_size_mb or 0.0,
-                        skip_result=skip_result,
-                    )
-        else:
-            output_path = self._resolve_output_path(request).with_suffix(
-                f".{request.output_format}"
-            )
+        # Use expected path based on user-provided time window
+        output_path = self._resolve_output_path(request, output_dir)
 
         file_size_mb = self._write_output(df, output_path, request.output_format)
 
@@ -335,9 +290,8 @@ class ExtractionManager:
         df: pd.DataFrame,
         extraction_log: dict,
         output_dir: Path | None = None,
-        start_clock: float | None = None,
     ) -> PersistResult:
-        return self._persist_dataframe(request, df, extraction_log, output_dir, start_clock)
+        return self._persist_dataframe(request, df, extraction_log, output_dir)
 
     # ----------------------------------------------------------- Helper Methods
     def _build_failure_result(
@@ -554,18 +508,13 @@ class ExtractionManager:
         start_clock = time.monotonic()
         request.validate()
 
-        # Only check for existing files early if not using output_dir
-        # (when output_dir is used, filename depends on actual data timestamps)
-        if not output_dir:
-            # Resolve output path early to check for existing files
-            output_path = self._resolve_output_path(request).with_suffix(
-                f".{request.output_format}"
-            )
+        # Determine expected output path early using user-provided time window
+        expected_path = self._resolve_output_path(request, output_dir)
 
-            # Check if we should skip based on existing file
-            skip_result = self._handle_skip_existing_file(request, output_path, start_clock)
-            if skip_result:
-                return skip_result
+        # Check if we should skip based on existing file
+        skip_result = self._handle_skip_existing_file(request, expected_path, start_clock)
+        if skip_result:
+            return skip_result
 
         extraction_log = self._initialise_log(request)
 
@@ -606,7 +555,7 @@ class ExtractionManager:
 
         # Persist data
         try:
-            result = self._persist_dataframe(request, df, extraction_log, output_dir, start_clock)
+            result = self._persist_dataframe(request, df, extraction_log, output_dir)
             if result.skip_result:
                 return result.skip_result
             output_path = result.output_path

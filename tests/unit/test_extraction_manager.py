@@ -368,7 +368,6 @@ def test_extraction_log_write_failure_continues_gracefully(
     request = build_request(tmp_path)
 
     # Mock json.dump to raise error
-    import json
 
     original_dump = json.dump
 
@@ -438,7 +437,7 @@ def test_extraction_log_read_failure_handled(tmp_path, mock_extraction_history):
         processed=True,
         clean=True,
         output_format="csv",
-        skip_existing=True,  # Try to read log
+        replace=False,  # Default behavior
     )
 
     # Act - Should handle corrupted log gracefully
@@ -682,8 +681,8 @@ def test_handle_skip_existing_file_does_not_exist(tmp_path, mock_extraction_hist
     assert result is None
 
 
-def test_handle_skip_existing_file_skip_disabled(tmp_path, mock_extraction_history):
-    """Test _handle_skip_existing_file when skip_existing=False."""
+def test_handle_skip_existing_file_replace_enabled(tmp_path, mock_extraction_history):
+    """Test _handle_skip_existing_file when replace=True."""
     # Arrange
     manager = ExtractionManager(
         connection_pool=None,
@@ -692,7 +691,7 @@ def test_handle_skip_existing_file_skip_disabled(tmp_path, mock_extraction_histo
         extraction_history=mock_extraction_history,
     )
     request = build_request(tmp_path)
-    request.skip_existing = False
+    request.replace = True
     output_path = tmp_path / "output.csv"
     output_path.write_text("existing data")
 
@@ -713,25 +712,9 @@ def test_handle_skip_existing_file_should_skip(tmp_path, mock_extraction_history
         extraction_history=mock_extraction_history,
     )
     request = build_request(tmp_path)
-    request.skip_existing = True
+    request.replace = False
     output_path = tmp_path / "output.csv"
     output_path.write_text("existing data")
-
-    # Create extraction log with matching parameters
-    log_file = tmp_path / "output_extraction_log.json"
-    log_data = {
-        "extraction_info": {
-            "pmu_id": request.pmu_id,
-            "resolution": request.resolution,
-            "start_date": request.date_range.start.isoformat(),
-            "end_date": request.date_range.end.isoformat(),
-            "processed": request.processed,
-            "clean": request.clean,
-            "output_format": request.output_format,
-        },
-        "statistics": {"final_rows": 1000, "file_size_mb": 2.5},
-    }
-    log_file.write_text(json.dumps(log_data))
 
     # Act
     result = manager._handle_skip_existing_file(request, output_path, 0.0)
@@ -740,8 +723,6 @@ def test_handle_skip_existing_file_should_skip(tmp_path, mock_extraction_history
     assert result is not None
     assert result.success is True
     assert result.output_file == output_path
-    assert result.rows_extracted == 1000
-    assert result.file_size_mb == 2.5
 
 
 def test_setup_progress_tracker_single_chunk(tmp_path, mock_extraction_history):
@@ -1119,3 +1100,221 @@ def test_print_batch_summary_with_cancellation(tmp_path, mock_extraction_history
     # Assert
     # Should log cancellation info
     assert any("cancelled" in str(call).lower() for call in manager.logger.info.call_args_list)
+
+
+def test_single_precheck_skips_when_file_exists_without_replace(
+    tmp_path, mock_extraction_history, monkeypatch
+):
+    """Test that single extract skips when file exists at expected path without replace flag."""
+    # Arrange - Change to tmp_path directory so files are created there
+    monkeypatch.chdir(tmp_path)
+
+    df = pd.DataFrame({"ts": [1, 2, 3], "value": [1, 2, 3]})
+    extractor = MagicMock()
+    extractor.extract.return_value = df
+
+    manager = ExtractionManager(
+        connection_pool=None,
+        config_manager=ConfigStub(
+            {
+                "available_pmus": {
+                    "RegionA": [{"id": 45012, "station_name": "PMU A", "country": "NO"}]
+                }
+            }
+        ),
+        logger=MagicMock(),
+        data_extractor=extractor,
+        extraction_history=mock_extraction_history,
+    )
+
+    # Build request with filename strings
+    date_range = DateRange(
+        start=datetime(2025, 1, 1, 0, 0, 0),
+        end=datetime(2025, 1, 1, 0, 10, 0),
+        filename_start_str="20250101_000000",
+        filename_end_str="20250101_001000",
+    )
+    request = ExtractionRequest(
+        pmu_id=45012,
+        date_range=date_range,
+        resolution=1,
+        processed=True,
+        clean=True,
+        output_format="csv",
+        replace=False,
+    )
+
+    # Create the expected file
+    expected_path = manager._expected_output_path(request)
+    expected_path.write_text("existing data")
+
+    # Act
+    result = manager.extract(request)
+
+    # Assert
+    assert result.success is True
+    assert result.output_file == expected_path
+    extractor.extract.assert_not_called()  # Should skip extraction
+
+
+def test_batch_precheck_skips_when_file_exists_without_replace(tmp_path, mock_extraction_history):
+    """Test that batch extract skips when file exists at expected path without replace flag."""
+    # Arrange
+    df = pd.DataFrame({"ts": [1, 2, 3], "value": [1, 2, 3]})
+    extractor = MagicMock()
+    extractor.extract.return_value = df
+
+    manager = ExtractionManager(
+        connection_pool=None,
+        config_manager=ConfigStub(
+            {
+                "available_pmus": {
+                    "RegionA": [{"id": 45012, "station_name": "PMU A", "country": "NO"}]
+                }
+            }
+        ),
+        logger=MagicMock(),
+        data_extractor=extractor,
+        extraction_history=mock_extraction_history,
+    )
+
+    # Build request with filename strings
+    date_range = DateRange(
+        start=datetime(2025, 1, 1, 0, 0, 0),
+        end=datetime(2025, 1, 1, 0, 10, 0),
+        filename_start_str="20250101_000000",
+        filename_end_str="20250101_001000",
+    )
+    request = ExtractionRequest(
+        pmu_id=45012,
+        date_range=date_range,
+        resolution=1,
+        processed=True,
+        clean=True,
+        output_format="csv",
+        replace=False,
+    )
+
+    # Create the expected file in output_dir
+    output_dir = tmp_path / "batch_output"
+    output_dir.mkdir()
+    expected_path = manager._expected_output_path(request, output_dir)
+    expected_path.write_text("existing data")
+
+    # Act
+    result = manager.extract(request, output_dir=output_dir)
+
+    # Assert
+    assert result.success is True
+    assert result.output_file == expected_path
+    extractor.extract.assert_not_called()  # Should skip extraction
+
+
+def test_overwrites_when_replace_true(tmp_path, mock_extraction_history, monkeypatch):
+    """Test that extraction proceeds and overwrites when replace=True."""
+    # Arrange - Change to tmp_path directory so files are created there
+    monkeypatch.chdir(tmp_path)
+
+    df = pd.DataFrame({"ts": [1, 2, 3], "value": [1, 2, 3]})
+    extractor = MagicMock()
+    extractor.extract.return_value = df
+
+    processor = MagicMock()
+    processor.process.return_value = (df, [])
+
+    power_calculator = MagicMock()
+    power_calculator.process_phasor_data.return_value = (df, None)
+
+    manager = ExtractionManager(
+        connection_pool=None,
+        config_manager=ConfigStub(
+            {
+                "available_pmus": {
+                    "RegionA": [{"id": 45012, "station_name": "PMU A", "country": "NO"}]
+                }
+            }
+        ),
+        logger=MagicMock(),
+        data_extractor=extractor,
+        data_processor=processor,
+        power_calculator=power_calculator,
+        extraction_history=mock_extraction_history,
+    )
+
+    # Build request with filename strings
+    date_range = DateRange(
+        start=datetime(2025, 1, 1, 0, 0, 0),
+        end=datetime(2025, 1, 1, 0, 10, 0),
+        filename_start_str="20250101_000000",
+        filename_end_str="20250101_001000",
+    )
+    request = ExtractionRequest(
+        pmu_id=45012,
+        date_range=date_range,
+        resolution=1,
+        processed=True,
+        clean=True,
+        output_format="csv",
+        replace=True,
+    )
+
+    # Create the expected file
+    expected_path = manager._expected_output_path(request)
+    expected_path.write_text("old data")
+
+    # Act
+    result = manager.extract(request)
+
+    # Assert
+    assert result.success is True
+    assert result.output_file == expected_path
+    extractor.extract.assert_called_once()  # Should proceed with extraction
+    assert expected_path.exists()
+    # File should be overwritten with new data
+    assert "old data" not in expected_path.read_text()
+
+
+def test_unified_filename_single_vs_batch(tmp_path, mock_extraction_history):
+    """Test that single and batch produce identical base filenames for same request."""
+    # Arrange
+    manager = ExtractionManager(
+        connection_pool=None,
+        config_manager=ConfigStub(
+            {
+                "available_pmus": {
+                    "RegionA": [{"id": 45012, "station_name": "PMU A", "country": "NO"}]
+                }
+            }
+        ),
+        logger=MagicMock(),
+        extraction_history=mock_extraction_history,
+    )
+
+    # Build request with filename strings
+    date_range = DateRange(
+        start=datetime(2025, 1, 1, 0, 0, 0),
+        end=datetime(2025, 1, 1, 0, 10, 0),
+        filename_start_str="20250101_000000",
+        filename_end_str="20250101_001000",
+    )
+    request = ExtractionRequest(
+        pmu_id=45012,
+        date_range=date_range,
+        resolution=1,
+        processed=True,
+        clean=True,
+        output_format="csv",
+        replace=False,
+    )
+
+    # Act
+    single_path = manager._expected_output_path(request, output_dir=None)
+    batch_dir = tmp_path / "batch_output"
+    batch_path = manager._expected_output_path(request, output_dir=batch_dir)
+
+    # Assert
+    # Base filenames should be identical
+    assert single_path.name == batch_path.name
+    # Full paths differ only by directory
+    assert batch_path.parent == batch_dir
+    assert single_path.parent == Path()

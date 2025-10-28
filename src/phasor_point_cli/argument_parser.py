@@ -305,12 +305,6 @@ Use --all to remove files from both locations.
             action="store_true",
             help="Replace existing output file if it already exists (default: skip existing files)",
         )
-        extract_parser.add_argument(
-            "--skip-existing",
-            action="store_true",
-            default=True,
-            help="Skip extraction if output file already exists with matching parameters (default: True)",
-        )
 
     def _add_batch_extract_command(self, subparsers) -> None:
         """Add batch-extract command parser."""
@@ -384,12 +378,6 @@ Use --all to remove files from both locations.
             "--replace",
             action="store_true",
             help="Replace existing output files if they already exist (default: skip existing files)",
-        )
-        batch_parser.add_argument(
-            "--skip-existing",
-            action="store_true",
-            default=True,
-            help="Skip extraction if output files already exist with matching parameters (default: True)",
         )
 
     def _add_query_command(self, subparsers) -> None:

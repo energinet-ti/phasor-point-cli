@@ -144,8 +144,19 @@ class DateRangeCalculator:
             original_dt = pd.to_datetime(args.start).to_pydatetime()
             batch_timestamp = original_dt.strftime("%Y%m%d_%H%M%S")
 
+            # For filename: use user-provided local time
+            filename_start_dt = pd.to_datetime(args.start).to_pydatetime()
+            filename_end_dt = filename_start_dt + duration
+            filename_start_str = filename_start_dt.strftime("%Y%m%d_%H%M%S")
+            filename_end_str = filename_end_dt.strftime("%Y%m%d_%H%M%S")
+
             return DateRange(
-                start=start_dt, end=end_dt, batch_timestamp=batch_timestamp, is_relative=False
+                start=start_dt,
+                end=end_dt,
+                batch_timestamp=batch_timestamp,
+                is_relative=False,
+                filename_start_str=filename_start_str,
+                filename_end_str=filename_end_str,
             )
 
         if DateRangeCalculator._has_duration(args):
@@ -154,8 +165,17 @@ class DateRangeCalculator:
             end_dt = reference_time
             start_dt = end_dt - duration
 
+            # For filename: use reference_time as-is (user's local time)
+            filename_start_str = start_dt.strftime("%Y%m%d_%H%M%S")
+            filename_end_str = end_dt.strftime("%Y%m%d_%H%M%S")
+
             return DateRange(
-                start=start_dt, end=end_dt, batch_timestamp=batch_timestamp, is_relative=True
+                start=start_dt,
+                end=end_dt,
+                batch_timestamp=batch_timestamp,
+                is_relative=True,
+                filename_start_str=filename_start_str,
+                filename_end_str=filename_end_str,
             )
 
         if getattr(args, "start", None) and getattr(args, "end", None):
@@ -163,11 +183,19 @@ class DateRangeCalculator:
             start_dt = DateRangeCalculator._parse_local_datetime(args.start)
             end_dt = DateRangeCalculator._parse_local_datetime(args.end)
 
+            # For filename: use user-provided local times
+            filename_start_dt = pd.to_datetime(args.start).to_pydatetime()
+            filename_end_dt = pd.to_datetime(args.end).to_pydatetime()
+            filename_start_str = filename_start_dt.strftime("%Y%m%d_%H%M%S")
+            filename_end_str = filename_end_dt.strftime("%Y%m%d_%H%M%S")
+
             return DateRange(
                 start=start_dt,
                 end=end_dt,
                 batch_timestamp=None,  # No batch timestamp for absolute ranges
                 is_relative=False,
+                filename_start_str=filename_start_str,
+                filename_end_str=filename_end_str,
             )
 
         raise ValueError("Please specify either --start/--end dates, --minutes, --hours, or --days")
@@ -199,8 +227,17 @@ class DateRangeCalculator:
         start_dt = end_dt - timedelta(minutes=duration_minutes)
         batch_timestamp = reference_time.strftime("%Y%m%d_%H%M%S")
 
+        # For filename: use reference_time as-is
+        filename_start_str = start_dt.strftime("%Y%m%d_%H%M%S")
+        filename_end_str = end_dt.strftime("%Y%m%d_%H%M%S")
+
         return DateRange(
-            start=start_dt, end=end_dt, batch_timestamp=batch_timestamp, is_relative=True
+            start=start_dt,
+            end=end_dt,
+            batch_timestamp=batch_timestamp,
+            is_relative=True,
+            filename_start_str=filename_start_str,
+            filename_end_str=filename_end_str,
         )
 
     @staticmethod
@@ -230,8 +267,19 @@ class DateRangeCalculator:
         original_dt = pd.to_datetime(start_date).to_pydatetime()
         batch_timestamp = original_dt.strftime("%Y%m%d_%H%M%S")
 
+        # For filename: use user-provided local time
+        filename_start_dt = pd.to_datetime(start_date).to_pydatetime()
+        filename_end_dt = filename_start_dt + duration
+        filename_start_str = filename_start_dt.strftime("%Y%m%d_%H%M%S")
+        filename_end_str = filename_end_dt.strftime("%Y%m%d_%H%M%S")
+
         return DateRange(
-            start=start_dt, end=end_dt, batch_timestamp=batch_timestamp, is_relative=False
+            start=start_dt,
+            end=end_dt,
+            batch_timestamp=batch_timestamp,
+            is_relative=False,
+            filename_start_str=filename_start_str,
+            filename_end_str=filename_end_str,
         )
 
     @staticmethod
