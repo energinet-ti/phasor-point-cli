@@ -75,7 +75,7 @@ def setup_logging(verbose=False):
     # Create logger
     logger = logging.getLogger("phasor_cli")
     logger.setLevel(log_level)
-    
+
     # Close existing handlers before clearing to prevent ResourceWarning
     for handler in logger.handlers[:]:
         handler.close()

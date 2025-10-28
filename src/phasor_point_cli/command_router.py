@@ -506,30 +506,6 @@ class CommandRouter:
         successful_count = len(batch_result.successful_results())
         failed_count = len(batch_result.failed_results())
 
-        # Display summary using output
-        if self._output:
-            self._output.section_header("Batch Extraction Summary")
-            self._output.info(f"Total PMUs: {total}")
-            self._output.info(f"Successful: {successful_count}")
-            if failed_count > 0:
-                self._output.info(f"Failed: {failed_count}")
-
-            successful = batch_result.successful_results()
-            if successful:
-                self._output.blank_line()
-                self._output.info("Successfully extracted:", tag="DATA")
-                for result in successful:
-                    pmu_id = result.request.pmu_id
-                    self._output.info(f"   PMU {pmu_id}: {result.output_file}")
-
-            failed = batch_result.failed_results()
-            if failed:
-                self._output.blank_line()
-                self._output.info("Failed extractions:", tag="ERROR")
-                for result in failed:
-                    pmu_id = result.request.pmu_id
-                    self._output.info(f"   PMU {pmu_id}: {result.error}")
-
         # Always log to technical logger
         self._logger.info(
             f"Batch extraction completed: {successful_count}/{total} successful, {failed_count}/{total} failed"
