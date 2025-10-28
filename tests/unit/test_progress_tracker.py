@@ -2,7 +2,7 @@
 Unit tests for progress tracker.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
@@ -208,3 +208,24 @@ class TestProgressTracker:
 
         # Assert
         assert result == "0s"
+
+    def test_progress_tracker_with_output(self, mock_extraction_history):
+        """Test progress tracker uses UserOutput when provided."""
+        # Arrange
+        mock_output = Mock()
+        logger = MagicMock()
+
+        with patch("sys.stdout.isatty", return_value=True):
+            tracker = ProgressTracker(
+                extraction_history=mock_extraction_history,
+                verbose_timing=False,
+                logger=logger,
+                output=mock_output,
+            )
+
+            # Act
+            tracker.start_batch(total_pmus=3)
+            tracker.update_pmu_progress(pmu_index=0, pmu_id=45012)
+
+        # Assert
+        mock_output.batch_progress.assert_called_once_with(1, 3, 45012)

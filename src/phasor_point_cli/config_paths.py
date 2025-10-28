@@ -8,6 +8,7 @@ Provides standardized configuration directory locations following OS conventions
 
 import os
 import sys
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -136,6 +137,73 @@ class ConfigPathManager:
 
         # Priority 3: None
         return None
+
+    def get_log_dir(self) -> Path:
+        """
+        Get the platform-appropriate log directory.
+
+        Returns:
+            Path to log directory (creates if doesn't exist)
+
+        Platform-specific locations:
+            - Linux/Mac: ~/.cache/phasor-cli/logs/
+            - Windows: %LOCALAPPDATA%/phasor-cli/logs/ or %TEMP%/phasor-cli/logs/
+        """
+        if sys.platform == "win32":
+            # Windows: Use LOCALAPPDATA or TEMP
+            base = os.environ.get("LOCALAPPDATA")
+            if not base:
+                base = os.environ.get("TEMP", str(Path.home() / "AppData" / "Local"))
+            log_dir = Path(base) / "phasor-cli" / "logs"
+        else:
+            # Linux/Mac: Use XDG_CACHE_HOME or ~/.cache
+            xdg_cache = os.environ.get("XDG_CACHE_HOME")
+            if xdg_cache:
+                log_dir = Path(xdg_cache) / "phasor-cli" / "logs"
+            else:
+                log_dir = Path.home() / ".cache" / "phasor-cli" / "logs"
+
+        # Create directory if it doesn't exist
+        log_dir.mkdir(parents=True, exist_ok=True)
+        return log_dir
+
+    def get_latest_log_file(self) -> Optional[Path]:
+        """
+        Get the most recently created log file.
+
+        Returns:
+            Path to the latest log file, or None if no logs exist
+        """
+        log_dir = self.get_log_dir()
+        log_files = sorted(
+            log_dir.glob("phasor_cli_*.log"), key=lambda p: p.stat().st_mtime, reverse=True
+        )
+        return log_files[0] if log_files else None
+
+    def cleanup_old_logs(self, days: int = 30) -> int:
+        """
+        Remove log files older than the specified number of days.
+
+        Args:
+            days: Number of days to keep logs (default: 30)
+
+        Returns:
+            Number of log files removed
+        """
+        log_dir = self.get_log_dir()
+        cutoff_time = datetime.now() - timedelta(days=days)
+        removed_count = 0
+
+        for log_file in log_dir.glob("phasor_cli_*.log"):
+            try:
+                if datetime.fromtimestamp(log_file.stat().st_mtime) < cutoff_time:
+                    log_file.unlink()
+                    removed_count += 1
+            except (OSError, ValueError):
+                # Skip files that can't be accessed or have invalid timestamps
+                continue
+
+        return removed_count
 
     def get_config_locations_info(self) -> Dict[str, Any]:
         """

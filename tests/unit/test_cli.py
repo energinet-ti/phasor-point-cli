@@ -9,7 +9,7 @@ import argparse
 import logging
 from contextlib import ExitStack
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import ANY, Mock, patch
 
 import pytest
 
@@ -19,42 +19,67 @@ from phasor_point_cli.cli import PhasorPointCLI, main, setup_logging
 class TestSetupLogging:
     """Test suite for setup_logging function."""
 
-    def test_setup_logging_default_level(self):
+    @patch("phasor_point_cli.cli.ConfigPathManager")
+    def test_setup_logging_default_level(self, mock_path_manager_class, tmp_path):
         """Test setup_logging with default verbosity (INFO level)."""
         # Arrange
         verbose = False
+        log_dir = tmp_path / "logs"
+        log_dir.mkdir()
+
+        mock_path_manager = Mock()
+        mock_path_manager.get_log_dir.return_value = log_dir
+        mock_path_manager.cleanup_old_logs.return_value = None
+        mock_path_manager_class.return_value = mock_path_manager
 
         # Act
-        logger = setup_logging(verbose=verbose)
+        logger, log_file = setup_logging(verbose=verbose)
 
         # Assert
         assert logger is not None
         assert logger.name == "phasor_cli"
-        assert logging.getLogger().level == logging.INFO
+        assert log_file is not None
 
-    def test_setup_logging_verbose_level(self):
+    @patch("phasor_point_cli.cli.ConfigPathManager")
+    def test_setup_logging_verbose_level(self, mock_path_manager_class, tmp_path):
         """Test setup_logging with verbose flag (DEBUG level)."""
         # Arrange
         verbose = True
+        log_dir = tmp_path / "logs"
+        log_dir.mkdir()
+
+        mock_path_manager = Mock()
+        mock_path_manager.get_log_dir.return_value = log_dir
+        mock_path_manager.cleanup_old_logs.return_value = None
+        mock_path_manager_class.return_value = mock_path_manager
 
         # Act
-        with patch("logging.basicConfig") as mock_basic_config:
-            logger = setup_logging(verbose=verbose)
+        logger, log_file = setup_logging(verbose=verbose)
 
         # Assert
         assert logger is not None
         assert logger.name == "phasor_cli"
-        # Verify basicConfig was called with DEBUG level
-        call_kwargs = mock_basic_config.call_args[1]
-        assert call_kwargs["level"] == logging.DEBUG
+        assert log_file is not None
+        assert logger.level == logging.DEBUG
 
-    def test_setup_logging_returns_logger_instance(self):
+    @patch("phasor_point_cli.cli.ConfigPathManager")
+    def test_setup_logging_returns_logger_instance(self, mock_path_manager_class, tmp_path):
         """Test that setup_logging returns a logger instance."""
-        # Arrange & Act
-        logger = setup_logging()
+        # Arrange
+        log_dir = tmp_path / "logs"
+        log_dir.mkdir()
+
+        mock_path_manager = Mock()
+        mock_path_manager.get_log_dir.return_value = log_dir
+        mock_path_manager.cleanup_old_logs.return_value = None
+        mock_path_manager_class.return_value = mock_path_manager
+
+        # Act
+        logger, log_file = setup_logging()
 
         # Assert
         assert isinstance(logger, logging.Logger)
+        assert log_file is not None
 
 
 class TestPhasorPointCLI:
@@ -432,7 +457,8 @@ class TestMainFunction:
             mock_logging = stack.enter_context(patch("phasor_point_cli.cli.setup_logging"))
 
             mock_logger = Mock()
-            mock_logging.return_value = mock_logger
+            mock_log_file = Mock()
+            mock_logging.return_value = (mock_logger, mock_log_file)
 
             mock_parser = Mock()
             mock_parser_instance = Mock()
@@ -447,7 +473,7 @@ class TestMainFunction:
             main()
 
         # Assert
-        mock_router_class.assert_called_once_with(None, mock_logger)
+        mock_router_class.assert_called_once_with(None, mock_logger, ANY)
         mock_router.route.assert_called_once_with("setup", mock_args)
 
     def test_main_handles_config_path_command_without_db_connection(self):
@@ -463,7 +489,8 @@ class TestMainFunction:
             mock_logging = stack.enter_context(patch("phasor_point_cli.cli.setup_logging"))
 
             mock_logger = Mock()
-            mock_logging.return_value = mock_logger
+            mock_log_file = Mock()
+            mock_logging.return_value = (mock_logger, mock_log_file)
 
             mock_parser = Mock()
             mock_parser_instance = Mock()
@@ -478,7 +505,7 @@ class TestMainFunction:
             main()
 
         # Assert
-        mock_router_class.assert_called_once_with(None, mock_logger)
+        mock_router_class.assert_called_once_with(None, mock_logger, ANY)
         mock_router.route.assert_called_once_with("config-path", mock_args)
 
     def test_main_handles_config_clean_command_without_db_connection(self):
@@ -494,7 +521,8 @@ class TestMainFunction:
             mock_logging = stack.enter_context(patch("phasor_point_cli.cli.setup_logging"))
 
             mock_logger = Mock()
-            mock_logging.return_value = mock_logger
+            mock_log_file = Mock()
+            mock_logging.return_value = (mock_logger, mock_log_file)
 
             mock_parser = Mock()
             mock_parser_instance = Mock()
@@ -509,7 +537,7 @@ class TestMainFunction:
             main()
 
         # Assert
-        mock_router_class.assert_called_once_with(None, mock_logger)
+        mock_router_class.assert_called_once_with(None, mock_logger, ANY)
         mock_router.route.assert_called_once_with("config-clean", mock_args)
 
     def test_main_routes_command_with_db_connection(self, monkeypatch):
@@ -534,7 +562,8 @@ class TestMainFunction:
             stack.enter_context(patch("phasor_point_cli.cli.ConfigPathManager"))
 
             mock_logger = Mock()
-            mock_logging.return_value = mock_logger
+            mock_log_file = Mock()
+            mock_logging.return_value = (mock_logger, mock_log_file)
 
             mock_parser = Mock()
             mock_parser_instance = Mock()
@@ -560,7 +589,7 @@ class TestMainFunction:
 
         # Assert
         mock_cli_class.assert_called_once()
-        mock_router_class.assert_called_once_with(mock_cli, mock_logger)
+        mock_router_class.assert_called_once_with(mock_cli, mock_logger, ANY)
         mock_router.route.assert_called_once_with("list-tables", mock_args)
         mock_cli.cleanup_connections.assert_called_once()
 
@@ -586,7 +615,8 @@ class TestMainFunction:
             stack.enter_context(patch("phasor_point_cli.cli.ConfigPathManager"))
 
             mock_logger = Mock()
-            mock_logging.return_value = mock_logger
+            mock_log_file = Mock()
+            mock_logging.return_value = (mock_logger, mock_log_file)
 
             mock_parser = Mock()
             mock_parser_instance = Mock()
@@ -633,7 +663,9 @@ class TestMainFunction:
             mock_parser_class = stack.enter_context(patch("phasor_point_cli.cli.CLIArgumentParser"))
             mock_cli_class = stack.enter_context(patch("phasor_point_cli.cli.PhasorPointCLI"))
             mock_router_class = stack.enter_context(patch("phasor_point_cli.cli.CommandRouter"))
-            stack.enter_context(patch("phasor_point_cli.cli.setup_logging", return_value=Mock()))
+            stack.enter_context(
+                patch("phasor_point_cli.cli.setup_logging", return_value=(Mock(), Mock()))
+            )
             stack.enter_context(patch("phasor_point_cli.cli.ConfigurationManager"))
             stack.enter_context(patch("phasor_point_cli.cli.ConfigPathManager"))
             # Patch the import inside main's if block
@@ -685,6 +717,7 @@ class TestMainFunction:
             mock_parser_class = stack.enter_context(patch("phasor_point_cli.cli.CLIArgumentParser"))
             stack.enter_context(patch("phasor_point_cli.cli.CommandRouter"))
             mock_logging = stack.enter_context(patch("phasor_point_cli.cli.setup_logging"))
+            mock_logging.return_value = (Mock(), Mock())
 
             mock_parser = Mock()
             mock_parser_instance = Mock()
@@ -715,7 +748,9 @@ class TestMainFunction:
             mock_parser_class = stack.enter_context(patch("phasor_point_cli.cli.CLIArgumentParser"))
             mock_cli_class = stack.enter_context(patch("phasor_point_cli.cli.PhasorPointCLI"))
             stack.enter_context(patch("phasor_point_cli.cli.CommandRouter"))
-            stack.enter_context(patch("phasor_point_cli.cli.setup_logging", return_value=Mock()))
+            stack.enter_context(
+                patch("phasor_point_cli.cli.setup_logging", return_value=(Mock(), Mock()))
+            )
             stack.enter_context(patch("phasor_point_cli.cli.ConfigurationManager"))
             stack.enter_context(patch("phasor_point_cli.cli.ConfigPathManager"))
 
@@ -760,7 +795,9 @@ class TestMainFunction:
             mock_cli_class = stack.enter_context(patch("phasor_point_cli.cli.PhasorPointCLI"))
             # This patch at the module level ensures we're testing the import scope
             mock_router_class = stack.enter_context(patch("phasor_point_cli.cli.CommandRouter"))
-            stack.enter_context(patch("phasor_point_cli.cli.setup_logging", return_value=Mock()))
+            stack.enter_context(
+                patch("phasor_point_cli.cli.setup_logging", return_value=(Mock(), Mock()))
+            )
             stack.enter_context(patch("phasor_point_cli.cli.ConfigurationManager"))
             stack.enter_context(patch("phasor_point_cli.cli.ConfigPathManager"))
 
@@ -830,7 +867,9 @@ class TestEdgeCases:
             mock_parser_class = stack.enter_context(patch("phasor_point_cli.cli.CLIArgumentParser"))
             mock_cli_class = stack.enter_context(patch("phasor_point_cli.cli.PhasorPointCLI"))
             stack.enter_context(patch("phasor_point_cli.cli.CommandRouter"))
-            stack.enter_context(patch("phasor_point_cli.cli.setup_logging", return_value=Mock()))
+            stack.enter_context(
+                patch("phasor_point_cli.cli.setup_logging", return_value=(Mock(), Mock()))
+            )
             stack.enter_context(patch("phasor_point_cli.cli.ConfigurationManager"))
             stack.enter_context(patch("phasor_point_cli.cli.ConfigPathManager"))
 

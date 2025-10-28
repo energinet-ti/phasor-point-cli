@@ -9,19 +9,25 @@ power metrics.
 from __future__ import annotations
 
 import logging
-from typing import Iterable, Sequence
+from typing import TYPE_CHECKING, Iterable, Sequence
 
 import numpy as np
 import pandas as pd
 
 from .models import PhasorColumnMap
 
+if TYPE_CHECKING:
+    from .user_output import UserOutput
+
 
 class PowerCalculator:
     """Compute power metrics from voltage and current phasor measurements."""
 
-    def __init__(self, logger: logging.Logger | None = None) -> None:
+    def __init__(
+        self, logger: logging.Logger | None = None, output: UserOutput | None = None
+    ) -> None:
         self.logger = logger or logging.getLogger("phasor_cli")
+        self.output = output
 
     # ---------------------------------------------------------------- Private --
     def _find_candidates(

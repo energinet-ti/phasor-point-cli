@@ -64,16 +64,18 @@ def _print_no_tables_found_error() -> None:
 class CommandRouter:
     """Routes CLI commands to appropriate handlers."""
 
-    def __init__(self, cli_instance: "PhasorPointCLI", logger):
+    def __init__(self, cli_instance: "PhasorPointCLI", logger, output=None):
         """
         Initialize command router.
 
         Args:
             cli_instance: PhasorPointCLI instance to delegate operations to
             logger: Logger instance for logging
+            output: UserOutput instance for user-facing messages
         """
         self._cli = cli_instance
         self._logger = logger
+        self._output = output
         self._date_calculator = DateRangeCalculator()
 
     def route(self, command: str, args: argparse.Namespace) -> None:
@@ -432,6 +434,7 @@ class CommandRouter:
             self._cli.connection_pool,
             self._cli.config,
             self._logger,
+            output=self._output,
             verbose_timing=verbose_timing,
         )
         result = manager.extract(request)
@@ -493,34 +496,44 @@ class CommandRouter:
             self._cli.connection_pool,
             self._cli.config,
             self._logger,
+            output=self._output,
             verbose_timing=verbose_timing,
         )
         batch_result = manager.batch_extract(requests, output_dir=output_dir)
 
-        # Display summary
-        print("\n" + "=" * 60)
-        print("[DATA] Batch Extraction Summary")
-        print("=" * 60)
+        # Calculate summary stats
         total = len(batch_result.results)
         successful_count = len(batch_result.successful_results())
         failed_count = len(batch_result.failed_results())
+
+        # Display summary using output
+        if self._output:
+            self._output.section_header("Batch Extraction Summary")
+            self._output.info(f"Total PMUs: {total}")
+            self._output.info(f"Successful: {successful_count}")
+            if failed_count > 0:
+                self._output.info(f"Failed: {failed_count}")
+
+            successful = batch_result.successful_results()
+            if successful:
+                self._output.blank_line()
+                self._output.info("Successfully extracted:", tag="DATA")
+                for result in successful:
+                    pmu_id = result.request.pmu_id
+                    self._output.info(f"   PMU {pmu_id}: {result.output_file}")
+
+            failed = batch_result.failed_results()
+            if failed:
+                self._output.blank_line()
+                self._output.info("Failed extractions:", tag="ERROR")
+                for result in failed:
+                    pmu_id = result.request.pmu_id
+                    self._output.info(f"   PMU {pmu_id}: {result.error}")
+
+        # Always log to technical logger
         self._logger.info(
             f"Batch extraction completed: {successful_count}/{total} successful, {failed_count}/{total} failed"
         )
-
-        successful = batch_result.successful_results()
-        if successful:
-            self._logger.info("Successfully extracted:")
-            for result in successful:
-                pmu_id = result.request.pmu_id
-                print(f"   PMU {pmu_id}: {result.output_file}")
-
-        failed = batch_result.failed_results()
-        if failed:
-            self._logger.error("Failed extractions:")
-            for result in failed:
-                pmu_id = result.request.pmu_id
-                print(f"   PMU {pmu_id}: {result.error}")
 
     def handle_query(self, args: argparse.Namespace) -> None:
         """

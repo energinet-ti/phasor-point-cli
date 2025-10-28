@@ -26,6 +26,7 @@ class ProgressTracker:
         extraction_history: ExtractionHistory | None = None,
         verbose_timing: bool = False,
         logger=None,
+        output=None,
     ):
         """
         Initialize progress tracker.
@@ -34,10 +35,12 @@ class ProgressTracker:
             extraction_history: Optional extraction history for initial estimates
             verbose_timing: Show detailed timing information
             logger: Optional logger instance
+            output: Optional UserOutput instance for user-facing messages
         """
         self.extraction_history = extraction_history
         self.verbose_timing = verbose_timing
         self.logger = logger
+        self.output = output
 
         # Current extraction tracking
         self._total_chunks = 0
@@ -146,7 +149,8 @@ class ProgressTracker:
             print("\r" + " " * 120, end="", flush=True)
             print()  # Move to new line
 
-            print(f"[BATCH] PMU {pmu_id} completed ({self._completed_pmus}/{self._total_pmus})")
+            if self.output:
+                self.output.batch_progress(self._completed_pmus, self._total_pmus, pmu_id)
 
             # Calculate batch ETA if we have enough data
             if self._completed_pmus > 0 and self._total_pmus > self._completed_pmus:
@@ -157,9 +161,11 @@ class ProgressTracker:
                 eta_str = self._format_time(remaining_time)
 
                 progress_pct = self._completed_pmus / self._total_pmus * 100
-                print(
-                    f"[BATCH] Overall progress: {self._completed_pmus}/{self._total_pmus} ({progress_pct:.0f}%) | ETA: {eta_str}"
-                )
+                if self.output:
+                    self.output.info(
+                        f"Overall progress: {self._completed_pmus}/{self._total_pmus} ({progress_pct:.0f}%) | ETA: {eta_str}",
+                        tag="BATCH",
+                    )
 
     def finish_extraction(self) -> None:
         """Mark extraction as complete and print final message."""
@@ -177,7 +183,10 @@ class ProgressTracker:
             elapsed_str = self._format_time(elapsed)
 
             pmu_label = f"PMU {self._current_pmu_id}" if self._current_pmu_id else "Extraction"
-            print(f"[{pmu_label}] Completed {self._total_chunks} chunks in {elapsed_str}")
+            if self.output:
+                self.output.info(
+                    f"Completed {self._total_chunks} chunks in {elapsed_str}", tag=pmu_label
+                )
 
     def finish_batch(self) -> None:
         """Mark batch extraction as complete."""
@@ -187,7 +196,10 @@ class ProgressTracker:
             # Clear any remaining text on current line
             print("\r" + " " * 120, end="", flush=True)
             print()  # Move to new line
-            print(f"[BATCH] Completed all {self._total_pmus} PMUs in {elapsed_str}")
+            if self.output:
+                self.output.info(
+                    f"Completed all {self._total_pmus} PMUs in {elapsed_str}", tag="BATCH"
+                )
 
     def pause_display(self) -> None:
         """Temporarily pause the progress display updates."""

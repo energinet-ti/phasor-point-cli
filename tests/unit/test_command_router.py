@@ -44,12 +44,12 @@ class TestCommandRouter:
     @pytest.fixture
     def command_router(self, mock_cli, mock_logger):
         """Create a CommandRouter instance."""
-        return CommandRouter(mock_cli, mock_logger)
+        return CommandRouter(mock_cli, mock_logger, output=None)
 
     def test_initialization(self, mock_cli, mock_logger):
         """Test CommandRouter can be instantiated."""
         # Arrange & Act
-        router = CommandRouter(mock_cli, mock_logger)
+        router = CommandRouter(mock_cli, mock_logger, output=None)
 
         # Assert
         assert router is not None

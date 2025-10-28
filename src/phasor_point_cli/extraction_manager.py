@@ -32,6 +32,7 @@ class ExtractionManager:
         config_manager,
         logger,
         *,
+        output=None,
         data_extractor: DataExtractor | None = None,
         data_processor: DataProcessor | None = None,
         power_calculator: PowerCalculator | None = None,
@@ -41,21 +42,22 @@ class ExtractionManager:
         self.connection_pool = connection_pool
         self.config_manager = config_manager
         self.logger = logger
+        self.output = output
         self.verbose_timing = verbose_timing
 
         validator = None
         if data_processor is None:
-            validator = DataValidator(logger=logger)
+            validator = DataValidator(logger=logger, output=output)
 
         self.data_processor = data_processor or DataProcessor(
-            config_manager=config_manager, logger=logger, validator=validator
+            config_manager=config_manager, logger=logger, validator=validator, output=output
         )
         self.data_extractor = data_extractor or DataExtractor(
             connection_pool=connection_pool,
             logger=logger,
             extraction_history=extraction_history,
         )
-        self.power_calculator = power_calculator or PowerCalculator(logger=logger)
+        self.power_calculator = power_calculator or PowerCalculator(logger=logger, output=output)
 
         # Initialize extraction history
         if extraction_history is None:
@@ -185,13 +187,9 @@ class ExtractionManager:
         }
 
     def _print_summary(self, df: pd.DataFrame) -> None:
-        print("\n[DATA] Data Summary:")
-        print(f"   Shape: {df.shape}")
-        print(f"   Columns: {list(df.columns[:5])}{'...' if len(df.columns) > 5 else ''}")
-        if "ts" in df.columns:
-            print(f"   UTC time range: {df['ts'].min()} to {df['ts'].max()}")
-            if "ts_local" in df.columns:
-                print(f"   Local time range: {df['ts_local'].min()} to {df['ts_local'].max()}")
+        if self.output:
+            self.output.blank_line()
+            self.output.data_summary(df, "[DATA] Data Summary")
 
     def _persist_dataframe(
         self,
@@ -259,8 +257,6 @@ class ExtractionManager:
             return None
 
         self.logger.info(f"Skipping extraction - file already exists: {output_path}")
-        print(f"\n[SKIP] Output file already exists with matching parameters: {output_path}")
-        print("[SKIP] Use --replace flag to overwrite existing files")
 
         # Try to read existing file stats
         existing_stats = {}
@@ -268,11 +264,20 @@ class ExtractionManager:
             extraction_log = self._read_extraction_log(output_path)
             if extraction_log:
                 existing_stats = extraction_log.get("statistics", {})
-                rows = existing_stats.get("final_rows", "unknown")
-                file_size = existing_stats.get("file_size_mb", "unknown")
-                print(f"[SKIP] Existing file contains: {rows} rows, {file_size} MB")
         except Exception:
             pass
+
+        if self.output:
+            self.output.blank_line()
+            self.output.skip_message(
+                str(output_path), "File already exists with matching parameters"
+            )
+            self.output.info("Use --replace flag to overwrite existing files", tag="SKIP")
+
+            if existing_stats:
+                rows = existing_stats.get("final_rows", "unknown")
+                file_size = existing_stats.get("file_size_mb", "unknown")
+                self.output.info(f"Existing file contains: {rows} rows, {file_size} MB", tag="SKIP")
 
         duration = time.monotonic() - start_clock
         return ExtractionResult(
@@ -305,6 +310,7 @@ class ExtractionManager:
             progress_tracker = ProgressTracker(
                 extraction_history=self.extraction_history,
                 verbose_timing=self.verbose_timing,
+                output=self.output,
                 logger=self.logger,
             )
             progress_tracker.start_extraction(
@@ -391,13 +397,14 @@ class ExtractionManager:
         self, batch_result: BatchExtractionResult, cancellation_manager
     ) -> None:
         """Print batch extraction summary."""
-        print("\n" + "=" * 60)
-        print("[DATA] Batch Extraction Summary")
-        print("=" * 60)
-
         successful = batch_result.successful_results()
         failed = batch_result.failed_results()
         total_requests = len(batch_result.results)
+
+        # Count skipped results (success but 0 rows extracted typically means skipped)
+        skipped_count = sum(
+            1 for result in batch_result.results if result.success and result.rows_extracted == 0
+        )
 
         # Check if operation was cancelled
         if cancellation_manager.is_cancelled():
@@ -424,15 +431,41 @@ class ExtractionManager:
                 total_requests,
             )
 
+        # Use output for user-facing summary
+        if self.output:
+            # Calculate elapsed time (sum of individual extraction times)
+            time_elapsed = sum(r.extraction_time_seconds for r in batch_result.results)
+
+            self.output.batch_summary(
+                total=total_requests,
+                successful=len(successful),
+                failed=len(failed),
+                skipped=skipped_count,
+                time_elapsed=time_elapsed,
+            )
+
+            if successful:
+                self.output.blank_line()
+                self.output.info("Successfully extracted:", tag="DATA")
+                for result in successful:
+                    self.output.info(f"   PMU {result.request.pmu_id}: {result.output_file}")
+
+            if failed:
+                self.output.blank_line()
+                self.output.info("Failed extractions:", tag="ERROR")
+                for result in failed:
+                    self.output.info(f"   PMU {result.request.pmu_id}: {result.error}")
+
+        # Always log success/failure details to logger (for technical logging)
         if successful:
             self.logger.info("Successfully extracted:")
             for result in successful:
-                print(f"   PMU {result.request.pmu_id}: {result.output_file}")
+                self.logger.info(f"   PMU {result.request.pmu_id}: {result.output_file}")
 
         if failed:
             self.logger.error("Failed extractions:")
             for result in failed:
-                print(f"   PMU {result.request.pmu_id}: {result.error}")
+                self.logger.error(f"   PMU {result.request.pmu_id}: {result.error}")
 
     # ---------------------------------------------------------------- Extraction
     def extract(  # noqa: PLR0911
@@ -554,12 +587,15 @@ class ExtractionManager:
 
         self.logger.info("Batch extraction for %d requests", len(requests))
         self.logger.info("Output directory: %s", output_dir)
-        print("=" * 60)
+
+        if self.output:
+            self.output.section_header(f"Batch Extraction - {len(requests)} PMUs")
 
         # Initialize batch progress tracker
         batch_progress = ProgressTracker(
             extraction_history=self.extraction_history,
             verbose_timing=self.verbose_timing,
+            output=self.output,
             logger=self.logger,
         )
         batch_progress.start_batch(len(requests))

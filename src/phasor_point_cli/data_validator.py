@@ -9,15 +9,25 @@ appropriate.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pandas as pd
 
 from .models import DataQualityThresholds
+
+if TYPE_CHECKING:
+    from .user_output import UserOutput
 
 
 class DataValidator:
     """Validate extracted PMU data using configurable thresholds."""
 
-    def __init__(self, thresholds: DataQualityThresholds | dict | None = None, logger=None) -> None:
+    def __init__(
+        self,
+        thresholds: DataQualityThresholds | dict | None = None,
+        logger=None,
+        output: UserOutput | None = None,
+    ) -> None:
         if thresholds is None:
             thresholds = DataQualityThresholds(
                 frequency_min=45,
@@ -36,6 +46,7 @@ class DataValidator:
 
         self.thresholds: DataQualityThresholds = thresholds
         self.logger = logger
+        self.output = output
 
     # --------------------------------------------------------------- Checkers --
     def check_empty_columns(
@@ -46,7 +57,8 @@ class DataValidator:
             empty_cols = df.columns[df.isnull().all()].tolist()
             if empty_cols:
                 issues.append(f"Empty columns: {len(empty_cols)}")
-                print(f"   [WARNING]  Removed {len(empty_cols)} completely empty columns")
+                if self.output:
+                    self.output.warning(f"Removed {len(empty_cols)} completely empty columns")
                 if extraction_log is not None:
                     for column in empty_cols:
                         extraction_log["column_changes"]["removed"].append(
@@ -58,7 +70,8 @@ class DataValidator:
                         )
                 df = df.drop(columns=empty_cols)
         except Exception as exc:  # pragma: no cover - defensive logging
-            print(f"   [WARNING]  Error checking empty columns: {exc}")
+            if self.output:
+                self.output.warning(f"Error checking empty columns: {exc}")
             if extraction_log is not None:
                 extraction_log["issues_found"].append(
                     {
@@ -85,9 +98,10 @@ class DataValidator:
                 high_null_cols = null_pct[null_pct > threshold].index.tolist()
                 if high_null_cols:
                     issues.append(f"High null columns: {len(high_null_cols)}")
-                    print(
-                        f"   [WARNING]  {len(high_null_cols)} columns have >{threshold}% null values"
-                    )
+                    if self.output:
+                        self.output.warning(
+                            f"{len(high_null_cols)} columns have >{threshold}% null values"
+                        )
                     if extraction_log is not None:
                         for column in high_null_cols:
                             extraction_log["issues_found"].append(
@@ -100,7 +114,8 @@ class DataValidator:
                                 }
                             )
         except Exception as exc:  # pragma: no cover - defensive logging
-            print(f"   [WARNING]  Error checking null percentages: {exc}")
+            if self.output:
+                self.output.warning(f"Error checking null percentages: {exc}")
             if extraction_log is not None:
                 extraction_log["issues_found"].append(
                     {
@@ -137,9 +152,10 @@ class DataValidator:
                         large_gaps = time_diffs[time_diffs > median_diff * multiplier]
                         if len(large_gaps) > 0:
                             issues.append(f"Time gaps: {len(large_gaps)}")
-                            print(
-                                f"   [WARNING]  Found {len(large_gaps)} large time gaps (>{multiplier}x median)"
-                            )
+                            if self.output:
+                                self.output.warning(
+                                    f"Found {len(large_gaps)} large time gaps (>{multiplier}x median)"
+                                )
                             if extraction_log is not None:
                                 extraction_log["data_quality"]["time_gaps"] = {
                                     "count": int(len(large_gaps)),
@@ -155,7 +171,8 @@ class DataValidator:
                                     }
                                 )
         except Exception as exc:  # pragma: no cover - defensive logging
-            print(f"   [WARNING]  Error checking time continuity: {exc}")
+            if self.output:
+                self.output.warning(f"Error checking time continuity: {exc}")
             if extraction_log is not None:
                 extraction_log["issues_found"].append(
                     {
@@ -190,9 +207,10 @@ class DataValidator:
                         invalid_count = (~valid_range).sum()
                         if invalid_count > 0:
                             issues.append(f"Invalid frequency values: {invalid_count}")
-                            print(
-                                f"   [WARNING]  {column}: {invalid_count} values outside {minimum}-{maximum} Hz range"
-                            )
+                            if self.output:
+                                self.output.warning(
+                                    f"{column}: {invalid_count} values outside {minimum}-{maximum} Hz range"
+                                )
                             if extraction_log is not None:
                                 extraction_log["issues_found"].append(
                                     {
@@ -204,7 +222,8 @@ class DataValidator:
                                     }
                                 )
         except Exception as exc:  # pragma: no cover - defensive logging
-            print(f"   [WARNING]  Error checking frequency ranges: {exc}")
+            if self.output:
+                self.output.warning(f"Error checking frequency ranges: {exc}")
             if extraction_log is not None:
                 extraction_log["issues_found"].append(
                     {
@@ -264,10 +283,11 @@ class DataValidator:
         )
         issues.extend(freq_issues)
 
-        if not issues:
-            print("   [OK] Data validation passed - no major issues found")
-        else:
-            print(f"   [WARNING]  Data validation found {len(issues)} issue types")
+        if self.output:
+            if not issues:
+                self.output.info("Data validation passed - no major issues found", tag="OK")
+            else:
+                self.output.warning(f"Data validation found {len(issues)} issue types")
 
         if extraction_log is not None:
             extraction_log["data_quality"]["validation_summary"] = {
