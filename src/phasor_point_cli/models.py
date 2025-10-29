@@ -186,17 +186,20 @@ class TableListResult:
 @dataclass
 class DateRange:
     """
-    Simple inclusive date range used within extraction flows.
+    Date range with half-open interval [start, end) used within extraction flows.
 
     Stores user-provided local times and provides conversion methods
     for different use cases (database queries, filenames, logging).
+
+    The interval is half-open: start is inclusive, end is exclusive.
+    This prevents duplicate timestamps when concatenating sequential exports.
 
     Note: Conversion methods import DateRangeCalculator inline to avoid
     circular imports (date_utils imports DateRange).
     """
 
-    start: datetime  # User's local time as provided
-    end: datetime  # User's local time as provided
+    start: datetime  # User's local time as provided (inclusive)
+    end: datetime  # User's local time as provided (exclusive)
 
     def validate(self) -> None:
         if self.start > self.end:
