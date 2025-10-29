@@ -69,6 +69,7 @@ class PowerCalculator:
             ("ia", ("ia1", "ia")),
             ("ib", ("ib1", "ib")),
             ("ic", ("ic1", "ic")),
+            ("i1", ("i1", "I1")),
         ]
 
         voltage_magnitude = self._find_candidates(df, voltage_phases, "_m")
