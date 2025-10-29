@@ -405,6 +405,50 @@ class TestCommandRouter:
         # Assert
         command_router._logger.error.assert_called_once()
 
+    def test_handle_extract_with_raw_flag_disables_clean(self, command_router, mock_cli):
+        """Test that --raw flag disables both processing and cleaning."""
+        # Arrange
+        args = argparse.Namespace(
+            pmu=45012,
+            minutes=30,
+            start=None,
+            end=None,
+            hours=None,
+            days=None,
+            resolution=1,
+            output=None,
+            processed=True,
+            raw=True,
+            no_clean=False,
+            chunk_size=15,
+            parallel=2,
+            format="parquet",
+            connection_pool=3,
+        )
+
+        mock_result = ExtractionResult(
+            request=Mock(spec=ExtractionRequest),
+            success=True,
+            output_file=Path("test.parquet"),
+            rows_extracted=100,
+            extraction_time_seconds=10.0,
+        )
+
+        # Act
+        with patch("phasor_point_cli.command_router.ExtractionManager") as mock_manager_class:
+            mock_manager = Mock()
+            mock_manager.extract.return_value = mock_result
+            mock_manager_class.return_value = mock_manager
+
+            command_router.handle_extract(args)
+
+            # Get the ExtractionRequest that was created
+            actual_request_call = mock_manager.extract.call_args[0][0]
+
+        # Assert
+        assert actual_request_call.processed is False, "--raw should disable processing"
+        assert actual_request_call.clean is False, "--raw should disable cleaning"
+
     def test_handle_batch_extract(self, command_router):
         """Test handle_batch_extract."""
         # Arrange
