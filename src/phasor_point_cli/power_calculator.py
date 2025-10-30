@@ -9,6 +9,7 @@ power metrics.
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING
 
@@ -31,24 +32,35 @@ class PowerCalculator:
         self.output = output
 
     # ---------------------------------------------------------------- Private --
-    def _find_candidates(
+    def _find_candidates_regex(
         self,
         df: pd.DataFrame,
-        phase_patterns: Sequence[tuple[str, Sequence[str]]],
+        phase_patterns: Sequence[tuple[str, str]],
         suffix: str,
     ) -> dict[str, str]:
+        """Match columns using regex for robust detection based on schema structure."""
         mapping: dict[str, str] = {}
-        for phase_name, patterns in phase_patterns:
-            candidates = [
-                column
-                for column in df.columns
-                if column.endswith(suffix) and any(pattern in column for pattern in patterns)
-            ]
-            if not candidates:
-                continue
-
-            preferred = next((col for col in candidates if "1" in col), candidates[0])
-            mapping[phase_name] = preferred
+        for phase_name, pattern in phase_patterns:
+            regex = re.compile(pattern)
+            # Schema: {v|i}_<PHASOR_NAME>_{m|a}
+            candidates = [col for col in df.columns if col.endswith(suffix) and regex.search(col)]
+            if candidates:
+                # Prefer standard notation: va1/vb1/vc1 for phases, v1_1/v0_1/v2_1 for sequences
+                if len(phase_name) == 2 and phase_name[1] in "abc":
+                    # Phase components: prefer 'va1_', 'vb1_', 'vc1_' or 'ia1_', 'ib1_', 'ic1_'
+                    # e.g., v_ta31_va1_m contains 'va1_', i_ta31_ia1_m contains 'ia1_'
+                    preferred = next(
+                        (col for col in candidates if f"{phase_name}1_" in col), candidates[0]
+                    )
+                elif len(phase_name) == 2 and phase_name[1] in "012":
+                    # Sequence components: prefer 'v1_1_', 'v0_1_', 'v2_1_' or 'i1_1_', etc.
+                    # e.g., v_ta31_v1_1_m contains 'v1_1_', i_ta31_i1_1_m contains 'i1_1_'
+                    preferred = next(
+                        (col for col in candidates if f"{phase_name}_1_" in col), candidates[0]
+                    )
+                else:
+                    preferred = candidates[0]
+                mapping[phase_name] = preferred
         return mapping
 
     # --------------------------------------------------------------- Detection --
@@ -60,22 +72,62 @@ class PowerCalculator:
         freq_cols = [column for column in df.columns if column.startswith(("f", "dfdt"))]
 
         voltage_phases = [
-            ("va", ("va1", "va")),
-            ("vb", ("vb1", "vb")),
-            ("vc", ("vc1", "vc")),
-            ("v1", ("v1", "V1")),
+            (
+                "va",
+                r"^v_.*_va1_[ma]$|^va1_[ma]$",
+            ),  # v_ta31_va1_m, va1_m (phasor name ends with va1)
+            (
+                "vb",
+                r"^v_.*_vb1_[ma]$|^vb1_[ma]$",
+            ),  # v_ta31_vb1_m, vb1_m (phasor name ends with vb1)
+            (
+                "vc",
+                r"^v_.*_vc1_[ma]$|^vc1_[ma]$",
+            ),  # v_ta31_vc1_m, vc1_m (phasor name ends with vc1)
+            (
+                "v1",
+                r"^v_.*_v1(?!\d)(?:_1)?_[ma]$|^v1(?!\d)(?:_1)?_[ma]$",
+            ),  # v_ta31_v1_1_m, v_ta31_v1_m, v1_1_m, v1_m (phasor name ends with v1 or v1_1)
+            (
+                "v0",
+                r"^v_.*_v0(?!\d)(?:_1)?_[ma]$|^v0(?!\d)(?:_1)?_[ma]$",
+            ),  # v_ta31_v0_1_m, v_ta31_v0_m, v0_1_m, v0_m (phasor name ends with v0 or v0_1)
+            (
+                "v2",
+                r"^v_.*_v2(?!\d)(?:_1)?_[ma]$|^v2(?!\d)(?:_1)?_[ma]$",
+            ),  # v_ta31_v2_1_m, v_ta31_v2_m, v2_1_m, v2_m (phasor name ends with v2 or v2_1)
         ]
         current_phases = [
-            ("ia", ("ia1", "ia")),
-            ("ib", ("ib1", "ib")),
-            ("ic", ("ic1", "ic")),
-            ("i1", ("i1", "I1")),
+            (
+                "ia",
+                r"^i_.*_ia1_[ma]$|^ia1_[ma]$",
+            ),  # i_ta31_ia1_m, ia1_m (phasor name ends with ia1)
+            (
+                "ib",
+                r"^i_.*_ib1_[ma]$|^ib1_[ma]$",
+            ),  # i_ta31_ib1_m, ib1_m (phasor name ends with ib1)
+            (
+                "ic",
+                r"^i_.*_ic1_[ma]$|^ic1_[ma]$",
+            ),  # i_ta31_ic1_m, ic1_m (phasor name ends with ic1)
+            (
+                "i1",
+                r"^i_.*_i1(?!\d)(?:_1)?_[ma]$|^i1(?!\d)(?:_1)?_[ma]$",
+            ),  # i_ta31_i1_1_m, i_ta31_i1_m, i1_1_m, i1_m (phasor name ends with i1 or i1_1)
+            (
+                "i0",
+                r"^i_.*_i0(?!\d)(?:_1)?_[ma]$|^i0(?!\d)(?:_1)?_[ma]$",
+            ),  # i_ta31_i0_1_m, i_ta31_i0_m, i0_1_m, i0_m (phasor name ends with i0 or i0_1)
+            (
+                "i2",
+                r"^i_.*_i2(?!\d)(?:_1)?_[ma]$|^i2(?!\d)(?:_1)?_[ma]$",
+            ),  # i_ta31_i2_1_m, i_ta31_i2_m, i2_1_m, i2_m (phasor name ends with i2 or i2_1)
         ]
 
-        voltage_magnitude = self._find_candidates(df, voltage_phases, "_m")
-        voltage_angle = self._find_candidates(df, voltage_phases, "_a")
-        current_magnitude = self._find_candidates(df, current_phases, "_m")
-        current_angle = self._find_candidates(df, current_phases, "_a")
+        voltage_magnitude = self._find_candidates_regex(df, voltage_phases, "_m")
+        voltage_angle = self._find_candidates_regex(df, voltage_phases, "_a")
+        current_magnitude = self._find_candidates_regex(df, current_phases, "_m")
+        current_angle = self._find_candidates_regex(df, current_phases, "_a")
 
         if self.logger:
             self.logger.info("Frequency columns: %s", len(freq_cols))
