@@ -9,6 +9,7 @@ power metrics.
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING
 
@@ -31,24 +32,22 @@ class PowerCalculator:
         self.output = output
 
     # ---------------------------------------------------------------- Private --
-    def _find_candidates(
+    def _find_candidates_regex(
         self,
         df: pd.DataFrame,
-        phase_patterns: Sequence[tuple[str, Sequence[str]]],
+        phase_patterns: Sequence[tuple[str, str]],
         suffix: str,
     ) -> dict[str, str]:
+        """Match columns using regex for robust detection based on schema structure."""
         mapping: dict[str, str] = {}
-        for phase_name, patterns in phase_patterns:
-            candidates = [
-                column
-                for column in df.columns
-                if column.endswith(suffix) and any(pattern in column for pattern in patterns)
-            ]
-            if not candidates:
-                continue
-
-            preferred = next((col for col in candidates if "1" in col), candidates[0])
-            mapping[phase_name] = preferred
+        for phase_name, pattern in phase_patterns:
+            regex = re.compile(pattern)
+            # Schema: {v|i}_<PHASOR_NAME>_{m|a}
+            candidates = [col for col in df.columns if col.endswith(suffix) and regex.search(col)]
+            if candidates:
+                # Prefer columns with "1" in phasor name (standard notation)
+                preferred = next((col for col in candidates if "1" in col), candidates[0])
+                mapping[phase_name] = preferred
         return mapping
 
     # --------------------------------------------------------------- Detection --
@@ -60,22 +59,26 @@ class PowerCalculator:
         freq_cols = [column for column in df.columns if column.startswith(("f", "dfdt"))]
 
         voltage_phases = [
-            ("va", ("va1", "va")),
-            ("vb", ("vb1", "vb")),
-            ("vc", ("vc1", "vc")),
-            ("v1", ("v1", "V1")),
+            ("va", r"^(v_)?.*va1?_"),  # v_p3_va1_m, va1_m
+            ("vb", r"^(v_)?.*vb1?_"),  # v_p3_vb1_m, vb1_m
+            ("vc", r"^(v_)?.*vc1?_"),  # v_p3_vc1_m, vc1_m
+            ("v1", r"^(v_)?.*v1(_1)?_"),  # v_p3_v1_1_m, v1_m (positive)
+            ("v0", r"^(v_)?.*v0(_1)?_"),  # v_p3_v0_1_m, v0_m (zero)
+            ("v2", r"^(v_)?.*v2(_1)?_"),  # v_p3_v2_1_m, v2_m (negative)
         ]
         current_phases = [
-            ("ia", ("ia1", "ia")),
-            ("ib", ("ib1", "ib")),
-            ("ic", ("ic1", "ic")),
-            ("i1", ("i1", "I1")),
+            ("ia", r"^(i_)?.*ia1?_"),  # i_p3_ia1_m, ia1_m
+            ("ib", r"^(i_)?.*ib1?_"),  # i_p3_ib1_m, ib1_m
+            ("ic", r"^(i_)?.*ic1?_"),  # i_p3_ic1_m, ic1_m
+            ("i1", r"^(i_)?.*i1(_1)?_"),  # i_p3_i1_1_m, i1_m (positive)
+            ("i0", r"^(i_)?.*i0(_1)?_"),  # i_p3_i0_1_m, i0_m (zero)
+            ("i2", r"^(i_)?.*i2(_1)?_"),  # i_p3_i2_1_m, i2_m (negative)
         ]
 
-        voltage_magnitude = self._find_candidates(df, voltage_phases, "_m")
-        voltage_angle = self._find_candidates(df, voltage_phases, "_a")
-        current_magnitude = self._find_candidates(df, current_phases, "_m")
-        current_angle = self._find_candidates(df, current_phases, "_a")
+        voltage_magnitude = self._find_candidates_regex(df, voltage_phases, "_m")
+        voltage_angle = self._find_candidates_regex(df, voltage_phases, "_a")
+        current_magnitude = self._find_candidates_regex(df, current_phases, "_m")
+        current_angle = self._find_candidates_regex(df, current_phases, "_a")
 
         if self.logger:
             self.logger.info("Frequency columns: %s", len(freq_cols))

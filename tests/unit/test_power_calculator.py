@@ -541,3 +541,153 @@ def test_calculate_power_values_wrapper():
 
     # Assert
     assert "apparent_power_mva" in result.columns
+
+
+def test_detect_sequence_components_with_real_pmu_patterns():
+    """Test detection of sequence components using column patterns that mimic PMU data structure.
+
+    Uses synthetic test data with column naming patterns similar to real PMU exports.
+    Pattern style: v_<station>_<phasor>_<suffix>
+    """
+    # Arrange - synthetic test data with realistic column patterns
+    timestamps = pd.date_range(datetime(2025, 1, 1, 0, 0, 0), periods=4, freq=timedelta(seconds=1))
+    df = pd.DataFrame(
+        {
+            "ts": timestamps,
+            # Phase voltages (pattern: v_p3_va1_m)
+            "v_p3_va1_m": np.full(4, 220_000.0),  # Test value
+            "v_p3_va1_a": np.linspace(0.0, 0.02, 4),  # Test angles in radians
+            "v_p3_vb1_m": np.full(4, 220_000.0),
+            "v_p3_vb1_a": np.linspace(-2.1, -2.08, 4),
+            "v_p3_vc1_m": np.full(4, 220_000.0),
+            "v_p3_vc1_a": np.linspace(2.1, 2.12, 4),
+            # Positive sequence (pattern: v_p3_v1_1_m)
+            "v_p3_v1_1_m": np.full(4, 220_000.0),
+            "v_p3_v1_1_a": np.linspace(0.0, 0.02, 4),
+            # Zero sequence (pattern: v_p3_v0_1_m) - previously missing detection
+            "v_p3_v0_1_m": np.full(4, 250.0),  # Test value (needs √3 correction)
+            "v_p3_v0_1_a": np.array([0.3, 0.31, 0.32, 0.33]),  # Test angles in radians
+            # Negative sequence (pattern: v_p3_v2_1_m) - previously missing detection
+            "v_p3_v2_1_m": np.full(4, 250.0),  # Test value (needs √3 correction)
+            "v_p3_v2_1_a": np.array([0.3, 0.31, 0.32, 0.33]),  # Test angles in radians
+            # Phase currents
+            "i_p3_ia1_m": np.full(4, 350.0),
+            "i_p3_ia1_a": np.linspace(-0.4, -0.38, 4),
+            "i_p3_ib1_m": np.full(4, 350.0),
+            "i_p3_ib1_a": np.linspace(-2.5, -2.48, 4),
+            "i_p3_ic1_m": np.full(4, 350.0),
+            "i_p3_ic1_a": np.linspace(1.7, 1.72, 4),
+            # Positive sequence current
+            "i_p3_i1_1_m": np.full(4, 350.0),
+            "i_p3_i1_1_a": np.linspace(-0.05, -0.04, 4),
+            # Zero sequence current (pattern: i_p3_i0_1_m) - previously missing detection
+            "i_p3_i0_1_m": np.full(4, 45.0),
+            "i_p3_i0_1_a": np.array([0.3, 0.31, 0.32, 0.33]),  # Test angles in radians
+            # Negative sequence current (pattern: i_p3_i2_1_m) - previously missing detection
+            "i_p3_i2_1_m": np.full(4, 45.0),
+            "i_p3_i2_1_a": np.array([0.3, 0.31, 0.32, 0.33]),  # Test angles in radians
+            "f": np.full(4, 50.0),
+        }
+    )
+    calculator = PowerCalculator()
+
+    # Act
+    column_map = calculator.detect_columns(df)
+
+    # Assert - verify ALL sequence components are detected
+    assert column_map.voltage_magnitude["va"] == "v_p3_va1_m"
+    assert column_map.voltage_magnitude["vb"] == "v_p3_vb1_m"
+    assert column_map.voltage_magnitude["vc"] == "v_p3_vc1_m"
+    assert column_map.voltage_magnitude["v1"] == "v_p3_v1_1_m"
+    assert column_map.voltage_magnitude["v0"] == "v_p3_v0_1_m"  # Zero sequence
+    assert column_map.voltage_magnitude["v2"] == "v_p3_v2_1_m"  # Negative sequence
+
+    assert column_map.current_magnitude["ia"] == "i_p3_ia1_m"
+    assert column_map.current_magnitude["i1"] == "i_p3_i1_1_m"
+    assert column_map.current_magnitude["i0"] == "i_p3_i0_1_m"  # Zero sequence
+    assert column_map.current_magnitude["i2"] == "i_p3_i2_1_m"  # Negative sequence
+
+    # Apply transformations
+    corrected = calculator.apply_voltage_corrections(df, column_map)
+    converted = calculator.convert_angles_to_degrees(corrected, column_map)
+
+    # Assert voltage corrections (√3 multiplier)
+    assert converted["v_p3_va1_m"].iloc[0] == pytest.approx(220_000.0 * np.sqrt(3))
+    assert converted["v_p3_v0_1_m"].iloc[0] == pytest.approx(250.0 * np.sqrt(3), rel=1e-3)
+    assert converted["v_p3_v2_1_m"].iloc[0] == pytest.approx(250.0 * np.sqrt(3), rel=1e-3)
+
+    # Assert angle conversions (radians to degrees)
+    assert converted["v_p3_v0_1_a"].iloc[0] == pytest.approx(np.degrees(0.3), rel=1e-3)
+    assert converted["v_p3_v2_1_a"].iloc[0] == pytest.approx(np.degrees(0.3), rel=1e-3)
+    assert converted["i_p3_i0_1_a"].iloc[0] == pytest.approx(np.degrees(0.3), rel=1e-3)
+    assert converted["i_p3_i2_1_a"].iloc[0] == pytest.approx(np.degrees(0.3), rel=1e-3)
+
+
+def test_detect_sequence_components_alternative_pmu_pattern():
+    """Test detection with alternative column naming pattern (v_ta95_v0_1_m).
+
+    Uses synthetic test data with alternative station identifier format.
+    Pattern style: v_<station_code>_<phasor>_<suffix>
+    """
+    # Arrange - synthetic test data with alternative pattern
+    timestamps = pd.date_range(datetime(2025, 1, 1, 0, 0, 0), periods=4, freq=timedelta(seconds=1))
+    df = pd.DataFrame(
+        {
+            "ts": timestamps,
+            # Pattern with direct station prefix (v_ta95_ instead of v_p3_)
+            "v_ta95_v1_1_m": np.full(4, 210_000.0),  # Test value
+            "v_ta95_v1_1_a": np.linspace(0.0, 0.015, 4),
+            "v_ta95_v0_1_m": np.full(4, 280.0),  # Test value
+            "v_ta95_v0_1_a": np.array([0.25, 0.26, 0.27, 0.28]),
+            "v_ta95_v2_1_m": np.full(4, 280.0),  # Test value
+            "v_ta95_v2_1_a": np.array([0.25, 0.26, 0.27, 0.28]),
+            "i_ta95_i1_1_m": np.full(4, 380.0),  # Test value
+            "i_ta95_i1_1_a": np.linspace(-0.055, -0.045, 4),
+            "i_ta95_i0_1_m": np.full(4, 42.0),  # Test value
+            "i_ta95_i0_1_a": np.array([0.25, 0.26, 0.27, 0.28]),
+            "i_ta95_i2_1_m": np.full(4, 42.0),  # Test value
+            "i_ta95_i2_1_a": np.array([0.25, 0.26, 0.27, 0.28]),
+        }
+    )
+    calculator = PowerCalculator()
+
+    # Act
+    column_map = calculator.detect_columns(df)
+
+    # Assert
+    assert column_map.voltage_magnitude["v1"] == "v_ta95_v1_1_m"
+    assert column_map.voltage_magnitude["v0"] == "v_ta95_v0_1_m"
+    assert column_map.voltage_magnitude["v2"] == "v_ta95_v2_1_m"
+    assert column_map.current_magnitude["i1"] == "i_ta95_i1_1_m"
+    assert column_map.current_magnitude["i0"] == "i_ta95_i0_1_m"
+    assert column_map.current_magnitude["i2"] == "i_ta95_i2_1_m"
+
+
+def test_detect_sequence_components_with_no_underscore_1_suffix():
+    """Test detection with pattern without _1 suffix (v_sfb_30_ta95_v1_m).
+
+    Uses synthetic test data with bus measurement naming convention.
+    Pattern style: v_<location>_<bus_id>_<station>_<phasor>_<suffix>
+    """
+    # Arrange - synthetic test data with bus measurement pattern
+    timestamps = pd.date_range(datetime(2025, 1, 1, 0, 0, 0), periods=4, freq=timedelta(seconds=1))
+    df = pd.DataFrame(
+        {
+            "ts": timestamps,
+            # Pattern without _1 suffix (v_sfb_30_ta95_v1_m instead of v_sfb_30_ta95_v1_1_m)
+            "v_sfb_30_ta95_v1_m": np.full(4, 240_000.0),  # Test value
+            "v_sfb_30_ta95_v1_a": np.linspace(0.0, 0.018, 4),  # Test angles
+            "i_sfb_30_ta95_i1_m": np.full(4, 420.0),  # Test value
+            "i_sfb_30_ta95_i1_a": np.linspace(-0.06, -0.05, 4),  # Test angles
+        }
+    )
+    calculator = PowerCalculator()
+
+    # Act
+    column_map = calculator.detect_columns(df)
+
+    # Assert - should match even without _1 suffix
+    assert column_map.voltage_magnitude["v1"] == "v_sfb_30_ta95_v1_m"
+    assert column_map.voltage_angle["v1"] == "v_sfb_30_ta95_v1_a"
+    assert column_map.current_magnitude["i1"] == "i_sfb_30_ta95_i1_m"
+    assert column_map.current_angle["i1"] == "i_sfb_30_ta95_i1_a"
