@@ -47,16 +47,16 @@ class PowerCalculator:
             if candidates:
                 # Prefer standard notation: va1/vb1/vc1 for phases, v1_1/v0_1/v2_1 for sequences
                 if len(phase_name) == 2 and phase_name[1] in "abc":
-                    # Phase components: prefer 'a1_', 'b1_', 'c1_'
-                    phase_letter = phase_name[-1]
+                    # Phase components: prefer 'va1_', 'vb1_', 'vc1_' or 'ia1_', 'ib1_', 'ic1_'
+                    # e.g., v_ta31_va1_m contains 'va1_', i_ta31_ia1_m contains 'ia1_'
                     preferred = next(
-                        (col for col in candidates if f"{phase_letter}1_" in col), candidates[0]
+                        (col for col in candidates if f"{phase_name}1_" in col), candidates[0]
                     )
                 elif len(phase_name) == 2 and phase_name[1] in "012":
-                    # Sequence components: prefer '_1_1_', '_0_1_', '_2_1_'
-                    sequence_digit = phase_name[-1]
+                    # Sequence components: prefer 'v1_1_', 'v0_1_', 'v2_1_' or 'i1_1_', etc.
+                    # e.g., v_ta31_v1_1_m contains 'v1_1_', i_ta31_i1_1_m contains 'i1_1_'
                     preferred = next(
-                        (col for col in candidates if f"{sequence_digit}_1_" in col), candidates[0]
+                        (col for col in candidates if f"{phase_name}_1_" in col), candidates[0]
                     )
                 else:
                     preferred = candidates[0]
@@ -72,38 +72,56 @@ class PowerCalculator:
         freq_cols = [column for column in df.columns if column.startswith(("f", "dfdt"))]
 
         voltage_phases = [
-            ("va", r"^v_.*_va1?_|^va1?_"),  # v_p3_va1_m, va1_m (not v1a, v2a, etc.)
-            ("vb", r"^v_.*_vb1?_|^vb1?_"),  # v_p3_vb1_m, vb1_m (not v1b, v2b, etc.)
-            ("vc", r"^v_.*_vc1?_|^vc1?_"),  # v_p3_vc1_m, vc1_m (not v1c, v2c, etc.)
+            (
+                "va",
+                r"^v_.*_va1_[ma]$|^va1_[ma]$",
+            ),  # v_ta31_va1_m, va1_m (phasor name ends with va1)
+            (
+                "vb",
+                r"^v_.*_vb1_[ma]$|^vb1_[ma]$",
+            ),  # v_ta31_vb1_m, vb1_m (phasor name ends with vb1)
+            (
+                "vc",
+                r"^v_.*_vc1_[ma]$|^vc1_[ma]$",
+            ),  # v_ta31_vc1_m, vc1_m (phasor name ends with vc1)
             (
                 "v1",
-                r"^v_.*_v1(?!\d)(?:_1)?_|^v1(?!\d)(?:_1)?_",
-            ),  # v_p3_v1_1_m, v1_m (positive, not v10/v11/etc.)
+                r"^v_.*_v1(?!\d)(?:_1)?_[ma]$|^v1(?!\d)(?:_1)?_[ma]$",
+            ),  # v_ta31_v1_1_m, v_ta31_v1_m, v1_1_m, v1_m (phasor name ends with v1 or v1_1)
             (
                 "v0",
-                r"^v_.*_v0(?!\d)(?:_1)?_|^v0(?!\d)(?:_1)?_",
-            ),  # v_p3_v0_1_m, v0_m (zero, not v01/v02/etc.)
+                r"^v_.*_v0(?!\d)(?:_1)?_[ma]$|^v0(?!\d)(?:_1)?_[ma]$",
+            ),  # v_ta31_v0_1_m, v_ta31_v0_m, v0_1_m, v0_m (phasor name ends with v0 or v0_1)
             (
                 "v2",
-                r"^v_.*_v2(?!\d)(?:_1)?_|^v2(?!\d)(?:_1)?_",
-            ),  # v_p3_v2_1_m, v2_m (negative, not v20/v21/etc.)
+                r"^v_.*_v2(?!\d)(?:_1)?_[ma]$|^v2(?!\d)(?:_1)?_[ma]$",
+            ),  # v_ta31_v2_1_m, v_ta31_v2_m, v2_1_m, v2_m (phasor name ends with v2 or v2_1)
         ]
         current_phases = [
-            ("ia", r"^i_.*_ia1?_|^ia1?_"),  # i_p3_ia1_m, ia1_m (not i1a, i2a, etc.)
-            ("ib", r"^i_.*_ib1?_|^ib1?_"),  # i_p3_ib1_m, ib1_m (not i1b, i2b, etc.)
-            ("ic", r"^i_.*_ic1?_|^ic1?_"),  # i_p3_ic1_m, ic1_m (not i1c, i2c, etc.)
+            (
+                "ia",
+                r"^i_.*_ia1_[ma]$|^ia1_[ma]$",
+            ),  # i_ta31_ia1_m, ia1_m (phasor name ends with ia1)
+            (
+                "ib",
+                r"^i_.*_ib1_[ma]$|^ib1_[ma]$",
+            ),  # i_ta31_ib1_m, ib1_m (phasor name ends with ib1)
+            (
+                "ic",
+                r"^i_.*_ic1_[ma]$|^ic1_[ma]$",
+            ),  # i_ta31_ic1_m, ic1_m (phasor name ends with ic1)
             (
                 "i1",
-                r"^i_.*_i1(?!\d)(?:_1)?_|^i1(?!\d)(?:_1)?_",
-            ),  # i_p3_i1_1_m, i1_m (positive, not i10/i11/etc.)
+                r"^i_.*_i1(?!\d)(?:_1)?_[ma]$|^i1(?!\d)(?:_1)?_[ma]$",
+            ),  # i_ta31_i1_1_m, i_ta31_i1_m, i1_1_m, i1_m (phasor name ends with i1 or i1_1)
             (
                 "i0",
-                r"^i_.*_i0(?!\d)(?:_1)?_|^i0(?!\d)(?:_1)?_",
-            ),  # i_p3_i0_1_m, i0_m (zero, not i01/i02/etc.)
+                r"^i_.*_i0(?!\d)(?:_1)?_[ma]$|^i0(?!\d)(?:_1)?_[ma]$",
+            ),  # i_ta31_i0_1_m, i_ta31_i0_m, i0_1_m, i0_m (phasor name ends with i0 or i0_1)
             (
                 "i2",
-                r"^i_.*_i2(?!\d)(?:_1)?_|^i2(?!\d)(?:_1)?_",
-            ),  # i_p3_i2_1_m, i2_m (negative, not i20/i21/etc.)
+                r"^i_.*_i2(?!\d)(?:_1)?_[ma]$|^i2(?!\d)(?:_1)?_[ma]$",
+            ),  # i_ta31_i2_1_m, i_ta31_i2_m, i2_1_m, i2_m (phasor name ends with i2 or i2_1)
         ]
 
         voltage_magnitude = self._find_candidates_regex(df, voltage_phases, "_m")
