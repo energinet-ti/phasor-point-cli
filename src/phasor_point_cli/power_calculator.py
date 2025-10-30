@@ -45,8 +45,11 @@ class PowerCalculator:
             # Schema: {v|i}_<PHASOR_NAME>_{m|a}
             candidates = [col for col in df.columns if col.endswith(suffix) and regex.search(col)]
             if candidates:
-                # Prefer columns with "1" in phasor name (standard notation)
-                preferred = next((col for col in candidates if "1" in col), candidates[0])
+                # Prefer columns with "1" after phase letter (e.g., va1_m over va_m)
+                phase_letter = phase_name[-1]  # 'a', 'b', 'c', '0', '1', '2'
+                preferred = next(
+                    (col for col in candidates if f"{phase_letter}1_" in col), candidates[0]
+                )
                 mapping[phase_name] = preferred
         return mapping
 
@@ -59,20 +62,20 @@ class PowerCalculator:
         freq_cols = [column for column in df.columns if column.startswith(("f", "dfdt"))]
 
         voltage_phases = [
-            ("va", r"^(v_)?.*va1?_"),  # v_p3_va1_m, va1_m
-            ("vb", r"^(v_)?.*vb1?_"),  # v_p3_vb1_m, vb1_m
-            ("vc", r"^(v_)?.*vc1?_"),  # v_p3_vc1_m, vc1_m
-            ("v1", r"^(v_)?.*v1(_1)?_"),  # v_p3_v1_1_m, v1_m (positive)
-            ("v0", r"^(v_)?.*v0(_1)?_"),  # v_p3_v0_1_m, v0_m (zero)
-            ("v2", r"^(v_)?.*v2(_1)?_"),  # v_p3_v2_1_m, v2_m (negative)
+            ("va", r"^v_.*_va1?_|^va1?_"),  # v_p3_va1_m, va1_m (not v1a, v2a, etc.)
+            ("vb", r"^v_.*_vb1?_|^vb1?_"),  # v_p3_vb1_m, vb1_m (not v1b, v2b, etc.)
+            ("vc", r"^v_.*_vc1?_|^vc1?_"),  # v_p3_vc1_m, vc1_m (not v1c, v2c, etc.)
+            ("v1", r"^v_.*_v1(_1)?_|^v1(_1)?_"),  # v_p3_v1_1_m, v1_m (positive)
+            ("v0", r"^v_.*_v0(_1)?_|^v0(_1)?_"),  # v_p3_v0_1_m, v0_m (zero)
+            ("v2", r"^v_.*_v2(_1)?_|^v2(_1)?_"),  # v_p3_v2_1_m, v2_m (negative)
         ]
         current_phases = [
-            ("ia", r"^(i_)?.*ia1?_"),  # i_p3_ia1_m, ia1_m
-            ("ib", r"^(i_)?.*ib1?_"),  # i_p3_ib1_m, ib1_m
-            ("ic", r"^(i_)?.*ic1?_"),  # i_p3_ic1_m, ic1_m
-            ("i1", r"^(i_)?.*i1(_1)?_"),  # i_p3_i1_1_m, i1_m (positive)
-            ("i0", r"^(i_)?.*i0(_1)?_"),  # i_p3_i0_1_m, i0_m (zero)
-            ("i2", r"^(i_)?.*i2(_1)?_"),  # i_p3_i2_1_m, i2_m (negative)
+            ("ia", r"^i_.*_ia1?_|^ia1?_"),  # i_p3_ia1_m, ia1_m (not i1a, i2a, etc.)
+            ("ib", r"^i_.*_ib1?_|^ib1?_"),  # i_p3_ib1_m, ib1_m (not i1b, i2b, etc.)
+            ("ic", r"^i_.*_ic1?_|^ic1?_"),  # i_p3_ic1_m, ic1_m (not i1c, i2c, etc.)
+            ("i1", r"^i_.*_i1(_1)?_|^i1(_1)?_"),  # i_p3_i1_1_m, i1_m (positive)
+            ("i0", r"^i_.*_i0(_1)?_|^i0(_1)?_"),  # i_p3_i0_1_m, i0_m (zero)
+            ("i2", r"^i_.*_i2(_1)?_|^i2(_1)?_"),  # i_p3_i2_1_m, i2_m (negative)
         ]
 
         voltage_magnitude = self._find_candidates_regex(df, voltage_phases, "_m")
