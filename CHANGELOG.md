@@ -10,6 +10,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Nothing yet
 
+## [0.3.0] - 2025-10-30
+
+### Added
+- Support for positive sequence current (i1) in power calculations
+- Improved automatic detection of voltage and current columns
+
+### Changed
+- Data extraction now prevents duplicate timestamps
+- `--raw` flag now properly disables data cleaning
+
+### Fixed
+- Incorrect angle conversion for positive sequence current
+
 ## [0.2.0] - 2025-10-28
 
 ### Added
@@ -82,7 +95,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI/CD workflows for testing and PyPI publishing
 - Complete documentation and usage examples
 
-[Unreleased]: https://github.com/energinet-ti/phasor-point-cli/compare/v0.0.2...HEAD
+[Unreleased]: https://github.com/energinet-ti/phasor-point-cli/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/energinet-ti/phasor-point-cli/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/energinet-ti/phasor-point-cli/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/energinet-ti/phasor-point-cli/compare/v0.0.2...v0.1.0
 [0.0.2]: https://github.com/energinet-ti/phasor-point-cli/compare/v0.0.1...v0.0.2
 [0.0.1]: https://github.com/energinet-ti/phasor-point-cli/releases/tag/v0.0.1
 
