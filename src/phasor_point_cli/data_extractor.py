@@ -49,7 +49,7 @@ class DataExtractor:
         return f"""
         SELECT *
         FROM {table_name}
-        WHERE ts BETWEEN '{start}' AND '{end}'
+        WHERE ts >= '{start}' AND ts < '{end}'
         ORDER BY ts
         """
 

@@ -550,7 +550,7 @@ def test_read_dataframe_suppresses_warnings(connection_pool, mocker):
 
 
 def test_build_query_format(connection_pool, mocker):
-    """Test _build_query creates correct SQL format."""
+    """Test _build_query creates correct SQL format with half-open interval [start, end)."""
     # Arrange
     logger = mocker.Mock()
     extractor = DataExtractor(connection_pool=connection_pool, logger=logger)
@@ -561,7 +561,8 @@ def test_build_query_format(connection_pool, mocker):
     # Assert
     assert "SELECT *" in query
     assert "FROM pmu_45012_1" in query
-    assert "WHERE ts BETWEEN" in query
+    assert "WHERE ts >=" in query
+    assert "AND ts <" in query
     assert "2025-01-01 00:00:00" in query
     assert "2025-01-01 01:00:00" in query
     assert "ORDER BY ts" in query
