@@ -231,6 +231,116 @@ def test_convert_angles_to_degrees_no_angles():
     assert "No phasor angle columns" in str(logger.warning.call_args)
 
 
+def test_detect_columns_with_positive_sequence():
+    """Test detection of positive sequence current (i1) and voltage (v1) columns."""
+    # Arrange
+    timestamps = pd.date_range(datetime(2025, 1, 1, 0, 0, 0), periods=4, freq=timedelta(seconds=1))
+    df = pd.DataFrame(
+        {
+            "ts": timestamps,
+            "va1_m": np.full(4, 230_000.0),
+            "va1_a": np.linspace(0.0, 0.01, 4),
+            "v1_m": np.full(4, 230_000.0),
+            "v1_a": np.linspace(0.0, 0.01, 4),
+            "ia1_m": np.full(4, 400.0),
+            "ia1_a": np.linspace(-0.5, -0.49, 4),
+            "i1_m": np.full(4, 400.0),
+            "i1_a": np.linspace(-0.0466, -0.0456, 4),
+            "f": np.full(4, 50.0),
+        }
+    )
+    calculator = PowerCalculator()
+
+    # Act
+    column_map = calculator.detect_columns(df)
+
+    # Assert
+    assert column_map.voltage_magnitude["v1"] == "v1_m"
+    assert column_map.voltage_angle["v1"] == "v1_a"
+    assert column_map.current_magnitude["i1"] == "i1_m"
+    assert column_map.current_angle["i1"] == "i1_a"
+
+
+def test_convert_i1_angle_to_degrees():
+    """Test conversion of i1 angle from radians to degrees - fixes bug where i1 was exported in radians."""
+    # Arrange
+    timestamps = pd.date_range(datetime(2025, 1, 1, 0, 0, 0), periods=4, freq=timedelta(seconds=1))
+    i1_angle_radians = np.array([-0.0466, -0.0456, -0.0446, -0.0436])
+    df = pd.DataFrame(
+        {
+            "ts": timestamps,
+            "i1_m": np.full(4, 400.0),
+            "i1_a": i1_angle_radians,
+        }
+    )
+    calculator = PowerCalculator()
+    column_map = calculator.detect_columns(df)
+
+    # Act
+    converted = calculator.convert_angles_to_degrees(df, column_map)
+
+    # Assert
+    # Verify conversion: -0.0466 radians should become approximately -2.67 degrees
+    assert converted["i1_a"].iloc[0] == pytest.approx(np.degrees(i1_angle_radians[0]))
+    assert converted["i1_a"].iloc[0] == pytest.approx(-2.67, abs=0.01)
+    # Verify all values are converted correctly
+    for i in range(4):
+        assert converted["i1_a"].iloc[i] == pytest.approx(np.degrees(i1_angle_radians[i]))
+
+
+def test_convert_v1_and_i1_angles_together():
+    """Test that both v1 and i1 positive sequence angles are converted correctly."""
+    # Arrange
+    timestamps = pd.date_range(datetime(2025, 1, 1, 0, 0, 0), periods=4, freq=timedelta(seconds=1))
+    df = pd.DataFrame(
+        {
+            "ts": timestamps,
+            "v1_m": np.full(4, 230_000.0),
+            "v1_a": np.linspace(0.0, 0.01, 4),
+            "i1_m": np.full(4, 400.0),
+            "i1_a": np.linspace(-0.0466, -0.0456, 4),
+        }
+    )
+    calculator = PowerCalculator()
+    column_map = calculator.detect_columns(df)
+
+    # Act
+    converted = calculator.convert_angles_to_degrees(df, column_map)
+
+    # Assert
+    # Both v1 and i1 angles should be converted
+    assert converted["v1_a"].iloc[0] == pytest.approx(np.degrees(df["v1_a"].iloc[0]))
+    assert converted["i1_a"].iloc[0] == pytest.approx(np.degrees(df["i1_a"].iloc[0]))
+    # Verify the specific i1 conversion that was failing before
+    assert converted["i1_a"].iloc[0] == pytest.approx(-2.67, abs=0.01)
+
+
+def test_detect_columns_with_pmu_naming_convention():
+    """Test detection of i1 columns using PMU naming convention (e.g., i_tje_400_rev_i1_a)."""
+    # Arrange
+    timestamps = pd.date_range(datetime(2025, 1, 1, 0, 0, 0), periods=4, freq=timedelta(seconds=1))
+    df = pd.DataFrame(
+        {
+            "ts": timestamps,
+            "i_tje_400_rev_i1_m": np.full(4, 400.0),
+            "i_tje_400_rev_i1_a": np.linspace(-0.0466, -0.0456, 4),
+            "i_edr_220_hrc_i1_m": np.full(4, 350.0),
+            "i_edr_220_hrc_i1_a": np.linspace(-0.0500, -0.0490, 4),
+        }
+    )
+    calculator = PowerCalculator()
+
+    # Act
+    column_map = calculator.detect_columns(df)
+
+    # Assert
+    # Should detect one of the i1 columns (the preferred one based on _find_candidates logic)
+    assert "i1" in column_map.current_magnitude
+    assert "i1" in column_map.current_angle
+    assert column_map.current_magnitude["i1"] in ["i_tje_400_rev_i1_m", "i_edr_220_hrc_i1_m"]
+    assert column_map.current_angle["i1"] in ["i_tje_400_rev_i1_a", "i_edr_220_hrc_i1_a"]
+
+
 def test_calculate_power_values_full_success():
     """Test full power calculation with all required columns."""
     # Arrange
