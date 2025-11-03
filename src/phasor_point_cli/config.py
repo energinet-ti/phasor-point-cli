@@ -111,25 +111,337 @@ class ConfigurationManager:
             config_data = _get_embedded_default_config()
 
         self._config = config_data
+
+        # Validate configuration before building PMU lookup
+        self._validate_config()
+
         self._build_pmu_lookup()
 
-    def _build_pmu_lookup(self) -> None:
-        """Create a dictionary indexed by PMU ID for quick lookups."""
+    def _build_pmu_lookup(self) -> None:  # noqa: PLR0912, PLR0915
+        """
+        Create a dictionary indexed by PMU ID for quick lookups.
+
+        Collects and reports malformed PMU entries with helpful messages.
+        """
         lookup: dict[int, PMUInfo] = {}
+        malformed_entries: list[tuple[str, Any, str]] = []  # (region, entry, error_type)
+        duplicate_ids: dict[int, int] = {}  # pmu_id -> count
+
         available = self._config.get("available_pmus", {})
-        if isinstance(available, dict):
-            for region, entries in available.items():
-                if not isinstance(entries, Iterable):
-                    continue
-                for entry in entries:
-                    try:
-                        info = PMUInfo.from_dict(entry, region=region)
-                        lookup[info.id] = info
-                    except (KeyError, TypeError, ValueError):
+
+        if not isinstance(available, dict):
+            self.logger.warning(
+                f"available_pmus must be a dictionary, got {type(available).__name__}. "
+                "PMU list will be empty."
+            )
+            self._pmu_lookup = lookup
+            return
+
+        for region, entries in available.items():
+            # Skip non-iterable entries (but warn)
+            if not isinstance(entries, Iterable):
+                self.logger.warning(
+                    f"PMU entries for region '{region}' must be a list, got {type(entries).__name__}. "
+                    "Skipping this region."
+                )
+                malformed_entries.append((region, f"<{type(entries).__name__}>", "non-iterable"))
+                continue
+
+            # Skip string iterables (common mistake)
+            if isinstance(entries, str):
+                self.logger.warning(
+                    f"PMU entries for region '{region}' must be a list of objects, not a string. "
+                    "Skipping this region."
+                )
+                malformed_entries.append((region, entries, "string instead of list"))
+                continue
+
+            for entry in entries:
+                try:
+                    info = PMUInfo.from_dict(entry, region=region)
+
+                    # Check for duplicate PMU IDs
+                    if info.id in lookup:
+                        duplicate_ids[info.id] = duplicate_ids.get(info.id, 1) + 1
                         self.logger.debug(
-                            f"Skipping malformed PMU entry in region {region}: {entry}"
+                            f"Duplicate PMU ID {info.id} in region '{region}'. "
+                            "Later entry will override earlier one."
                         )
+
+                    lookup[info.id] = info
+
+                except KeyError as e:
+                    malformed_entries.append((region, entry, f"missing required field: {e}"))
+                    self.logger.debug(f"PMU entry missing required field in region {region}: {e}")
+                except TypeError as e:
+                    malformed_entries.append((region, entry, f"invalid type: {e}"))
+                    self.logger.debug(f"PMU entry has type error in region {region}: {e}")
+                except ValueError as e:
+                    malformed_entries.append((region, entry, f"invalid value: {e}"))
+                    self.logger.debug(f"PMU entry has invalid value in region {region}: {e}")
+
         self._pmu_lookup = lookup
+
+        # Report issues to user if any malformed entries or duplicates found
+        if malformed_entries or duplicate_ids:
+            print("\n" + "=" * 70, file=sys.stderr)
+            print("[WARNING] Issues found in PMU configuration", file=sys.stderr)
+            print("=" * 70, file=sys.stderr)
+
+            if malformed_entries:
+                print(
+                    f"\n  Skipped {len(malformed_entries)} malformed PMU entries:", file=sys.stderr
+                )
+                for region, entry, error in malformed_entries[:5]:  # Show first 5
+                    entry_str = str(entry)[:50] + "..." if len(str(entry)) > 50 else str(entry)
+                    print(f"    • Region '{region}': {error}", file=sys.stderr)
+                    print(f"      Entry: {entry_str}", file=sys.stderr)
+
+                if len(malformed_entries) > 5:
+                    print(f"    ... and {len(malformed_entries) - 5} more", file=sys.stderr)
+
+                print("\n  Correct PMU format:", file=sys.stderr)
+                print(
+                    '    {"id": 45012, "station_name": "Station Name", "country": "US"}',
+                    file=sys.stderr,
+                )
+                print("    Required fields: id, station_name", file=sys.stderr)
+
+            if duplicate_ids:
+                print(f"\n  Found {len(duplicate_ids)} duplicate PMU IDs:", file=sys.stderr)
+                for pmu_id, count in list(duplicate_ids.items())[:5]:
+                    print(f"    • PMU ID {pmu_id}: appears {count + 1} times", file=sys.stderr)
+                if len(duplicate_ids) > 5:
+                    print(f"    ... and {len(duplicate_ids) - 5} more", file=sys.stderr)
+
+            print(f"\n  Successfully loaded {len(lookup)} valid PMU(s)", file=sys.stderr)
+            print("\n  To refresh PMU list from database:", file=sys.stderr)
+            print("    python -m phasor_point_cli setup --refresh-pmus", file=sys.stderr)
+            print("=" * 70 + "\n", file=sys.stderr)
+
+    # --------------------------------------------------------------- Validation
+    def _validate_config(self) -> None:
+        """
+        Validate configuration structure, types, and constraints.
+
+        Performs 3-tier validation:
+        - Tier 1: Structure and types (fails fast)
+        - Tier 2: Logical constraints (fails fast)
+        - Tier 3: PMU data validation (warns, continues)
+        """
+        self._validate_structure()
+        self._validate_types()
+        self._validate_constraints()
+        # PMU validation happens in _build_pmu_lookup with warnings
+
+    def _validate_structure(self) -> None:
+        """Validate that required configuration sections exist and are dictionaries."""
+        required_sections = ("database", "extraction", "data_quality", "output")
+
+        for section in required_sections:
+            if section not in self._config:
+                self._validation_error(
+                    f"Missing required configuration section: '{section}'",
+                    expected="All configuration files must include: database, extraction, data_quality, output",
+                    example=f'"{section}": {{\n      "field": "value"\n    }}',
+                )
+
+            if not isinstance(self._config[section], dict):
+                self._validation_error(
+                    f"Configuration section '{section}' must be a dictionary",
+                    found=f"{type(self._config[section]).__name__}",
+                    expected="dictionary/object",
+                    example=f'"{section}": {{\n      "field": "value"\n    }}',
+                )
+
+    def _validate_types(self) -> None:  # noqa: PLR0912
+        """Validate data types for all configuration fields."""
+        # Database section
+        db = self._config.get("database", {})
+        if "driver" in db and not isinstance(db["driver"], str):
+            self._validation_error(
+                "database.driver must be a string",
+                found=type(db["driver"]).__name__,
+                expected="string",
+                example='"driver": "Psymetrix PhasorPoint"',
+            )
+
+        # Extraction section
+        extraction = self._config.get("extraction", {})
+
+        if "default_resolution" in extraction and not isinstance(
+            extraction["default_resolution"], int
+        ):
+            self._validation_error(
+                "extraction.default_resolution must be an integer",
+                found=type(extraction["default_resolution"]).__name__,
+                expected="integer",
+                example='"default_resolution": 50',
+            )
+
+        if "default_clean" in extraction and not isinstance(extraction["default_clean"], bool):
+            self._validation_error(
+                "extraction.default_clean must be a boolean",
+                found=type(extraction["default_clean"]).__name__,
+                expected="boolean (true/false)",
+                example='"default_clean": true',
+            )
+
+        if "timezone_handling" in extraction:
+            if not isinstance(extraction["timezone_handling"], str):
+                self._validation_error(
+                    "extraction.timezone_handling must be a string",
+                    found=type(extraction["timezone_handling"]).__name__,
+                    expected="string",
+                    example='"timezone_handling": "machine_timezone"',
+                )
+            elif extraction["timezone_handling"] not in ("machine_timezone", "utc", "local"):
+                self._validation_error(
+                    f"extraction.timezone_handling has invalid value: '{extraction['timezone_handling']}'",
+                    expected="one of: machine_timezone, utc, local",
+                    example='"timezone_handling": "machine_timezone"',
+                )
+
+        # Data quality section
+        dq = self._config.get("data_quality", {})
+
+        for field in ("frequency_min", "frequency_max", "null_threshold_percent", "gap_multiplier"):
+            if field in dq and not isinstance(dq[field], (int, float)):
+                self._validation_error(
+                    f"data_quality.{field} must be a number",
+                    found=type(dq[field]).__name__,
+                    expected="number (int or float)",
+                    example=f'"{field}": 50',
+                )
+
+        # Output section
+        output = self._config.get("output", {})
+
+        if "default_output_dir" in output:
+            if not isinstance(output["default_output_dir"], str):
+                self._validation_error(
+                    "output.default_output_dir must be a string",
+                    found=type(output["default_output_dir"]).__name__,
+                    expected="string",
+                    example='"default_output_dir": "data_exports"',
+                )
+            elif not output["default_output_dir"].strip():
+                self._validation_error(
+                    "output.default_output_dir cannot be empty",
+                    expected="non-empty string",
+                    example='"default_output_dir": "data_exports"',
+                )
+
+        if "compression" in output:
+            if not isinstance(output["compression"], str):
+                self._validation_error(
+                    "output.compression must be a string",
+                    found=type(output["compression"]).__name__,
+                    expected="string",
+                    example='"compression": "snappy"',
+                )
+            elif output["compression"] not in ("snappy", "gzip", "none"):
+                self._validation_error(
+                    f"output.compression has invalid value: '{output['compression']}'",
+                    expected="one of: snappy, gzip, none",
+                    example='"compression": "snappy"',
+                )
+
+    def _validate_constraints(self) -> None:
+        """Validate logical constraints between configuration values."""
+        # Extraction constraints
+        extraction = self._config.get("extraction", {})
+
+        if "default_resolution" in extraction:
+            resolution = extraction["default_resolution"]
+            if resolution <= 0:
+                self._validation_error(
+                    f"extraction.default_resolution must be positive (got {resolution})",
+                    expected="positive integer (e.g., 50, 100)",
+                    example='"default_resolution": 50',
+                )
+            elif resolution > 1000:
+                self.logger.warning(
+                    f"extraction.default_resolution is unusually high ({resolution}). "
+                    "Typical values are 1-1000."
+                )
+
+        # Data quality constraints
+        dq = self._config.get("data_quality", {})
+
+        freq_min = dq.get("frequency_min")
+        freq_max = dq.get("frequency_max")
+
+        if freq_min is not None and freq_max is not None and freq_max <= freq_min:
+            self._validation_error(
+                f"data_quality.frequency_max ({freq_max}) must be greater than frequency_min ({freq_min})",
+                expected="frequency_max > frequency_min",
+                example='"frequency_min": 45, "frequency_max": 65',
+            )
+
+        if freq_min is not None and (freq_min < 0 or freq_min > 100):
+            self._validation_error(
+                f"data_quality.frequency_min ({freq_min}) must be between 0 and 100",
+                expected="value between 0-100 Hz",
+                example='"frequency_min": 45',
+            )
+
+        if freq_max is not None and (freq_max < 0 or freq_max > 100):
+            self._validation_error(
+                f"data_quality.frequency_max ({freq_max}) must be between 0 and 100",
+                expected="value between 0-100 Hz",
+                example='"frequency_max": 65',
+            )
+
+        null_threshold = dq.get("null_threshold_percent")
+        if null_threshold is not None and (null_threshold < 0 or null_threshold > 100):
+            self._validation_error(
+                f"data_quality.null_threshold_percent ({null_threshold}) must be between 0 and 100",
+                expected="percentage value 0-100",
+                example='"null_threshold_percent": 50',
+            )
+
+        gap_multiplier = dq.get("gap_multiplier")
+        if gap_multiplier is not None and gap_multiplier <= 0:
+            self._validation_error(
+                f"data_quality.gap_multiplier ({gap_multiplier}) must be positive",
+                expected="positive number",
+                example='"gap_multiplier": 5',
+            )
+
+    def _validation_error(
+        self, message: str, found: str = "", expected: str = "", example: str = ""
+    ) -> None:
+        """
+        Print a formatted validation error message and exit.
+
+        Args:
+            message: The error message
+            found: What was found (optional)
+            expected: What was expected (optional)
+            example: Example of correct format (optional)
+        """
+        self.logger.error(f"Configuration validation failed: {message}")
+
+        print(f"\n[ERROR] Invalid configuration: {message}")
+
+        if found:
+            print(f"  Found: {found}")
+        if expected:
+            print(f"  Expected: {expected}")
+
+        if example:
+            print("\n  Example:")
+            for line in example.split("\n"):
+                print(f"    {line}")
+
+        config_location = self.config_path or "provided configuration"
+        print(f"\n  Config location: {config_location}")
+        print("\n[FIX] To regenerate a valid configuration:")
+        print("   python -m phasor_point_cli setup --force")
+        print()
+
+        sys.exit(1)
 
     # ------------------------------------------------------------------ Helpers
     @property
