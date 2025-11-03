@@ -13,7 +13,7 @@ class BetterHelpFormatter(argparse.RawDescriptionHelpFormatter):
 
     def __init__(self, prog):
         """Initialize formatter with improved max_help_position."""
-        super().__init__(prog, max_help_position=30, width=100)
+        super().__init__(prog, max_help_position=35)
 
 
 class CLIArgumentParser:
