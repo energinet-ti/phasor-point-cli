@@ -39,28 +39,6 @@ def _create_scan_progress_callback(tracker: ScanProgressTracker):
     return callback
 
 
-def _print_no_tables_found_error() -> None:
-    """Print detailed error message when no PMU tables are found."""
-    print("\n" + "=" * 70)
-    print("WARNING: No PMU Tables Found")
-    print("=" * 70)
-    print("\nCould not find any accessible PMU tables in the database.")
-    print("\n[POSSIBLE CAUSES]")
-    print("   • Database connection issues")
-    print("   • No PMUs configured in the database")
-    print("   • Insufficient database permissions")
-    print("   • Wrong database selected")
-    print("\n[TROUBLESHOOTING]")
-    print("   1. Check connection: Verify DB_HOST, DB_PORT, DB_NAME are correct")
-    print("   2. Try specific PMU: phasor-cli list-tables --pmu 45020")
-    print("   3. Check permissions: Ensure user can read PMU tables")
-    print("   4. Run setup: phasor-cli setup --refresh-pmus")
-    print("\n[NEXT STEPS]")
-    print("   • Verify database connection settings in your .env or config.json")
-    print("   • Contact your database administrator if issue persists")
-    print("=" * 70 + "\n")
-
-
 class CommandRouter:
     """Routes CLI commands to appropriate handlers."""
 
@@ -91,8 +69,7 @@ class CommandRouter:
         """
         handlers = {
             "setup": self.handle_setup,
-            "config-path": self.handle_config_path,
-            "config-clean": self.handle_config_clean,
+            "config": self.handle_config,
             "about": self.handle_about,
             "aboot": self.handle_aboot,
             "list-tables": self.handle_list_tables,
@@ -108,6 +85,85 @@ class CommandRouter:
         else:
             raise ValueError(f"Unknown command: {command}")
 
+    def _check_pmu_in_config(self, pmu_id: int) -> bool:
+        """
+        Check if a PMU exists in configuration.
+
+        Args:
+            pmu_id: PMU ID to check
+
+        Returns:
+            True if PMU exists in config, False otherwise
+        """
+        return self._cli.config.get_pmu_info(pmu_id) is not None
+
+    def _print_pmu_not_in_config_warning(self, pmu_id: int) -> None:
+        """Print warning when PMU is not found in configuration."""
+        pmu_count = len(self._cli.config.get_all_pmu_ids())
+
+        print(f"\n[WARNING] PMU {pmu_id} not found in configuration")
+
+        if pmu_count == 0:
+            print("\n[ROOT CAUSE]")
+            print("   • No PMUs loaded in configuration (0 PMUs total)")
+            print("\n[SOLUTION]")
+            print("   1. Refresh PMU list from database:")
+            print("      python -m phasor_point_cli setup --refresh-pmus")
+            print("\n   This will fetch and load all available PMUs from your database.")
+        else:
+            print("\n[STATUS]")
+            print(f"   • Configuration contains {pmu_count} other PMU(s)")
+            print(f"   • PMU {pmu_id} is not in the list")
+            print("\n[POSSIBLE CAUSES]")
+            print("   • PMU list is outdated")
+            print("   • PMU was recently added to database")
+            print("   • Incorrect PMU ID")
+            print("\n[RECOMMENDED ACTIONS]")
+            print("   1. Refresh PMU list: python -m phasor_point_cli setup --refresh-pmus")
+            print("   2. Check available PMUs: python -m phasor_point_cli list-tables")
+            print(f"   3. Verify PMU ID {pmu_id} is correct")
+
+        print()
+
+    def _print_no_tables_found_error(self) -> None:
+        """Print detailed error message when no PMU tables are found."""
+        print("\n" + "=" * 70)
+        print("WARNING: No PMU Tables Found")
+        print("=" * 70)
+        print("\nCould not find any accessible PMU tables in the database.")
+
+        # Check if PMU list is empty in config
+        pmu_count = len(self._cli.config.get_all_pmu_ids())
+
+        if pmu_count == 0:
+            # PMU list is empty - this is likely the root cause
+            print("\n[ROOT CAUSE]")
+            print("   • PMU metadata not loaded in configuration (0 PMUs in config)")
+            print("\n[SOLUTION]")
+            print("   1. Refresh PMU list from database:")
+            print("      python -m phasor_point_cli setup --refresh-pmus")
+            print("\n   This will fetch and load all available PMUs from your database.")
+        else:
+            # PMU list exists but no tables found - different issue
+            print("\n[STATUS]")
+            print(f"   • Configuration contains {pmu_count} PMU(s)")
+            print("   • But no accessible tables found in database")
+            print("\n[POSSIBLE CAUSES]")
+            print("   • Database connection issues")
+            print("   • PMU list is outdated (PMUs removed from database)")
+            print("   • Insufficient database permissions")
+            print("   • Wrong database selected")
+            print("\n[RECOMMENDED ACTIONS]")
+            print("   1. Check connection: Verify DB_HOST, DB_PORT, DB_NAME are correct")
+            print("   2. Refresh PMU list: python -m phasor_point_cli setup --refresh-pmus")
+            print("   3. Try specific PMU: python -m phasor_point_cli list-tables --pmu 45020")
+            print("   4. Check permissions: Ensure user can read PMU tables")
+
+        print("\n[NEED HELP?]")
+        print("   • Verify database connection settings in your .env or config.json")
+        print("   • Contact your database administrator if issue persists")
+        print("=" * 70 + "\n")
+
     def handle_setup(self, args: argparse.Namespace) -> None:
         """
         Handle the 'setup' command to create configuration files.
@@ -122,13 +178,22 @@ class CommandRouter:
             refresh_pmus=getattr(args, "refresh_pmus", False),
         )
 
-    def handle_config_path(self, _args: argparse.Namespace) -> None:  # noqa: PLR0912, PLR0915
+    def handle_config(self, args: argparse.Namespace) -> None:  # noqa: PLR0912, PLR0915
         """
-        Handle the 'config-path' command to display configuration file locations.
+        Handle the 'config' command to display or manage configuration files.
 
         Args:
             args: Parsed command-line arguments
         """
+        # If --clean flag is set, remove configuration files
+        if getattr(args, "clean", False):
+            ConfigurationManager.cleanup_configuration_files(
+                local=getattr(args, "local", False),
+                all_locations=getattr(args, "all", False),
+            )
+            return
+
+        # Otherwise, display configuration file locations
         import os  # noqa: PLC0415 - avoid importing at module import time
 
         from .config_paths import ConfigPathManager  # noqa: PLC0415 - late import for CLI perf
@@ -214,25 +279,14 @@ class CommandRouter:
             print("   config.json: (Using embedded defaults)")
 
         print("\n" + "-" * 70)
-        print("Setup Commands:")
+        print("Management Commands:")
         print("-" * 70)
-        print("   phasor-cli setup               # Create user-level config (recommended)")
-        print("   phasor-cli setup --local       # Create project-specific config")
-        print("   phasor-cli setup --force       # Overwrite existing config files")
-        print("   phasor-cli setup --interactive # Interactive credential entry")
-        print("\n")
-
-    def handle_config_clean(self, args: argparse.Namespace) -> None:
-        """
-        Handle the 'config-clean' command to remove configuration files.
-
-        Args:
-            args: Parsed command-line arguments
-        """
-        ConfigurationManager.cleanup_configuration_files(
-            local=getattr(args, "local", False),
-            all_locations=getattr(args, "all", False),
+        print(
+            "   python -m phasor_point_cli setup               # Create user-level config (recommended)"
         )
+        print("   python -m phasor_point_cli setup --local       # Create project-specific config")
+        print("   python -m phasor_point_cli config --clean      # Remove configuration files")
+        print("\n")
 
     def handle_about(self, _args: argparse.Namespace) -> None:
         """
@@ -290,7 +344,7 @@ class CommandRouter:
 
         if not result or not result.found_pmus:
             self._logger.error("No accessible PMU tables found")
-            _print_no_tables_found_error()
+            self._print_no_tables_found_error()
             return
 
         # Display results
@@ -301,6 +355,7 @@ class CommandRouter:
         print(f"{'PMU':<8} {'Name':<25} {'Region':<20} {'Resolutions':<15} {'Tables'}")
         print("=" * 100)
 
+        unknown_pmus = []
         for pmu in sorted(result.found_pmus.keys()):
             resolutions_list = sorted(result.found_pmus[pmu])
             pmu_info = self._cli.config.get_pmu_info(pmu)
@@ -312,18 +367,31 @@ class CommandRouter:
             else:
                 name_str = "Unknown"
                 region = "Unknown"
+                unknown_pmus.append(pmu)
 
             res_str = ", ".join(map(str, resolutions_list))
             tables_str = ", ".join([f"pmu_{pmu}_{r}" for r in resolutions_list])
             print(f"{pmu:<8} {name_str:<25} {region:<20} {res_str:<15} {tables_str}")
 
         print("=" * 100)
+
+        # Warn if any PMUs show as Unknown
+        if unknown_pmus:
+            print(
+                f"\n[NOTE] {len(unknown_pmus)} PMU(s) show as 'Unknown' - metadata not in configuration"
+            )
+            print("   To get PMU names: python -m phasor_point_cli setup --refresh-pmus")
+
         if result.found_pmus:
             example_pmu = sorted(result.found_pmus.keys())[0]
-            example_res = result.found_pmus[example_pmu][0]
+            print("\n" + "-" * 100)
+            print("Next Steps:")
+            print("-" * 100)
+            print(f"  View details:  python -m phasor_point_cli table-info --pmu {example_pmu}")
             print(
-                f"\n[TIP] Use 'phasor-cli table-info --pmu {example_pmu} --resolution {example_res}' for detailed information"
+                f"  Extract data:  python -m phasor_point_cli extract --pmu {example_pmu} --hours 1"
             )
+            print("-" * 100)
 
     def handle_table_info(self, args: argparse.Namespace) -> None:
         """
@@ -339,7 +407,15 @@ class CommandRouter:
             self._logger.error(
                 f"Table pmu_{args.pmu}_{args.resolution} does not exist or is not accessible"
             )
-            print("[TIP] Use 'phasor-cli list-tables' to see available PMUs")
+            print(f"\n[ERROR] Table pmu_{args.pmu}_{args.resolution} not found or not accessible")
+            print("\n[POSSIBLE CAUSES]")
+            print("   • PMU metadata not refreshed - PMU list may be outdated")
+            print("   • PMU does not exist in database")
+            print("   • Insufficient permissions to access this table")
+            print("\n[RECOMMENDED ACTIONS]")
+            print("   1. Refresh PMU list: python -m phasor_point_cli setup --refresh-pmus")
+            print("   2. List available PMUs: python -m phasor_point_cli list-tables")
+            print("   3. Check different resolution if PMU exists")
             return
 
         # Display PMU info
@@ -384,6 +460,15 @@ class CommandRouter:
             print(f"Earliest timestamp: {table_info.statistics.start_time}")
         print("=" * 80)
 
+        # Show next steps after table info
+        print("\n" + "-" * 80)
+        print("Next Step - Extract Data:")
+        print("-" * 80)
+        print(f"  Last hour:  python -m phasor_point_cli extract --pmu {args.pmu} --hours 1")
+        if table_info.statistics.start_time:
+            print(f"  Last day:   python -m phasor_point_cli extract --pmu {args.pmu} --days 1")
+        print("-" * 80)
+
         # Display sample data
         if table_info.sample_data is not None and not table_info.sample_data.empty:
             print("\n" + "=" * 80)
@@ -401,6 +486,12 @@ class CommandRouter:
         Args:
             args: Parsed command-line arguments
         """
+        # Check if PMU exists in configuration
+        if not self._check_pmu_in_config(args.pmu):
+            self._logger.warning(f"PMU {args.pmu} not found in configuration")
+            self._print_pmu_not_in_config_warning(args.pmu)
+            print("[NOTE] Extraction will continue but may fail if PMU doesn't exist in database\n")
+
         # Capture reference timestamp at command issue time for relative windows
         reference_time = datetime.now()
 
@@ -453,6 +544,34 @@ class CommandRouter:
         """
         # Parse PMU IDs from comma-separated string
         pmu_ids = [int(p.strip()) for p in args.pmus.split(",")]
+
+        # Check which PMUs are not in configuration
+        missing_pmus = [pmu_id for pmu_id in pmu_ids if not self._check_pmu_in_config(pmu_id)]
+        if missing_pmus:
+            pmu_count = len(self._cli.config.get_all_pmu_ids())
+            self._logger.warning(
+                f"{len(missing_pmus)} PMU(s) not found in configuration: {missing_pmus}"
+            )
+            print(
+                f"\n[WARNING] {len(missing_pmus)} of {len(pmu_ids)} PMU(s) not found in configuration:"
+            )
+            print(f"   Missing: {', '.join(map(str, missing_pmus))}")
+
+            if pmu_count == 0:
+                print("\n[ROOT CAUSE]")
+                print("   • No PMUs loaded in configuration")
+                print("\n[SOLUTION]")
+                print("   Refresh PMU list: python -m phasor_point_cli setup --refresh-pmus")
+                print()
+                return
+
+            print("\n[STATUS]")
+            print(f"   • Configuration has {pmu_count} PMU(s) but not these {len(missing_pmus)}")
+            print("\n[RECOMMENDED ACTION]")
+            print("   Refresh PMU list: python -m phasor_point_cli setup --refresh-pmus")
+            print(
+                "\n[NOTE] Batch extraction will continue with all PMUs but may fail for missing ones\n"
+            )
 
         # Capture reference timestamp at command issue time for consistent batch extraction
         reference_time = datetime.now()

@@ -16,13 +16,26 @@ Command-line interface for extracting and processing PMU (Phasor Measurement Uni
 
 ## Installation
 
-### From GitHub Releases (Recommended)
+### From PyPI (Recommended)
+
+Install directly from PyPI:
+
+```bash
+python -m pip install phasor-point-cli
+```
+
+Verify installation:
+
+```bash
+python -m phasor_point_cli --help
+```
+
+### From GitHub Releases
 
 Download the latest `.whl` file from the [Releases page](https://github.com/energinet-ti/phasor-point-cli/releases):
 
 ```bash
-pip install phasor_point_cli-<version>-py3-none-any.whl
-phasor-cli --help
+python -m pip install phasor_point_cli-<version>-py3-none-any.whl
 ```
 
 ### From Source
@@ -57,11 +70,11 @@ pip install -e .[dev]         # Development mode
 
 ```bash
 # Create configuration files
-phasor-cli setup              # User-level (~/.config/phasor-cli/)
-phasor-cli setup --local      # Project-specific (./)
+python -m phasor_point_cli setup              # User-level (~/.config/phasor-cli/)
+python -m phasor_point_cli setup --local      # Project-specific (./)
 
 # View active configuration
-phasor-cli config-path
+python -m phasor_point_cli config-path
 ```
 
 Edit the generated files:
@@ -74,16 +87,16 @@ Edit the generated files:
 
 ```bash
 # List available PMUs
-phasor-cli list-tables
+python -m phasor_point_cli list-tables
 
 # Get PMU information
-phasor-cli table-info --pmu 45020
+python -m phasor_point_cli table-info --pmu 45020
 
 # Extract 1 hour of data
-phasor-cli extract --pmu 45020 --hours 1 --output data.parquet
+python -m phasor_point_cli extract --pmu 45020 --hours 1 --output data.parquet
 
 # Extract with power calculations
-phasor-cli extract --pmu 45020 --hours 1 --processed --output data.parquet
+python -m phasor_point_cli extract --pmu 45020 --hours 1 --processed --output data.parquet
 ```
 
 ## Command Reference
@@ -93,15 +106,15 @@ phasor-cli extract --pmu 45020 --hours 1 --processed --output data.parquet
 **Relative time (from now, going backwards):**
 
 ```bash
-phasor-cli extract --pmu 45020 --minutes 30 --output data.parquet
-phasor-cli extract --pmu 45020 --hours 2 --output data.parquet
-phasor-cli extract --pmu 45020 --days 1 --output data.parquet
+python -m phasor_point_cli extract --pmu 45020 --minutes 30 --output data.parquet
+python -m phasor_point_cli extract --pmu 45020 --hours 2 --output data.parquet
+python -m phasor_point_cli extract --pmu 45020 --days 1 --output data.parquet
 ```
 
 **Absolute date range:**
 
 ```bash
-phasor-cli extract --pmu 45020 \
+python -m phasor_point_cli extract --pmu 45020 \
   --start "2024-07-15 08:00:00" \
   --end "2024-07-15 10:00:00" \
   --output data.parquet
@@ -110,7 +123,7 @@ phasor-cli extract --pmu 45020 \
 **Start time + duration (goes forward):**
 
 ```bash
-phasor-cli extract --pmu 45020 \
+python -m phasor_point_cli extract --pmu 45020 \
   --start "2024-07-15 08:00:00" \
   --hours 2 \
   --output data.parquet
@@ -119,23 +132,23 @@ phasor-cli extract --pmu 45020 \
 **With processing (power calculations):**
 
 ```bash
-phasor-cli extract --pmu 45020 --hours 1 --processed --output data.parquet
+python -m phasor_point_cli extract --pmu 45020 --hours 1 --processed --output data.parquet
 ```
 
 **Performance optimization:**
 
 ```bash
 # Parallel processing (4 workers)
-phasor-cli extract --pmu 45020 --hours 24 --parallel 4 --output data.parquet
+python -m phasor_point_cli extract --pmu 45020 --hours 24 --parallel 4 --output data.parquet
 
 # Custom chunk size + connection pooling
-phasor-cli extract --pmu 45020 --hours 48 \
+python -m phasor_point_cli extract --pmu 45020 --hours 48 \
   --chunk-size 15 \
   --connection-pool 3 \
   --output data.parquet
 
 # Performance diagnostics
-phasor-cli extract --pmu 45020 --hours 1 --diagnostics --output data.parquet
+python -m phasor_point_cli extract --pmu 45020 --hours 1 --diagnostics --output data.parquet
 ```
 
 ### Batch Extraction
@@ -143,10 +156,10 @@ phasor-cli extract --pmu 45020 --hours 1 --diagnostics --output data.parquet
 Extract from multiple PMUs:
 
 ```bash
-phasor-cli batch-extract --pmus "45020,45022,45052" --hours 1 --output-dir ./data/
+python -m phasor_point_cli batch-extract --pmus "45020,45022,45052" --hours 1 --output-dir ./data/
 
 # With performance optimization
-phasor-cli batch-extract --pmus "45020,45022" --hours 24 \
+python -m phasor_point_cli batch-extract --pmus "45020,45022" --hours 24 \
   --chunk-size 30 \
   --parallel 2 \
   --output-dir ./data/
@@ -158,13 +171,13 @@ Files are named: `pmu_{number}_{resolution}hz_{start_date}_to_{end_date}.{format
 
 ```bash
 # List all PMU tables
-phasor-cli list-tables
+python -m phasor_point_cli list-tables
 
 # Get PMU information
-phasor-cli table-info --pmu 45020
+python -m phasor_point_cli table-info --pmu 45020
 
 # Custom SQL query
-phasor-cli query --sql "SELECT TOP 100 * FROM pmu_45020_1"
+python -m phasor_point_cli query --sql "SELECT TOP 100 * FROM pmu_45020_1"
 ```
 
 ## Data Structure
@@ -257,7 +270,7 @@ Each extraction creates a `_extraction_log.json` file documenting:
 
 **Recommended for large extractions:**
 ```bash
-phasor-cli extract --pmu 45020 --hours 24 \
+python -m phasor_point_cli extract --pmu 45020 --hours 24 \
   --chunk-size 15 \
   --parallel 2 \
   --connection-pool 3 \
@@ -303,7 +316,7 @@ echo ".env" >> .gitignore
 
 Test database connection:
 ```bash
-phasor-cli list-tables
+python -m phasor_point_cli list-tables
 ```
 
 Check credentials in `.env` file.
@@ -312,14 +325,14 @@ Check credentials in `.env` file.
 
 Check available date range:
 ```bash
-phasor-cli table-info --pmu 45020
+python -m phasor_point_cli table-info --pmu 45020
 ```
 
 ### Encoding Errors
 
 Use Parquet format instead of CSV for large datasets:
 ```bash
-phasor-cli extract --pmu 45020 --hours 1 --output data.parquet
+python -m phasor_point_cli extract --pmu 45020 --hours 1 --output data.parquet
 ```
 
 ## Development
@@ -406,4 +419,4 @@ ffb@energinet.dk
 
 ---
 
-**Need Help?** Run `phasor-cli --help` for command reference
+**Need Help?** Run `python -m phasor_point_cli --help` for command reference

@@ -74,7 +74,7 @@ class DataExtractor:
             if len(df) == 0:
                 self.logger.error("No data found for the specified date range")
                 print(
-                    "[TIP] Use 'phasor-cli table-info --pmu <pmu_id>' to check available date range"
+                    "[TIP] Use 'python -m phasor_point_cli table-info --pmu <pmu_id>' to check available date range"
                 )
                 return None
 

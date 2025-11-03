@@ -52,13 +52,13 @@ Features:
   • Custom SQL queries
 
 Quick Start:
-  phasor-cli setup              # Configure database connection
-  phasor-cli list-tables        # List available PMU tables
-  phasor-cli extract --pmu 45020 --hours 1 --output data.parquet
+  python -m phasor_point_cli setup              # Configure database connection
+  python -m phasor_point_cli list-tables        # List available PMU tables
+  python -m phasor_point_cli extract --pmu 45020 --hours 1 --output data.parquet
 
 For help:
-  phasor-cli --help            # Show all commands
-  phasor-cli <command> --help  # Show command-specific help
+  python -m phasor_point_cli --help            # Show all commands
+  python -m phasor_point_cli <command> --help  # Show command-specific help
 """
 
 

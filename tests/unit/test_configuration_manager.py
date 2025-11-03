@@ -21,7 +21,7 @@ def test_configuration_manager_uses_embedded_defaults():
 
     # Assert
     assert database["driver"] == "Psymetrix PhasorPoint"
-    assert extraction["default_resolution"] == 1
+    assert extraction["default_resolution"] == 50
     # Embedded defaults now have empty PMU list (populated dynamically during setup)
     assert len(manager.get_all_pmu_ids()) == 0
 
@@ -185,7 +185,7 @@ def test_config_invalid_json_exits_gracefully(tmp_path, capsys):
     captured = capsys.readouterr()
     assert "Invalid JSON format" in captured.out
     assert "config file" in captured.out.lower()
-    assert "phasor-cli setup --force" in captured.out
+    assert "python -m phasor_point_cli setup --force" in captured.out
 
 
 def test_config_missing_file_uses_defaults():
@@ -198,7 +198,7 @@ def test_config_missing_file_uses_defaults():
 
     # Assert - Should use embedded defaults
     assert manager.get_database_config()["driver"] == "Psymetrix PhasorPoint"
-    assert manager.get_extraction_config()["default_resolution"] == 1
+    assert manager.get_extraction_config()["default_resolution"] == 50
 
 
 def test_config_file_directory_path_exits_gracefully(tmp_path):

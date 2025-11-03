@@ -38,7 +38,7 @@ class TestCLIArgumentParser:
         assert "COMMAND GROUPS" in parser.description
         assert "Configuration:" in parser.description
         assert "Data Extraction:" in parser.description
-        assert parser.prog == "phasor-cli"
+        assert parser.prog == "python -m phasor_point_cli"
 
     def test_global_arguments_present(self):
         """Test global arguments are configured."""
@@ -136,7 +136,7 @@ class TestCLIArgumentParser:
         # Assert
         assert args.command == "table-info"
         assert args.pmu == 45012
-        assert args.resolution == 1  # default value
+        assert args.resolution == 50  # default value
 
     def test_table_info_command_with_resolution(self):
         """Test table-info command with custom resolution."""
@@ -165,8 +165,8 @@ class TestCLIArgumentParser:
         assert args.command == "extract"
         assert args.pmu == 45012
         assert args.minutes == 30
-        assert args.resolution == 1
-        assert args.format == "parquet"
+        assert args.resolution == 50
+        assert args.format == "csv"
         assert args.chunk_size == 15
         assert args.parallel == 2
         assert args.connection_pool == 3
