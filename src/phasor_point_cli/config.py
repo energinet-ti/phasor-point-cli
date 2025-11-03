@@ -216,7 +216,7 @@ class ConfigurationManager:
         """Report duplicate PMU IDs."""
         print(f"\n  Found {len(duplicate_ids)} duplicate PMU IDs:", file=sys.stderr)
         for pmu_id, count in list(duplicate_ids.items())[:5]:
-            print(f"    • PMU ID {pmu_id}: appears {count + 1} times", file=sys.stderr)
+            print(f"    • PMU ID {pmu_id}: appears {count} times", file=sys.stderr)
         if len(duplicate_ids) > 5:
             print(f"    ... and {len(duplicate_ids) - 5} more", file=sys.stderr)
 

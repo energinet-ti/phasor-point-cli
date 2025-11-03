@@ -152,16 +152,7 @@ Use --local flag to create project-specific configuration in the current directo
             help="Create project-specific config in current directory",
         )
 
-        # Interactive mode: mutually exclusive group with default=True
-        interactive_group = setup_parser.add_mutually_exclusive_group()
-        interactive_group.add_argument(
-            "--interactive",
-            "-i",
-            action="store_true",
-            dest="interactive",
-            help="Prompt for database credentials securely (default)",
-        )
-        interactive_group.add_argument(
+        setup_parser.add_argument(
             "--no-interactive",
             action="store_false",
             dest="interactive",

@@ -381,7 +381,7 @@ class TestPMULookupErrorHandling:
 
         captured = capsys.readouterr()
         assert "duplicate PMU IDs" in captured.err
-        # Count includes original + duplicates, so 3 entries = "appears 4 times" (1 original + 3 total)
+        # 3 total occurrences should report "appears 3 times"
         assert "PMU ID 45012" in captured.err
 
     def test_available_pmus_not_dict(self, capsys):
