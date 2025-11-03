@@ -12,6 +12,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from phasor_point_cli.command_router import CommandRouter
+from phasor_point_cli.constants import CLI_COMMAND_PYTHON
 from phasor_point_cli.models import ExtractionRequest, ExtractionResult, QueryResult
 
 
@@ -703,7 +704,7 @@ class TestCommandRouter:
         captured = capsys.readouterr()
         assert "[WARNING] PMU 45012 not found in configuration" in captured.out
         assert "No PMUs loaded in configuration (0 PMUs total)" in captured.out
-        assert "python -m phasor_point_cli setup --refresh-pmus" in captured.out
+        assert f"{CLI_COMMAND_PYTHON} setup --refresh-pmus" in captured.out
 
     def test_handle_setup_with_refresh_pmus(self, command_router):
         """Test handle_setup with --refresh-pmus flag."""
@@ -869,7 +870,7 @@ class TestCommandRouter:
         captured = capsys.readouterr()
         assert "WARNING: No PMU Tables Found" in captured.out
         assert "PMU metadata not loaded in configuration (0 PMUs in config)" in captured.out
-        assert "python -m phasor_point_cli setup --refresh-pmus" in captured.out
+        assert f"{CLI_COMMAND_PYTHON} setup --refresh-pmus" in captured.out
 
     def test_handle_list_tables_with_unknown_pmus(self, command_router, mock_cli, capsys):
         """Test handle_list_tables displays warning for unknown PMUs."""
@@ -920,7 +921,7 @@ class TestCommandRouter:
         command_router._logger.error.assert_called_once()
         captured = capsys.readouterr()
         assert "[ERROR] Table pmu_45012_1 not found or not accessible" in captured.out
-        assert "python -m phasor_point_cli setup --refresh-pmus" in captured.out
+        assert f"{CLI_COMMAND_PYTHON} setup --refresh-pmus" in captured.out
 
     def test_handle_table_info_with_country(self, command_router, capsys):
         """Test handle_table_info displays country information."""
@@ -1013,7 +1014,7 @@ class TestCommandRouter:
         # Assert
         captured = capsys.readouterr()
         assert "No PMUs loaded in configuration" in captured.out
-        assert "python -m phasor_point_cli setup --refresh-pmus" in captured.out
+        assert f"{CLI_COMMAND_PYTHON} setup --refresh-pmus" in captured.out
 
     def test_handle_batch_extract_updates_connection_pool(self, command_router, mock_cli):
         """Test handle_batch_extract updates connection pool size when needed."""

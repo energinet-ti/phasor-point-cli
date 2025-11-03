@@ -6,6 +6,7 @@ Handles command-line argument definition and parsing
 import argparse
 
 from .banner import get_banner
+from .constants import CLI_COMMAND_PYTHON, CONFIG_DIR_NAME
 
 
 class BetterHelpFormatter(argparse.RawDescriptionHelpFormatter):
@@ -40,23 +41,23 @@ COMMAND GROUPS:
 """
 
         parser = argparse.ArgumentParser(
-            prog="python -m phasor_point_cli",
+            prog=CLI_COMMAND_PYTHON,
             description=description,
             formatter_class=BetterHelpFormatter,
-            epilog="""
+            epilog=f"""
 Quick Start:
-  python -m phasor_point_cli setup                    # First time setup (interactive)
-  python -m phasor_point_cli list-tables              # See available PMU tables
-  python -m phasor_point_cli about                    # Show version and features
+  {CLI_COMMAND_PYTHON} setup                    # First time setup (interactive)
+  {CLI_COMMAND_PYTHON} list-tables              # See available PMU tables
+  {CLI_COMMAND_PYTHON} about                    # Show version and features
 
 Common Examples:
-  python -m phasor_point_cli extract --pmu 45022 --hours 1                    # Last hour (50Hz, CSV)
-  python -m phasor_point_cli extract --pmu 45022 --start "2025-08-01 10:00:00" --end "2025-08-01 11:00:00"
-  python -m phasor_point_cli extract --pmu 45022 --hours 24 --format parquet  # 24 hours as Parquet
-  python -m phasor_point_cli batch-extract --pmus "45022,45028" --hours 24    # Multiple PMUs
-  python -m phasor_point_cli table-info --pmu 45022                           # Table details
+  {CLI_COMMAND_PYTHON} extract --pmu 45022 --hours 1                    # Last hour (50Hz, CSV)
+  {CLI_COMMAND_PYTHON} extract --pmu 45022 --start "2025-08-01 10:00:00" --end "2025-08-01 11:00:00"
+  {CLI_COMMAND_PYTHON} extract --pmu 45022 --hours 24 --format parquet  # 24 hours as Parquet
+  {CLI_COMMAND_PYTHON} batch-extract --pmus "45022,45028" --hours 24    # Multiple PMUs
+  {CLI_COMMAND_PYTHON} table-info --pmu 45022                           # Table details
 
-More help: python -m phasor_point_cli <command> --help
+More help: {CLI_COMMAND_PYTHON} <command> --help
         """,
         )
 
@@ -130,12 +131,12 @@ More help: python -m phasor_point_cli <command> --help
         setup_parser = subparsers.add_parser(
             "setup",
             help="Set up configuration files (.env and config.json)",
-            description="""
+            description=f"""
 Set up configuration files for PhasorPoint CLI.
 
 By default, creates configuration in the user config directory:
-  - Linux/Mac: ~/.config/phasor-cli/
-  - Windows: %APPDATA%/phasor-cli/
+  - Linux/Mac: ~/.config/{CONFIG_DIR_NAME}/
+  - Windows: %APPDATA%/{CONFIG_DIR_NAME}/
 
 Interactive mode is enabled by default - you'll be prompted for credentials securely.
 Use --no-interactive to skip prompts and create template files instead.

@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from .config import ConfigurationManager
+from .constants import CLI_COMMAND_PYTHON
 from .date_utils import DateRangeCalculator
 from .extraction_manager import ExtractionManager
 from .models import ExtractionRequest
@@ -108,7 +109,7 @@ class CommandRouter:
             print("   • No PMUs loaded in configuration (0 PMUs total)")
             print("\n[SOLUTION]")
             print("   1. Refresh PMU list from database:")
-            print("      python -m phasor_point_cli setup --refresh-pmus")
+            print(f"      {CLI_COMMAND_PYTHON} setup --refresh-pmus")
             print("\n   This will fetch and load all available PMUs from your database.")
         else:
             print("\n[STATUS]")
@@ -119,8 +120,8 @@ class CommandRouter:
             print("   • PMU was recently added to database")
             print("   • Incorrect PMU ID")
             print("\n[RECOMMENDED ACTIONS]")
-            print("   1. Refresh PMU list: python -m phasor_point_cli setup --refresh-pmus")
-            print("   2. Check available PMUs: python -m phasor_point_cli list-tables")
+            print(f"   1. Refresh PMU list: {CLI_COMMAND_PYTHON} setup --refresh-pmus")
+            print(f"   2. Check available PMUs: {CLI_COMMAND_PYTHON} list-tables")
             print(f"   3. Verify PMU ID {pmu_id} is correct")
 
         print()
@@ -141,7 +142,7 @@ class CommandRouter:
             print("   • PMU metadata not loaded in configuration (0 PMUs in config)")
             print("\n[SOLUTION]")
             print("   1. Refresh PMU list from database:")
-            print("      python -m phasor_point_cli setup --refresh-pmus")
+            print(f"      {CLI_COMMAND_PYTHON} setup --refresh-pmus")
             print("\n   This will fetch and load all available PMUs from your database.")
         else:
             # PMU list exists but no tables found - different issue
@@ -155,8 +156,8 @@ class CommandRouter:
             print("   • Wrong database selected")
             print("\n[RECOMMENDED ACTIONS]")
             print("   1. Check connection: Verify DB_HOST, DB_PORT, DB_NAME are correct")
-            print("   2. Refresh PMU list: python -m phasor_point_cli setup --refresh-pmus")
-            print("   3. Try specific PMU: python -m phasor_point_cli list-tables --pmu 45020")
+            print(f"   2. Refresh PMU list: {CLI_COMMAND_PYTHON} setup --refresh-pmus")
+            print(f"   3. Try specific PMU: {CLI_COMMAND_PYTHON} list-tables --pmu 45020")
             print("   4. Check permissions: Ensure user can read PMU tables")
 
         print("\n[NEED HELP?]")
@@ -282,10 +283,10 @@ class CommandRouter:
         print("Management Commands:")
         print("-" * 70)
         print(
-            "   python -m phasor_point_cli setup               # Create user-level config (recommended)"
+            f"   {CLI_COMMAND_PYTHON} setup               # Create user-level config (recommended)"
         )
-        print("   python -m phasor_point_cli setup --local       # Create project-specific config")
-        print("   python -m phasor_point_cli config --clean      # Remove configuration files")
+        print(f"   {CLI_COMMAND_PYTHON} setup --local       # Create project-specific config")
+        print(f"   {CLI_COMMAND_PYTHON} config --clean      # Remove configuration files")
         print("\n")
 
     def handle_about(self, _args: argparse.Namespace) -> None:
@@ -378,17 +379,15 @@ class CommandRouter:
             print(
                 f"\n[NOTE] {len(unknown_pmus)} PMU(s) show as 'Unknown' - metadata not in configuration"
             )
-            print("   To get PMU names: python -m phasor_point_cli setup --refresh-pmus")
+            print(f"   To get PMU names: {CLI_COMMAND_PYTHON} setup --refresh-pmus")
 
         if result.found_pmus:
             example_pmu = sorted(result.found_pmus.keys())[0]
             print("\n" + "-" * 100)
             print("Next Steps:")
             print("-" * 100)
-            print(f"  View details:  python -m phasor_point_cli table-info --pmu {example_pmu}")
-            print(
-                f"  Extract data:  python -m phasor_point_cli extract --pmu {example_pmu} --hours 1"
-            )
+            print(f"  View details:  {CLI_COMMAND_PYTHON} table-info --pmu {example_pmu}")
+            print(f"  Extract data:  {CLI_COMMAND_PYTHON} extract --pmu {example_pmu} --hours 1")
             print("-" * 100)
 
     def handle_table_info(self, args: argparse.Namespace) -> None:
@@ -411,8 +410,8 @@ class CommandRouter:
             print("   • PMU does not exist in database")
             print("   • Insufficient permissions to access this table")
             print("\n[RECOMMENDED ACTIONS]")
-            print("   1. Refresh PMU list: python -m phasor_point_cli setup --refresh-pmus")
-            print("   2. List available PMUs: python -m phasor_point_cli list-tables")
+            print(f"   1. Refresh PMU list: {CLI_COMMAND_PYTHON} setup --refresh-pmus")
+            print(f"   2. List available PMUs: {CLI_COMMAND_PYTHON} list-tables")
             print("   3. Check different resolution if PMU exists")
             return
 
@@ -461,9 +460,9 @@ class CommandRouter:
         print("\n" + "-" * 80)
         print("Next Step - Extract Data:")
         print("-" * 80)
-        print(f"  Last hour:  python -m phasor_point_cli extract --pmu {args.pmu} --hours 1")
+        print(f"  Last hour:  {CLI_COMMAND_PYTHON} extract --pmu {args.pmu} --hours 1")
         if table_info.statistics.start_time:
-            print(f"  Last day:   python -m phasor_point_cli extract --pmu {args.pmu} --days 1")
+            print(f"  Last day:   {CLI_COMMAND_PYTHON} extract --pmu {args.pmu} --days 1")
         print("-" * 80)
 
         # Display sample data
@@ -558,14 +557,14 @@ class CommandRouter:
                 print("\n[ROOT CAUSE]")
                 print("   • No PMUs loaded in configuration")
                 print("\n[SOLUTION]")
-                print("   Refresh PMU list: python -m phasor_point_cli setup --refresh-pmus")
+                print(f"   Refresh PMU list: {CLI_COMMAND_PYTHON} setup --refresh-pmus")
                 print()
                 return
 
             print("\n[STATUS]")
             print(f"   • Configuration has {pmu_count} PMU(s) but not these {len(missing_pmus)}")
             print("\n[RECOMMENDED ACTION]")
-            print("   Refresh PMU list: python -m phasor_point_cli setup --refresh-pmus")
+            print(f"   Refresh PMU list: {CLI_COMMAND_PYTHON} setup --refresh-pmus")
             print(
                 "\n[NOTE] Batch extraction will continue with all PMUs but may fail for missing ones\n"
             )

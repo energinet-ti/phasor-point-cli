@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from .config_paths import ConfigPathManager
+from .constants import CLI_COMMAND_PYTHON, CONFIG_DIR_NAME
 from .models import DataQualityThresholds, PMUInfo
 
 __all__ = [
@@ -43,7 +44,7 @@ _EMBEDDED_DEFAULT_CONFIG: dict[str, Any] = {
     },
     "available_pmus": [],
     "notes": {
-        "discovery": "PMU list is dynamically populated from database during setup. Use 'python -m phasor_point_cli setup --refresh-pmus' to update.",
+        "discovery": f"PMU list is dynamically populated from database during setup. Use '{CLI_COMMAND_PYTHON} setup --refresh-pmus' to update.",
         "list_tables": "Use 'list-tables' command to see which PMUs are currently accessible",
     },
 }
@@ -92,7 +93,7 @@ class ConfigurationManager:
                 print("   • Missing commas between items")
                 print("   • Unclosed brackets or braces")
                 print("   • Invalid quotes or escape characters")
-                print("\nOr regenerate with: python -m phasor_point_cli setup --force\n")
+                print(f"\nOr regenerate with: {CLI_COMMAND_PYTHON} setup --force\n")
                 sys.exit(1)
             except Exception as exc:  # pragma: no cover - defensive logging
                 self.logger.error(f"Error loading config file: {exc}")
@@ -100,7 +101,7 @@ class ConfigurationManager:
                 print(f"Reason: {exc}\n")
                 print("[FIX] You can:")
                 print("   1. Check file permissions")
-                print("   2. Regenerate config: python -m phasor_point_cli setup --force")
+                print(f"   2. Regenerate config: {CLI_COMMAND_PYTHON} setup --force")
                 print("   3. Use embedded defaults by removing the config file\n")
                 sys.exit(1)
         elif self.config_path:
@@ -194,7 +195,7 @@ class ConfigurationManager:
 
         print(f"\n  Successfully loaded {valid_count} valid PMU(s)", file=sys.stderr)
         print("\n  To refresh PMU list from database:", file=sys.stderr)
-        print("    python -m phasor_point_cli setup --refresh-pmus", file=sys.stderr)
+        print(f"    {CLI_COMMAND_PYTHON} setup --refresh-pmus", file=sys.stderr)
         print("=" * 70 + "\n", file=sys.stderr)
 
     def _report_malformed_entries(self, malformed_entries: list[tuple[Any, str]]) -> None:
@@ -448,7 +449,7 @@ class ConfigurationManager:
         config_location = self.config_path or "provided configuration"
         print(f"\n  Config location: {config_location}")
         print("\n[FIX] To regenerate a valid configuration:")
-        print("   python -m phasor_point_cli setup --force")
+        print(f"   {CLI_COMMAND_PYTHON} setup --force")
         print()
 
         sys.exit(1)
@@ -508,7 +509,7 @@ class ConfigurationManager:
         if not self._pmu_lookup:
             self.logger.warning(
                 "Configuration does not define any available PMUs. "
-                "Run 'python -m phasor_point_cli setup --refresh-pmus' to populate PMU list from database."
+                f"Run '{CLI_COMMAND_PYTHON} setup --refresh-pmus' to populate PMU list from database."
             )
 
     # -------------------------------------------------------------- Setup files
@@ -549,7 +550,7 @@ class ConfigurationManager:
         if not conn_manager.is_configured:
             logger.warning("Database credentials not fully configured in .env file")
             logger.info(
-                "PMU list not populated. Run 'python -m phasor_point_cli setup --refresh-pmus' after configuring credentials."
+                f"PMU list not populated. Run '{CLI_COMMAND_PYTHON} setup --refresh-pmus' after configuring credentials."
             )
             return
 
@@ -585,7 +586,7 @@ class ConfigurationManager:
         except Exception as exc:
             logger.warning(f"Could not fetch PMU list from database: {exc}")
             logger.info(
-                "Created config with empty PMU list. Run 'python -m phasor_point_cli setup --refresh-pmus' to populate PMUs."
+                f"Created config with empty PMU list. Run '{CLI_COMMAND_PYTHON} setup --refresh-pmus' to populate PMUs."
             )
 
     @staticmethod
@@ -703,17 +704,17 @@ DEFAULT_OUTPUT_DIR=data_exports
         print("   DB_NAME=your_database_name")
 
         print("\n2. Test your database connection:")
-        print("   python -m phasor_point_cli list-tables")
+        print(f"   {CLI_COMMAND_PYTHON} list-tables")
 
         print("\n3. Extract some data:")
-        print("   python -m phasor_point_cli extract --pmu 45022 --hours 1")
+        print(f"   {CLI_COMMAND_PYTHON} extract --pmu 45022 --hours 1")
 
         print("\n" + "-" * 70)
         print("Configuration Priority:")
         print("-" * 70)
         print("1. Environment variables (highest priority)")
         print("2. Local project config (./config.json, ./.env)")
-        print("3. User config (~/.config/phasor-cli/ or %APPDATA%/phasor-cli/)")
+        print(f"3. User config (~/.config/{CONFIG_DIR_NAME}/ or %APPDATA%/{CONFIG_DIR_NAME}/)")
         print("4. Embedded defaults (lowest priority)")
 
         print("\n" + "-" * 70)
@@ -728,7 +729,7 @@ DEFAULT_OUTPUT_DIR=data_exports
             print("Project-Specific Configuration:")
             print("-" * 70)
             print("To create project-specific configs that override user defaults:")
-            print("   python -m phasor_point_cli setup --local")
+            print(f"   {CLI_COMMAND_PYTHON} setup --local")
 
     @staticmethod
     def _create_interactive_env_content(logger: logging.Logger | None = None) -> str:
@@ -891,5 +892,5 @@ DEFAULT_OUTPUT_DIR=data_exports
         print("\n" + "-" * 70)
         print("Note: Embedded defaults will still be used by the application.")
         print("To create new configuration files, run:")
-        print("   python -m phasor_point_cli setup")
+        print(f"   {CLI_COMMAND_PYTHON} setup")
         print("-" * 70)

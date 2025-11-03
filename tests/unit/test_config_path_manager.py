@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from phasor_point_cli.config_paths import ConfigPathManager
+from phasor_point_cli.constants import CONFIG_DIR_NAME
 
 
 def test_config_path_manager_initializes():
@@ -23,11 +24,11 @@ def test_get_user_config_dir_creates_directory(tmp_path, monkeypatch):
     # Mock the home directory to use tmp_path
     if sys.platform == "win32":
         monkeypatch.setenv("APPDATA", str(tmp_path))
-        expected_dir = tmp_path / "phasor-cli"
+        expected_dir = tmp_path / CONFIG_DIR_NAME
     else:
         monkeypatch.setenv("HOME", str(tmp_path))
         monkeypatch.setenv("XDG_CONFIG_HOME", "")  # Clear XDG_CONFIG_HOME
-        expected_dir = tmp_path / ".config" / "phasor-cli"
+        expected_dir = tmp_path / ".config" / CONFIG_DIR_NAME
 
     # Clear cached value
     manager._user_config_dir = None
@@ -49,7 +50,7 @@ def test_get_user_config_file_returns_path():
 
     # Assert
     assert config_file.name == "config.json"
-    assert "phasor-cli" in str(config_file)
+    assert CONFIG_DIR_NAME in str(config_file)
 
 
 def test_get_user_env_file_returns_path():
@@ -61,7 +62,7 @@ def test_get_user_env_file_returns_path():
 
     # Assert
     assert env_file.name == ".env"
-    assert "phasor-cli" in str(env_file)
+    assert CONFIG_DIR_NAME in str(env_file)
 
 
 def test_get_local_config_file_uses_cwd():

@@ -8,6 +8,7 @@ CLI argument parser with all commands and options.
 import argparse
 
 from phasor_point_cli.argument_parser import CLIArgumentParser
+from phasor_point_cli.constants import CLI_COMMAND_PYTHON
 
 
 class TestCLIArgumentParser:
@@ -38,7 +39,7 @@ class TestCLIArgumentParser:
         assert "COMMAND GROUPS" in parser.description
         assert "Configuration:" in parser.description
         assert "Data Extraction:" in parser.description
-        assert parser.prog == "python -m phasor_point_cli"
+        assert parser.prog == CLI_COMMAND_PYTHON
 
     def test_global_arguments_present(self):
         """Test global arguments are configured."""

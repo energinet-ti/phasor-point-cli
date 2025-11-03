@@ -9,6 +9,7 @@ import json
 import pytest
 
 from phasor_point_cli.config import ConfigurationManager
+from phasor_point_cli.constants import CLI_COMMAND_PYTHON
 
 
 def test_configuration_manager_uses_embedded_defaults():
@@ -182,7 +183,7 @@ def test_config_invalid_json_exits_gracefully(tmp_path, capsys):
     captured = capsys.readouterr()
     assert "Invalid JSON format" in captured.out
     assert "config file" in captured.out.lower()
-    assert "python -m phasor_point_cli setup --force" in captured.out
+    assert f"{CLI_COMMAND_PYTHON} setup --force" in captured.out
 
 
 def test_config_missing_file_uses_defaults():
@@ -574,7 +575,7 @@ class TestTier1Validation:
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
         assert "Missing required configuration section: 'database'" in captured.out
-        assert "python -m phasor_point_cli setup --force" in captured.out
+        assert f"{CLI_COMMAND_PYTHON} setup --force" in captured.out
 
     def test_missing_extraction_section_fails(self, capsys):
         """Test that missing extraction section fails validation."""
@@ -910,7 +911,7 @@ class TestErrorMessageQuality:
             ConfigurationManager(config_data=config_data)
 
         captured = capsys.readouterr()
-        assert "python -m phasor_point_cli setup --force" in captured.out
+        assert f"{CLI_COMMAND_PYTHON} setup --force" in captured.out
 
     def test_error_message_includes_example(self, capsys):
         """Test that error messages include examples."""

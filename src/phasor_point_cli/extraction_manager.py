@@ -13,6 +13,7 @@ import pandas as pd
 
 from .chunk_strategy import ChunkStrategy
 from .config_paths import ConfigPathManager
+from .constants import CLI_COMMAND_PYTHON
 from .data_extractor import DataExtractor
 from .data_processor import DataProcessor
 from .data_validator import DataValidator
@@ -78,7 +79,7 @@ class ExtractionManager:
         if not pmu_info:
             self.logger.warning(
                 f"PMU {pmu_id} metadata not found in configuration. "
-                "Consider running 'python -m phasor_point_cli setup --refresh-pmus' to update PMU list."
+                f"Consider running '{CLI_COMMAND_PYTHON} setup --refresh-pmus' to update PMU list."
             )
             station_name = "unknown"
         else:
