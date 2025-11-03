@@ -14,6 +14,7 @@ from unittest.mock import ANY, Mock, patch
 import pytest
 
 from phasor_point_cli.cli import PhasorPointCLI, main, setup_logging
+from phasor_point_cli.constants import CLI_COMMAND_PYTHON
 
 
 class TestSetupLogging:
@@ -428,7 +429,7 @@ class TestMainFunction:
     def test_main_displays_help_when_no_command(self):
         """Test main() displays help when no command is provided."""
         # Arrange
-        test_args = ["phasor-cli"]
+        test_args = [CLI_COMMAND_PYTHON]
 
         # Act
         with ExitStack() as stack:
@@ -447,7 +448,7 @@ class TestMainFunction:
     def test_main_handles_setup_command_without_db_connection(self):
         """Test main() handles setup command without database connection."""
         # Arrange
-        test_args = ["phasor-cli", "setup"]
+        test_args = [CLI_COMMAND_PYTHON, "setup"]
 
         # Act
         with ExitStack() as stack:
@@ -476,10 +477,10 @@ class TestMainFunction:
         mock_router_class.assert_called_once_with(None, mock_logger, ANY)
         mock_router.route.assert_called_once_with("setup", mock_args)
 
-    def test_main_handles_config_path_command_without_db_connection(self):
-        """Test main() handles config-path command without database connection."""
+    def test_main_handles_config_command_without_db_connection(self):
+        """Test main() handles config command without database connection."""
         # Arrange
-        test_args = ["phasor-cli", "config-path"]
+        test_args = [CLI_COMMAND_PYTHON, "config"]
 
         # Act
         with ExitStack() as stack:
@@ -494,7 +495,7 @@ class TestMainFunction:
 
             mock_parser = Mock()
             mock_parser_instance = Mock()
-            mock_args = argparse.Namespace(command="config-path", verbose=False)
+            mock_args = argparse.Namespace(command="config", verbose=False)
             mock_parser_instance.parse_args.return_value = mock_args
             mock_parser.build.return_value = mock_parser_instance
             mock_parser_class.return_value = mock_parser
@@ -506,12 +507,12 @@ class TestMainFunction:
 
         # Assert
         mock_router_class.assert_called_once_with(None, mock_logger, ANY)
-        mock_router.route.assert_called_once_with("config-path", mock_args)
+        mock_router.route.assert_called_once_with("config", mock_args)
 
     def test_main_handles_config_clean_command_without_db_connection(self):
-        """Test main() handles config-clean command without database connection."""
+        """Test main() handles config --clean command without database connection."""
         # Arrange
-        test_args = ["phasor-cli", "config-clean"]
+        test_args = [CLI_COMMAND_PYTHON, "config", "--clean"]
 
         # Act
         with ExitStack() as stack:
@@ -526,7 +527,7 @@ class TestMainFunction:
 
             mock_parser = Mock()
             mock_parser_instance = Mock()
-            mock_args = argparse.Namespace(command="config-clean", verbose=False)
+            mock_args = argparse.Namespace(command="config", verbose=False, clean=True)
             mock_parser_instance.parse_args.return_value = mock_args
             mock_parser.build.return_value = mock_parser_instance
             mock_parser_class.return_value = mock_parser
@@ -538,7 +539,7 @@ class TestMainFunction:
 
         # Assert
         mock_router_class.assert_called_once_with(None, mock_logger, ANY)
-        mock_router.route.assert_called_once_with("config-clean", mock_args)
+        mock_router.route.assert_called_once_with("config", mock_args)
 
     def test_main_routes_command_with_db_connection(self, monkeypatch):
         """Test main() routes commands that require database connection."""
@@ -549,7 +550,7 @@ class TestMainFunction:
         monkeypatch.setenv("DB_USERNAME", "test_user")
         monkeypatch.setenv("DB_PASSWORD", "test_pass")
 
-        test_args = ["phasor-cli", "list-tables"]
+        test_args = [CLI_COMMAND_PYTHON, "list-tables"]
 
         # Act
         with ExitStack() as stack:
@@ -602,7 +603,7 @@ class TestMainFunction:
         monkeypatch.setenv("DB_USERNAME", "test_user")
         monkeypatch.setenv("DB_PASSWORD", "test_pass")
 
-        test_args = ["phasor-cli", "list-tables"]
+        test_args = [CLI_COMMAND_PYTHON, "list-tables"]
 
         # Act
         with ExitStack() as stack:
@@ -655,7 +656,7 @@ class TestMainFunction:
         monkeypatch.setenv("DB_USERNAME", "test_user")
         monkeypatch.setenv("DB_PASSWORD", "test_pass")
 
-        test_args = ["phasor-cli", "list-tables"]
+        test_args = [CLI_COMMAND_PYTHON, "list-tables"]
 
         # Act
         with ExitStack() as stack:
@@ -709,7 +710,7 @@ class TestMainFunction:
     def test_main_uses_verbose_flag(self):
         """Test main() uses verbose flag for logging."""
         # Arrange
-        test_args = ["phasor-cli", "setup", "--verbose"]
+        test_args = [CLI_COMMAND_PYTHON, "setup", "--verbose"]
 
         # Act
         with ExitStack() as stack:
@@ -740,7 +741,7 @@ class TestMainFunction:
         monkeypatch.setenv("DB_USERNAME", "test_user")
         monkeypatch.setenv("DB_PASSWORD", "test_pass")
 
-        test_args = ["phasor-cli", "extract", "--connection-pool", "7"]
+        test_args = [CLI_COMMAND_PYTHON, "extract", "--connection-pool", "7"]
 
         # Act
         with ExitStack() as stack:
@@ -786,7 +787,7 @@ class TestMainFunction:
         monkeypatch.setenv("DB_USERNAME", "test_user")
         monkeypatch.setenv("DB_PASSWORD", "test_pass")
 
-        test_args = ["phasor-cli", "list-tables"]
+        test_args = [CLI_COMMAND_PYTHON, "list-tables"]
 
         # Act
         with ExitStack() as stack:
@@ -859,7 +860,7 @@ class TestEdgeCases:
         monkeypatch.setenv("DB_USERNAME", "test_user")
         monkeypatch.setenv("DB_PASSWORD", "test_pass")
 
-        test_args = ["phasor-cli", "--config", "my_config.json", "list-tables"]
+        test_args = [CLI_COMMAND_PYTHON, "--config", "my_config.json", "list-tables"]
 
         # Act
         with ExitStack() as stack:

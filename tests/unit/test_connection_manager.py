@@ -25,7 +25,7 @@ def config_manager():
                 "gap_multiplier": 2,
             },
             "output": {},
-            "available_pmus": {"region": [{"number": 1, "name": "Test"}]},
+            "available_pmus": [{"number": 1, "name": "Test"}],
         }
     )
 

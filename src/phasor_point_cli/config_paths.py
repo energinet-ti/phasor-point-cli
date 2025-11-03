@@ -12,6 +12,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from .constants import CONFIG_DIR_NAME
+
 
 class ConfigPathManager:
     """
@@ -33,8 +35,8 @@ class ConfigPathManager:
             Path to user configuration directory (creates if doesn't exist)
 
         Platform-specific locations:
-            - Linux/Mac: ~/.config/phasor-cli/
-            - Windows: %APPDATA%/phasor-cli/
+            - Linux/Mac: ~/.config/{CONFIG_DIR_NAME}/
+            - Windows: %APPDATA%/{CONFIG_DIR_NAME}/
         """
         if self._user_config_dir is not None:
             return self._user_config_dir
@@ -45,16 +47,16 @@ class ConfigPathManager:
             if not base:
                 # Fallback to USERPROFILE if APPDATA not set
                 base = os.environ.get("USERPROFILE", str(Path.home()))
-                config_dir = Path(base) / "phasor-cli"
+                config_dir = Path(base) / CONFIG_DIR_NAME
             else:
-                config_dir = Path(base) / "phasor-cli"
+                config_dir = Path(base) / CONFIG_DIR_NAME
         else:
             # Linux/Mac: Use XDG_CONFIG_HOME or ~/.config
             xdg_config = os.environ.get("XDG_CONFIG_HOME")
             if xdg_config:
-                config_dir = Path(xdg_config) / "phasor-cli"
+                config_dir = Path(xdg_config) / CONFIG_DIR_NAME
             else:
-                config_dir = Path.home() / ".config" / "phasor-cli"
+                config_dir = Path.home() / ".config" / CONFIG_DIR_NAME
 
         # Create directory if it doesn't exist
         config_dir.mkdir(parents=True, exist_ok=True)
@@ -84,7 +86,7 @@ class ConfigPathManager:
         Priority:
             1. Explicitly provided config_arg
             2. Local project config (./config.json)
-            3. User config (~/.config/phasor-cli/config.json)
+            3. User config (~/.config/{CONFIG_DIR_NAME}/config.json)
             4. None (will use embedded defaults)
 
         Args:
@@ -119,7 +121,7 @@ class ConfigPathManager:
 
         Priority:
             1. Local project .env (./.env)
-            2. User .env (~/.config/phasor-cli/.env)
+            2. User .env (~/.config/{CONFIG_DIR_NAME}/.env)
             3. None
 
         Returns:
@@ -146,22 +148,22 @@ class ConfigPathManager:
             Path to log directory (creates if doesn't exist)
 
         Platform-specific locations:
-            - Linux/Mac: ~/.cache/phasor-cli/logs/
-            - Windows: %LOCALAPPDATA%/phasor-cli/logs/ or %TEMP%/phasor-cli/logs/
+            - Linux/Mac: ~/.cache/{CONFIG_DIR_NAME}/logs/
+            - Windows: %LOCALAPPDATA%/{CONFIG_DIR_NAME}/logs/ or %TEMP%/{CONFIG_DIR_NAME}/logs/
         """
         if sys.platform == "win32":
             # Windows: Use LOCALAPPDATA or TEMP
             base = os.environ.get("LOCALAPPDATA")
             if not base:
                 base = os.environ.get("TEMP", str(Path.home() / "AppData" / "Local"))
-            log_dir = Path(base) / "phasor-cli" / "logs"
+            log_dir = Path(base) / CONFIG_DIR_NAME / "logs"
         else:
             # Linux/Mac: Use XDG_CACHE_HOME or ~/.cache
             xdg_cache = os.environ.get("XDG_CACHE_HOME")
             if xdg_cache:
-                log_dir = Path(xdg_cache) / "phasor-cli" / "logs"
+                log_dir = Path(xdg_cache) / CONFIG_DIR_NAME / "logs"
             else:
-                log_dir = Path.home() / ".cache" / "phasor-cli" / "logs"
+                log_dir = Path.home() / ".cache" / CONFIG_DIR_NAME / "logs"
 
         # Create directory if it doesn't exist
         log_dir.mkdir(parents=True, exist_ok=True)

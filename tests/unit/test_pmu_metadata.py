@@ -194,7 +194,7 @@ class TestMergePmuMetadata:
     def test_merge_preserves_custom_fields(self):
         """Test merge preserves custom fields in existing PMUs."""
         # Arrange
-        existing = [{"id": 501, "station_name": "Old", "region": "EU", "custom": "data"}]
+        existing = [{"id": 501, "station_name": "Old", "custom": "data"}]
         new_pmus = [{"id": 501, "station_name": "New"}]
 
         # Act
@@ -202,7 +202,6 @@ class TestMergePmuMetadata:
 
         # Assert
         assert result[0]["station_name"] == "New"
-        assert result[0]["region"] == "EU"
         assert result[0]["custom"] == "data"
 
     def test_merge_adds_new_fields_from_new_pmus(self):

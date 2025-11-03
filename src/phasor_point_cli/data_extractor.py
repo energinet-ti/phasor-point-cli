@@ -13,6 +13,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import pandas as pd
 
 from .chunk_strategy import ChunkStrategy
+from .constants import CLI_COMMAND_PYTHON
 from .models import ExtractionRequest
 
 
@@ -74,7 +75,7 @@ class DataExtractor:
             if len(df) == 0:
                 self.logger.error("No data found for the specified date range")
                 print(
-                    "[TIP] Use 'phasor-cli table-info --pmu <pmu_id>' to check available date range"
+                    f"[TIP] Use '{CLI_COMMAND_PYTHON} table-info --pmu <pmu_id>' to check available date range"
                 )
                 return None
 

@@ -34,7 +34,7 @@ from phasor_point_cli.models import (
 
 def test_pmu_info_instantiation_and_serialisation():
     # Arrange
-    info = PMUInfo(id=45012, station_name="Test PMU", region="EU", country="Finland")
+    info = PMUInfo(id=45012, station_name="Test PMU", country="Finland")
 
     # Act
     serialised = info.to_dict()
@@ -42,7 +42,6 @@ def test_pmu_info_instantiation_and_serialisation():
     # Assert
     assert serialised["id"] == 45012
     assert serialised["station_name"] == "Test PMU"
-    assert serialised["region"] == "EU"
     assert serialised["country"] == "Finland"
 
 
@@ -51,10 +50,10 @@ def test_pmu_info_from_dict_infers_region():
     data = {"id": 45012, "station_name": "Test PMU", "country": "Sweden"}
 
     # Act
-    info = PMUInfo.from_dict(data, region="EU")
+    info = PMUInfo.from_dict(data)
 
     # Assert
-    assert info.region == "EU"
+    assert info.country == "Sweden"
     assert info.extra_attributes == {}
 
 
