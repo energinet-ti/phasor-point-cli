@@ -33,7 +33,6 @@ class PMUInfo:
 
     id: int
     station_name: str
-    region: str
     country: str = ""
     extra_attributes: dict[str, Any] = field(default_factory=dict)
 
@@ -44,17 +43,16 @@ class PMUInfo:
         return payload
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any], *, region: str | None = None) -> PMUInfo:
+    def from_dict(cls, data: dict[str, Any]) -> PMUInfo:
         """Create an instance from a configuration style dictionary."""
         return cls(
             id=int(data["id"]),
             station_name=data.get("station_name", ""),
-            region=region or data.get("region", ""),
             country=data.get("country", ""),
             extra_attributes={
                 key: value
                 for key, value in data.items()
-                if key not in {"id", "station_name", "region", "country"}
+                if key not in {"id", "station_name", "country"}
             },
         )
 

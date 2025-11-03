@@ -25,15 +25,13 @@ class ConfigStub:
         """Get PMU info from config."""
         from phasor_point_cli.models import PMUInfo
 
-        for region, pmus in self.config.get("available_pmus", {}).items():
-            for pmu_data in pmus:
-                if pmu_data["id"] == pmu_id:
-                    return PMUInfo(
-                        id=pmu_data["id"],
-                        station_name=pmu_data["station_name"],
-                        region=region,
-                        country=pmu_data.get("country", ""),
-                    )
+        for pmu_data in self.config.get("available_pmus", []):
+            if pmu_data["id"] == pmu_id:
+                return PMUInfo(
+                    id=pmu_data["id"],
+                    station_name=pmu_data["station_name"],
+                    country=pmu_data.get("country", ""),
+                )
         return None
 
 
@@ -96,7 +94,7 @@ def test_extraction_manager_success(tmp_path, mock_extraction_history):
     power_calculator.process_phasor_data.return_value = (df_processed, None)
 
     logger = MagicMock()
-    config = {"available_pmus": {"RegionA": [{"number": 45012, "name": "PMU A", "country": "NO"}]}}
+    config = {"available_pmus": [{"number": 45012, "name": "PMU A", "country": "NO"}]}
 
     manager = ExtractionManager(
         connection_pool=None,
@@ -170,12 +168,10 @@ def test_batch_extract_success(tmp_path, mock_extraction_history):
 
     logger = MagicMock()
     config = {
-        "available_pmus": {
-            "RegionA": [
-                {"id": 45012, "station_name": "PMU A", "country": "NO"},
-                {"id": 45013, "station_name": "PMU B", "country": "NO"},
-            ]
-        }
+        "available_pmus": [
+            {"id": 45012, "station_name": "PMU A", "country": "NO"},
+            {"id": 45013, "station_name": "PMU B", "country": "NO"},
+        ]
     }
 
     manager = ExtractionManager(
@@ -254,12 +250,10 @@ def test_batch_extract_partial_failure(tmp_path, mock_extraction_history):
 
     logger = MagicMock()
     config = {
-        "available_pmus": {
-            "RegionA": [
-                {"id": 45012, "station_name": "PMU A", "country": "NO"},
-                {"id": 45013, "station_name": "PMU B", "country": "NO"},
-            ]
-        }
+        "available_pmus": [
+            {"id": 45012, "station_name": "PMU A", "country": "NO"},
+            {"id": 45013, "station_name": "PMU B", "country": "NO"},
+        ]
     }
 
     manager = ExtractionManager(
@@ -351,9 +345,7 @@ def test_extraction_log_write_failure_continues_gracefully(
     power_calculator.process_phasor_data.return_value = (df, None)
 
     logger = MagicMock()
-    config = {
-        "available_pmus": {"RegionA": [{"id": 45012, "station_name": "PMU A", "country": "NO"}]}
-    }
+    config = {"available_pmus": [{"id": 45012, "station_name": "PMU A", "country": "NO"}]}
 
     manager = ExtractionManager(
         connection_pool=None,
@@ -401,9 +393,7 @@ def test_extraction_log_read_failure_handled(tmp_path, mock_extraction_history):
     power_calculator.process_phasor_data.return_value = (df, None)
 
     logger = MagicMock()
-    config = {
-        "available_pmus": {"RegionA": [{"id": 45012, "station_name": "PMU A", "country": "NO"}]}
-    }
+    config = {"available_pmus": [{"id": 45012, "station_name": "PMU A", "country": "NO"}]}
 
     manager = ExtractionManager(
         connection_pool=None,
@@ -456,12 +446,10 @@ def test_batch_extract_all_failures_returns_summary(tmp_path, mock_extraction_hi
 
     logger = MagicMock()
     config = {
-        "available_pmus": {
-            "RegionA": [
-                {"id": 45012, "station_name": "PMU A", "country": "NO"},
-                {"id": 45013, "station_name": "PMU B", "country": "NO"},
-            ]
-        }
+        "available_pmus": [
+            {"id": 45012, "station_name": "PMU A", "country": "NO"},
+            {"id": 45013, "station_name": "PMU B", "country": "NO"},
+        ]
     }
 
     manager = ExtractionManager(
@@ -1106,11 +1094,7 @@ def test_single_precheck_skips_when_file_exists_without_replace(
     manager = ExtractionManager(
         connection_pool=None,
         config_manager=ConfigStub(
-            {
-                "available_pmus": {
-                    "RegionA": [{"id": 45012, "station_name": "PMU A", "country": "NO"}]
-                }
-            }
+            {"available_pmus": [{"id": 45012, "station_name": "PMU A", "country": "NO"}]}
         ),
         logger=MagicMock(),
         data_extractor=extractor,
@@ -1155,11 +1139,7 @@ def test_batch_precheck_skips_when_file_exists_without_replace(tmp_path, mock_ex
     manager = ExtractionManager(
         connection_pool=None,
         config_manager=ConfigStub(
-            {
-                "available_pmus": {
-                    "RegionA": [{"id": 45012, "station_name": "PMU A", "country": "NO"}]
-                }
-            }
+            {"available_pmus": [{"id": 45012, "station_name": "PMU A", "country": "NO"}]}
         ),
         logger=MagicMock(),
         data_extractor=extractor,
@@ -1214,11 +1194,7 @@ def test_overwrites_when_replace_true(tmp_path, mock_extraction_history, monkeyp
     manager = ExtractionManager(
         connection_pool=None,
         config_manager=ConfigStub(
-            {
-                "available_pmus": {
-                    "RegionA": [{"id": 45012, "station_name": "PMU A", "country": "NO"}]
-                }
-            }
+            {"available_pmus": [{"id": 45012, "station_name": "PMU A", "country": "NO"}]}
         ),
         logger=MagicMock(),
         data_extractor=extractor,
@@ -1264,11 +1240,7 @@ def test_unified_filename_single_vs_batch(tmp_path, mock_extraction_history):
     manager = ExtractionManager(
         connection_pool=None,
         config_manager=ConfigStub(
-            {
-                "available_pmus": {
-                    "RegionA": [{"id": 45012, "station_name": "PMU A", "country": "NO"}]
-                }
-            }
+            {"available_pmus": [{"id": 45012, "station_name": "PMU A", "country": "NO"}]}
         ),
         logger=MagicMock(),
         extraction_history=mock_extraction_history,

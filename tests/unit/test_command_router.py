@@ -29,9 +29,7 @@ class TestCommandRouter:
 
         # Create a mock config with get_pmu_info method
         mock_config = Mock()
-        mock_config.get_pmu_info = Mock(
-            return_value=PMUInfo(id=45012, station_name="Test PMU", region="Test Region")
-        )
+        mock_config.get_pmu_info = Mock(return_value=PMUInfo(id=45012, station_name="Test PMU"))
         cli.config = mock_config
         cli.update_connection_pool_size = Mock()
         return cli
@@ -291,7 +289,7 @@ class TestCommandRouter:
         args = argparse.Namespace(pmu=45012, resolution=1)
         from phasor_point_cli.models import PMUInfo, TableInfo, TableStatistics
 
-        mock_pmu_info = PMUInfo(id=45012, station_name="Test PMU", region="Test Region")
+        mock_pmu_info = PMUInfo(id=45012, station_name="Test PMU")
         mock_stats = TableStatistics(row_count=1000, column_count=10)
         mock_table_info = TableInfo(
             pmu_id=45012,
@@ -881,7 +879,7 @@ class TestCommandRouter:
         mock_cli.config.get_pmu_info = Mock(
             side_effect=lambda pmu_id: None
             if pmu_id == 45999
-            else Mock(station_name="Test PMU", region="Test", country="US")
+            else Mock(station_name="Test PMU", country="US")
         )
 
         # Act
@@ -930,7 +928,7 @@ class TestCommandRouter:
         args = argparse.Namespace(pmu=45012, resolution=1)
         from phasor_point_cli.models import PMUInfo, TableInfo, TableStatistics
 
-        mock_pmu_info = PMUInfo(id=45012, station_name="Test PMU", region="West", country="USA")
+        mock_pmu_info = PMUInfo(id=45012, station_name="Test PMU", country="USA")
         mock_stats = TableStatistics(row_count=1000, column_count=10)
         mock_table_info = TableInfo(
             pmu_id=45012,
@@ -949,15 +947,13 @@ class TestCommandRouter:
 
         # Assert
         captured = capsys.readouterr()
-        assert "[PMU] 45012 - Test PMU (USA) [West]" in captured.out
+        assert "[PMU] 45012 - Test PMU (USA)" in captured.out
 
     def test_handle_batch_extract_with_missing_pmus(self, command_router, mock_cli, capsys):
         """Test handle_batch_extract with some PMUs not in config."""
         # Arrange
         mock_cli.config.get_pmu_info = Mock(
-            side_effect=lambda pmu_id: None
-            if pmu_id == 45013
-            else Mock(station_name="Test PMU", region="Test")
+            side_effect=lambda pmu_id: None if pmu_id == 45013 else Mock(station_name="Test PMU")
         )
         mock_cli.config.get_all_pmu_ids = Mock(return_value=[45012, 45014])
 
@@ -1196,7 +1192,7 @@ class TestCommandRouter:
 
         from phasor_point_cli.models import PMUInfo, TableInfo, TableStatistics
 
-        mock_pmu_info = PMUInfo(id=45012, station_name="Test PMU", region="West")
+        mock_pmu_info = PMUInfo(id=45012, station_name="Test PMU")
         mock_stats = TableStatistics(
             row_count=1000,
             column_count=10,
@@ -1230,7 +1226,7 @@ class TestCommandRouter:
 
         from phasor_point_cli.models import PMUInfo, TableInfo, TableStatistics
 
-        mock_pmu_info = PMUInfo(id=45012, station_name="Test PMU", region="West")
+        mock_pmu_info = PMUInfo(id=45012, station_name="Test PMU")
         mock_stats = TableStatistics(
             row_count=1000,
             column_count=10,
@@ -1267,7 +1263,7 @@ class TestCommandRouter:
 
         from phasor_point_cli.models import PMUInfo, TableInfo, TableStatistics
 
-        mock_pmu_info = PMUInfo(id=45012, station_name="Test PMU", region="West")
+        mock_pmu_info = PMUInfo(id=45012, station_name="Test PMU")
         mock_stats = TableStatistics(
             row_count=1000,
             column_count=3,

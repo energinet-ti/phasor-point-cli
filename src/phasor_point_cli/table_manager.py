@@ -43,16 +43,14 @@ class TableManager:
     @classmethod
     def build_pmu_info_lookup(cls, config: dict) -> dict[int, PMUInfo]:
         lookup: dict[int, PMUInfo] = {}
-        available = config.get("available_pmus", {}) if config else {}
-        for region, pmus in available.items():
-            for entry in pmus:
-                info = PMUInfo(
-                    id=int(entry["id"]),
-                    station_name=entry.get("station_name", "Unknown"),
-                    region=region,
-                    country=entry.get("country", ""),
-                )
-                lookup[info.id] = info
+        available = config.get("available_pmus", []) if config else []
+        for entry in available:
+            info = PMUInfo(
+                id=int(entry["id"]),
+                station_name=entry.get("station_name", "Unknown"),
+                country=entry.get("country", ""),
+            )
+            lookup[info.id] = info
         return lookup
 
     def _ensure_pmu_lookup(self) -> dict[int, PMUInfo]:
@@ -70,14 +68,12 @@ class TableManager:
             return list(pmu_ids)
 
         config = self._get_config()
-        available = config.get("available_pmus")
+        available = config.get("available_pmus", [])
         if not available:
             self.logger.warning("No PMUs available in configuration. Provide explicit PMU IDs.")
             return None
 
-        all_ids: list[int] = []
-        for pmus in available.values():
-            all_ids.extend(int(p["id"]) for p in pmus)
+        all_ids: list[int] = [int(p["id"]) for p in available]
 
         if max_pmus is not None and len(all_ids) > max_pmus:
             self.logger.info(

@@ -39,7 +39,7 @@ def test_configuration_manager_loads_from_file(tmp_path):
             "gap_multiplier": 2,
         },
         "output": {"default_output_dir": "data"},
-        "available_pmus": {"region": [{"id": 45012, "station_name": "Test PMU", "country": "FI"}]},
+        "available_pmus": [{"id": 45012, "station_name": "Test PMU", "country": "FI"}],
     }
     config_file.write_text(json.dumps(payload), encoding="utf-8")
 
@@ -103,12 +103,10 @@ def test_get_all_pmu_ids_returns_sorted_list():
                 "gap_multiplier": 2,
             },
             "output": {},
-            "available_pmus": {
-                "region": [
-                    {"id": 45014, "station_name": "PMU B"},
-                    {"id": 45012, "station_name": "PMU A"},
-                ]
-            },
+            "available_pmus": [
+                {"id": 45014, "station_name": "PMU B"},
+                {"id": 45012, "station_name": "PMU A"},
+            ],
         }
     )
 
@@ -134,7 +132,7 @@ def test_setup_configuration_files_creates_files(tmp_path, monkeypatch):
     data = json.loads(config_path.read_text(encoding="utf-8"))
     assert "database" in data
     # Config should have empty PMU list initially (no database connection during test)
-    assert data["available_pmus"]["all"] == []
+    assert data["available_pmus"] == []
 
 
 def test_pmu_metadata_merge():
@@ -229,12 +227,10 @@ class TestPMULookupErrorHandling:
             "extraction": {},
             "data_quality": {},
             "output": {},
-            "available_pmus": {
-                "test_region": [
-                    {"station_name": "Missing ID PMU"},  # Missing 'id' field
-                    {"id": 45012, "station_name": "Valid PMU"},  # Valid entry
-                ]
-            },
+            "available_pmus": [
+                {"station_name": "Missing ID PMU"},  # Missing 'id' field
+                {"id": 45012, "station_name": "Valid PMU"},  # Valid entry
+            ],
         }
 
         # Act
@@ -257,12 +253,10 @@ class TestPMULookupErrorHandling:
             "extraction": {},
             "data_quality": {},
             "output": {},
-            "available_pmus": {
-                "test_region": [
-                    "not a dictionary",  # Wrong type
-                    {"id": 45012, "station_name": "Valid PMU"},
-                ]
-            },
+            "available_pmus": [
+                "not a dictionary",  # Wrong type
+                {"id": 45012, "station_name": "Valid PMU"},
+            ],
         }
 
         # Act
@@ -283,12 +277,10 @@ class TestPMULookupErrorHandling:
             "extraction": {},
             "data_quality": {},
             "output": {},
-            "available_pmus": {
-                "test_region": [
-                    {"id": "not_a_number", "station_name": "Invalid ID"},
-                    {"id": 45012, "station_name": "Valid PMU"},
-                ]
-            },
+            "available_pmus": [
+                {"id": "not_a_number", "station_name": "Invalid ID"},
+                {"id": 45012, "station_name": "Valid PMU"},
+            ],
         }
 
         # Act
@@ -302,50 +294,38 @@ class TestPMULookupErrorHandling:
         assert "malformed PMU entries" in captured.err
 
     def test_non_iterable_region_entries(self, capsys):
-        """Test that non-iterable region entries are skipped with warning."""
+        """Test that available_pmus being a non-list is handled gracefully."""
         # Arrange
         config_data = {
             "database": {},
             "extraction": {},
             "data_quality": {},
             "output": {},
-            "available_pmus": {
-                "bad_region": 12345,  # Not iterable
-                "good_region": [{"id": 45012, "station_name": "Valid PMU"}],
-            },
+            "available_pmus": 12345,  # Not a list
         }
 
         # Act
         manager = ConfigurationManager(config_data=config_data)
 
         # Assert
-        assert 45012 in manager.get_all_pmu_ids()
-        assert len(manager.get_all_pmu_ids()) == 1
-
-        captured = capsys.readouterr()
-        assert "non-iterable" in captured.err
+        assert len(manager.get_all_pmu_ids()) == 0
 
     def test_string_instead_of_list_for_region(self, capsys):
-        """Test that string value instead of list for region is skipped."""
+        """Test that string value instead of list for available_pmus is handled."""
         # Arrange
         config_data = {
             "database": {},
             "extraction": {},
             "data_quality": {},
             "output": {},
-            "available_pmus": {
-                "bad_region": "should be a list",  # String instead of list
-                "good_region": [{"id": 45012, "station_name": "Valid PMU"}],
-            },
+            "available_pmus": "should be a list",  # String instead of list
         }
 
         # Act
         manager = ConfigurationManager(config_data=config_data)
 
         # Assert
-        assert 45012 in manager.get_all_pmu_ids()
-        captured = capsys.readouterr()
-        assert "string instead of list" in captured.err
+        assert len(manager.get_all_pmu_ids()) == 0
 
     def test_mixed_valid_and_invalid_pmu_entries(self, capsys):
         """Test that valid PMUs are loaded despite some malformed entries."""
@@ -355,15 +335,13 @@ class TestPMULookupErrorHandling:
             "extraction": {},
             "data_quality": {},
             "output": {},
-            "available_pmus": {
-                "region": [
-                    {"id": 45012, "station_name": "PMU 1"},  # Valid
-                    {"station_name": "Missing ID"},  # Invalid - missing id
-                    {"id": 45013, "station_name": "PMU 2"},  # Valid
-                    "not a dict",  # Invalid - wrong type
-                    {"id": 45014, "station_name": "PMU 3"},  # Valid
-                ]
-            },
+            "available_pmus": [
+                {"id": 45012, "station_name": "PMU 1"},  # Valid
+                {"station_name": "Missing ID"},  # Invalid - missing id
+                {"id": 45013, "station_name": "PMU 2"},  # Valid
+                "not a dict",  # Invalid - wrong type
+                {"id": 45014, "station_name": "PMU 3"},  # Valid
+            ],
         }
 
         # Act
@@ -387,13 +365,11 @@ class TestPMULookupErrorHandling:
             "extraction": {},
             "data_quality": {},
             "output": {},
-            "available_pmus": {
-                "region": [
-                    {"id": 45012, "station_name": "First PMU"},
-                    {"id": 45012, "station_name": "Second PMU"},  # Duplicate
-                    {"id": 45012, "station_name": "Third PMU"},  # Duplicate
-                ]
-            },
+            "available_pmus": [
+                {"id": 45012, "station_name": "First PMU"},
+                {"id": 45012, "station_name": "Second PMU"},  # Duplicate
+                {"id": 45012, "station_name": "Third PMU"},  # Duplicate
+            ],
         }
 
         # Act
@@ -409,14 +385,14 @@ class TestPMULookupErrorHandling:
         assert "PMU ID 45012" in captured.err
 
     def test_available_pmus_not_dict(self, capsys):
-        """Test that available_pmus not being a dict is handled gracefully."""
+        """Test that available_pmus not being a list is handled gracefully."""
         # Arrange
         config_data = {
             "database": {},
             "extraction": {},
             "data_quality": {},
             "output": {},
-            "available_pmus": "not a dictionary",  # Wrong type
+            "available_pmus": "not a list",  # Wrong type
         }
 
         # Act

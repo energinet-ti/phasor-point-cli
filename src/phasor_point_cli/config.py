@@ -10,7 +10,6 @@ from __future__ import annotations
 import json
 import logging
 import sys
-from collections.abc import Iterable
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
@@ -42,7 +41,7 @@ _EMBEDDED_DEFAULT_CONFIG: dict[str, Any] = {
         "timestamp_display_format": "%Y-%m-%d %H:%M:%S.%f",
         "compression": "snappy",
     },
-    "available_pmus": {"all": []},
+    "available_pmus": [],
     "notes": {
         "discovery": "PMU list is dynamically populated from database during setup. Use 'python -m phasor_point_cli setup --refresh-pmus' to update.",
         "list_tables": "Use 'list-tables' command to see which PMUs are currently accessible",
@@ -117,107 +116,109 @@ class ConfigurationManager:
 
         self._build_pmu_lookup()
 
-    def _build_pmu_lookup(self) -> None:  # noqa: PLR0912, PLR0915
+    def _build_pmu_lookup(self) -> None:
         """
         Create a dictionary indexed by PMU ID for quick lookups.
 
         Collects and reports malformed PMU entries with helpful messages.
         """
         lookup: dict[int, PMUInfo] = {}
-        malformed_entries: list[tuple[str, Any, str]] = []  # (region, entry, error_type)
+        malformed_entries: list[tuple[Any, str]] = []  # (entry, error_type)
         duplicate_ids: dict[int, int] = {}  # pmu_id -> count
 
-        available = self._config.get("available_pmus", {})
+        available = self._config.get("available_pmus", [])
 
-        if not isinstance(available, dict):
+        if not isinstance(available, list):
             self.logger.warning(
-                f"available_pmus must be a dictionary, got {type(available).__name__}. "
+                f"available_pmus must be a list, got {type(available).__name__}. "
                 "PMU list will be empty."
             )
             self._pmu_lookup = lookup
             return
 
-        for region, entries in available.items():
-            # Skip non-iterable entries (but warn)
-            if not isinstance(entries, Iterable):
-                self.logger.warning(
-                    f"PMU entries for region '{region}' must be a list, got {type(entries).__name__}. "
-                    "Skipping this region."
-                )
-                malformed_entries.append((region, f"<{type(entries).__name__}>", "non-iterable"))
-                continue
-
-            # Skip string iterables (common mistake)
-            if isinstance(entries, str):
-                self.logger.warning(
-                    f"PMU entries for region '{region}' must be a list of objects, not a string. "
-                    "Skipping this region."
-                )
-                malformed_entries.append((region, entries, "string instead of list"))
-                continue
-
-            for entry in entries:
-                try:
-                    info = PMUInfo.from_dict(entry, region=region)
-
-                    # Check for duplicate PMU IDs
-                    if info.id in lookup:
-                        duplicate_ids[info.id] = duplicate_ids.get(info.id, 1) + 1
-                        self.logger.debug(
-                            f"Duplicate PMU ID {info.id} in region '{region}'. "
-                            "Later entry will override earlier one."
-                        )
-
-                    lookup[info.id] = info
-
-                except KeyError as e:
-                    malformed_entries.append((region, entry, f"missing required field: {e}"))
-                    self.logger.debug(f"PMU entry missing required field in region {region}: {e}")
-                except TypeError as e:
-                    malformed_entries.append((region, entry, f"invalid type: {e}"))
-                    self.logger.debug(f"PMU entry has type error in region {region}: {e}")
-                except ValueError as e:
-                    malformed_entries.append((region, entry, f"invalid value: {e}"))
-                    self.logger.debug(f"PMU entry has invalid value in region {region}: {e}")
+        for entry in available:
+            self._process_pmu_entry(entry, lookup, malformed_entries, duplicate_ids)
 
         self._pmu_lookup = lookup
 
         # Report issues to user if any malformed entries or duplicates found
         if malformed_entries or duplicate_ids:
-            print("\n" + "=" * 70, file=sys.stderr)
-            print("[WARNING] Issues found in PMU configuration", file=sys.stderr)
-            print("=" * 70, file=sys.stderr)
+            self._report_pmu_validation_issues(malformed_entries, duplicate_ids, len(lookup))
 
-            if malformed_entries:
-                print(
-                    f"\n  Skipped {len(malformed_entries)} malformed PMU entries:", file=sys.stderr
+    def _process_pmu_entry(
+        self,
+        entry: Any,
+        lookup: dict[int, PMUInfo],
+        malformed_entries: list[tuple[Any, str]],
+        duplicate_ids: dict[int, int],
+    ) -> None:
+        """Process a single PMU entry."""
+        try:
+            info = PMUInfo.from_dict(entry)
+
+            # Check for duplicate PMU IDs
+            if info.id in lookup:
+                duplicate_ids[info.id] = duplicate_ids.get(info.id, 1) + 1
+                self.logger.debug(
+                    f"Duplicate PMU ID {info.id}. Later entry will override earlier one."
                 )
-                for region, entry, error in malformed_entries[:5]:  # Show first 5
-                    entry_str = str(entry)[:50] + "..." if len(str(entry)) > 50 else str(entry)
-                    print(f"    • Region '{region}': {error}", file=sys.stderr)
-                    print(f"      Entry: {entry_str}", file=sys.stderr)
 
-                if len(malformed_entries) > 5:
-                    print(f"    ... and {len(malformed_entries) - 5} more", file=sys.stderr)
+            lookup[info.id] = info
 
-                print("\n  Correct PMU format:", file=sys.stderr)
-                print(
-                    '    {"id": 45012, "station_name": "Station Name", "country": "US"}',
-                    file=sys.stderr,
-                )
-                print("    Required fields: id, station_name", file=sys.stderr)
+        except KeyError as e:
+            malformed_entries.append((entry, f"missing required field: {e}"))
+            self.logger.debug(f"PMU entry missing required field: {e}")
+        except TypeError as e:
+            malformed_entries.append((entry, f"invalid type: {e}"))
+            self.logger.debug(f"PMU entry has type error: {e}")
+        except ValueError as e:
+            malformed_entries.append((entry, f"invalid value: {e}"))
+            self.logger.debug(f"PMU entry has invalid value: {e}")
 
-            if duplicate_ids:
-                print(f"\n  Found {len(duplicate_ids)} duplicate PMU IDs:", file=sys.stderr)
-                for pmu_id, count in list(duplicate_ids.items())[:5]:
-                    print(f"    • PMU ID {pmu_id}: appears {count + 1} times", file=sys.stderr)
-                if len(duplicate_ids) > 5:
-                    print(f"    ... and {len(duplicate_ids) - 5} more", file=sys.stderr)
+    def _report_pmu_validation_issues(
+        self,
+        malformed_entries: list[tuple[Any, str]],
+        duplicate_ids: dict[int, int],
+        valid_count: int,
+    ) -> None:
+        """Report PMU validation issues to the user."""
+        print("\n" + "=" * 70, file=sys.stderr)
+        print("[WARNING] Issues found in PMU configuration", file=sys.stderr)
+        print("=" * 70, file=sys.stderr)
 
-            print(f"\n  Successfully loaded {len(lookup)} valid PMU(s)", file=sys.stderr)
-            print("\n  To refresh PMU list from database:", file=sys.stderr)
-            print("    python -m phasor_point_cli setup --refresh-pmus", file=sys.stderr)
-            print("=" * 70 + "\n", file=sys.stderr)
+        if malformed_entries:
+            self._report_malformed_entries(malformed_entries)
+
+        if duplicate_ids:
+            self._report_duplicate_ids(duplicate_ids)
+
+        print(f"\n  Successfully loaded {valid_count} valid PMU(s)", file=sys.stderr)
+        print("\n  To refresh PMU list from database:", file=sys.stderr)
+        print("    python -m phasor_point_cli setup --refresh-pmus", file=sys.stderr)
+        print("=" * 70 + "\n", file=sys.stderr)
+
+    def _report_malformed_entries(self, malformed_entries: list[tuple[Any, str]]) -> None:
+        """Report malformed PMU entries."""
+        print(f"\n  Skipped {len(malformed_entries)} malformed PMU entries:", file=sys.stderr)
+        for entry, error in malformed_entries[:5]:  # Show first 5
+            entry_str = str(entry)[:50] + "..." if len(str(entry)) > 50 else str(entry)
+            print(f"    • {error}", file=sys.stderr)
+            print(f"      Entry: {entry_str}", file=sys.stderr)
+
+        if len(malformed_entries) > 5:
+            print(f"    ... and {len(malformed_entries) - 5} more", file=sys.stderr)
+
+        print("\n  Correct PMU format:", file=sys.stderr)
+        print('    {"id": 45012, "station_name": "Station Name", "country": "US"}', file=sys.stderr)
+        print("    Required fields: id, station_name", file=sys.stderr)
+
+    def _report_duplicate_ids(self, duplicate_ids: dict[int, int]) -> None:
+        """Report duplicate PMU IDs."""
+        print(f"\n  Found {len(duplicate_ids)} duplicate PMU IDs:", file=sys.stderr)
+        for pmu_id, count in list(duplicate_ids.items())[:5]:
+            print(f"    • PMU ID {pmu_id}: appears {count + 1} times", file=sys.stderr)
+        if len(duplicate_ids) > 5:
+            print(f"    ... and {len(duplicate_ids) - 5} more", file=sys.stderr)
 
     # --------------------------------------------------------------- Validation
     def _validate_config(self) -> None:
@@ -254,9 +255,15 @@ class ConfigurationManager:
                     example=f'"{section}": {{\n      "field": "value"\n    }}',
                 )
 
-    def _validate_types(self) -> None:  # noqa: PLR0912
+    def _validate_types(self) -> None:
         """Validate data types for all configuration fields."""
-        # Database section
+        self._validate_database_types()
+        self._validate_extraction_types()
+        self._validate_data_quality_types()
+        self._validate_output_types()
+
+    def _validate_database_types(self) -> None:
+        """Validate database section types."""
         db = self._config.get("database", {})
         if "driver" in db and not isinstance(db["driver"], str):
             self._validation_error(
@@ -266,7 +273,8 @@ class ConfigurationManager:
                 example='"driver": "Psymetrix PhasorPoint"',
             )
 
-        # Extraction section
+    def _validate_extraction_types(self) -> None:
+        """Validate extraction section types."""
         extraction = self._config.get("extraction", {})
 
         if "default_resolution" in extraction and not isinstance(
@@ -302,7 +310,8 @@ class ConfigurationManager:
                     example='"timezone_handling": "machine_timezone"',
                 )
 
-        # Data quality section
+    def _validate_data_quality_types(self) -> None:
+        """Validate data_quality section types."""
         dq = self._config.get("data_quality", {})
 
         for field in ("frequency_min", "frequency_max", "null_threshold_percent", "gap_multiplier"):
@@ -314,7 +323,8 @@ class ConfigurationManager:
                     example=f'"{field}": 50',
                 )
 
-        # Output section
+    def _validate_output_types(self) -> None:
+        """Validate output section types."""
         output = self._config.get("output", {})
 
         if "default_output_dir" in output:
@@ -557,13 +567,13 @@ class ConfigurationManager:
             # Merge or replace PMU data
             if is_new_config:
                 # New config: replace empty list with fetched PMUs
-                config_data["available_pmus"]["all"] = fetched_pmus
+                config_data["available_pmus"] = fetched_pmus
                 logger.info(f"Populated config with {len(fetched_pmus)} PMUs from database")
             else:
                 # Existing config: merge with existing PMUs
-                existing_pmus = config_data.get("available_pmus", {}).get("all", [])
+                existing_pmus = config_data.get("available_pmus", [])
                 merged_pmus = merge_pmu_metadata(existing_pmus, fetched_pmus)
-                config_data["available_pmus"]["all"] = merged_pmus
+                config_data["available_pmus"] = merged_pmus
                 logger.info(
                     f"Merged PMU metadata: {len(merged_pmus)} total PMUs ({len(fetched_pmus)} fetched)"
                 )

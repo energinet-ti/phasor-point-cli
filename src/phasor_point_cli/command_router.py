@@ -352,7 +352,7 @@ class CommandRouter:
             f"Found {len(result.found_pmus)} PMUs with {result.total_tables} accessible tables"
         )
         print("=" * 100)
-        print(f"{'PMU':<8} {'Name':<25} {'Region':<20} {'Resolutions':<15} {'Tables'}")
+        print(f"{'PMU':<8} {'Name':<30} {'Resolutions':<15} {'Tables'}")
         print("=" * 100)
 
         unknown_pmus = []
@@ -363,15 +363,13 @@ class CommandRouter:
                 name_str = pmu_info.station_name
                 if pmu_info.country:
                     name_str = f"{name_str} ({pmu_info.country})"
-                region = pmu_info.region
             else:
                 name_str = "Unknown"
-                region = "Unknown"
                 unknown_pmus.append(pmu)
 
             res_str = ", ".join(map(str, resolutions_list))
             tables_str = ", ".join([f"pmu_{pmu}_{r}" for r in resolutions_list])
-            print(f"{pmu:<8} {name_str:<25} {region:<20} {res_str:<15} {tables_str}")
+            print(f"{pmu:<8} {name_str:<30} {res_str:<15} {tables_str}")
 
         print("=" * 100)
 
@@ -422,7 +420,6 @@ class CommandRouter:
         if table_info.pmu_info:
             name = table_info.pmu_info.station_name
             country = table_info.pmu_info.country
-            region = table_info.pmu_info.region
             if country:
                 self._logger.info(
                     "Inspecting %s for PMU %s (%s, %s)",
@@ -431,12 +428,12 @@ class CommandRouter:
                     name,
                     country,
                 )
-                print(f"[PMU] {args.pmu} - {name} ({country}) [{region}]")
+                print(f"[PMU] {args.pmu} - {name} ({country})")
             else:
                 self._logger.info(
                     "Inspecting %s for PMU %s (%s)", table_info.table_name, args.pmu, name
                 )
-                print(f"[PMU] {args.pmu} - {name} [{region}]")
+                print(f"[PMU] {args.pmu} - {name}")
 
         # Display table statistics
         print("=" * 80)
