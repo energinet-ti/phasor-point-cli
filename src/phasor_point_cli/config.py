@@ -167,8 +167,9 @@ class ConfigurationManager:
             lookup[info.id] = info
 
         except KeyError as e:
-            malformed_entries.append((entry, f"missing required field: {e}"))
-            self.logger.debug(f"PMU entry missing required field: {e}")
+            field_name = e.args[0] if e.args else str(e)
+            malformed_entries.append((entry, f"missing required field '{field_name}'"))
+            self.logger.debug(f"PMU entry missing required field '{field_name}'")
         except TypeError as e:
             malformed_entries.append((entry, f"invalid type: {e}"))
             self.logger.debug(f"PMU entry has type error: {e}")
