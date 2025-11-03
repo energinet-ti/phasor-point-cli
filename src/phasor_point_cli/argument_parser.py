@@ -137,8 +137,9 @@ By default, creates configuration in the user config directory:
   - Linux/Mac: ~/.config/phasor-cli/
   - Windows: %APPDATA%/phasor-cli/
 
+Interactive mode is enabled by default - you'll be prompted for credentials securely.
+Use --no-interactive to skip prompts and create template files instead.
 Use --local flag to create project-specific configuration in the current directory.
-Use --interactive flag to be prompted for credentials (they won't be visible while typing).
             """,
         )
         setup_parser.add_argument(
@@ -150,12 +151,24 @@ Use --interactive flag to be prompted for credentials (they won't be visible whi
             action="store_true",
             help="Create project-specific config in current directory",
         )
-        setup_parser.add_argument(
+
+        # Interactive mode: mutually exclusive group with default=True
+        interactive_group = setup_parser.add_mutually_exclusive_group()
+        interactive_group.add_argument(
             "--interactive",
             "-i",
             action="store_true",
-            help="Prompt for database credentials securely",
+            dest="interactive",
+            help="Prompt for database credentials securely (default)",
         )
+        interactive_group.add_argument(
+            "--no-interactive",
+            action="store_false",
+            dest="interactive",
+            help="Skip interactive prompts, use template files instead",
+        )
+        setup_parser.set_defaults(interactive=True)
+
         setup_parser.add_argument(
             "--refresh-pmus",
             action="store_true",

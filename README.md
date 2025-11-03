@@ -69,15 +69,22 @@ pip install -e .[dev]         # Development mode
 ### Setup
 
 ```bash
-# Create configuration files
+# Create configuration files (interactive by default)
 python -m phasor_point_cli setup              # User-level (~/.config/phasor-cli/)
 python -m phasor_point_cli setup --local      # Project-specific (./)
 
+# Non-interactive setup (creates template files)
+python -m phasor_point_cli setup --no-interactive
+
 # View active configuration
-python -m phasor_point_cli config-path
+python -m phasor_point_cli config
 ```
 
-Edit the generated files:
+Interactive setup (default) will prompt you for:
+- Database host, port, name
+- Database credentials (password input is hidden)
+
+Non-interactive setup creates template files you can edit:
 - `.env` - Database credentials (never commit!)
 - `config.json` - Settings and PMU metadata
 

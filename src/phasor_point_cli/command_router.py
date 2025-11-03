@@ -174,7 +174,7 @@ class CommandRouter:
         ConfigurationManager.setup_configuration_files(
             force=getattr(args, "force", False),
             local=getattr(args, "local", False),
-            interactive=getattr(args, "interactive", False),
+            interactive=getattr(args, "interactive", True),
             refresh_pmus=getattr(args, "refresh_pmus", False),
         )
 

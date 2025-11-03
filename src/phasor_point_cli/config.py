@@ -430,31 +430,31 @@ DEFAULT_OUTPUT_DIR=data_exports
         print("(Press Enter to skip optional fields)\n")
 
         try:
-            db_host = input("Database Host [required]: ").strip()
+            db_host = input("Database Host (e.g., localhost, 10.0.0.5): ").strip()
             while not db_host:
                 print("  Error: Database host is required")
-                db_host = input("Database Host [required]: ").strip()
+                db_host = input("Database Host (e.g., localhost, 10.0.0.5): ").strip()
 
-            db_port = input("Database Port [required]: ").strip()
+            db_port = input("Database Port (e.g., 1433): ").strip()
             while not db_port:
                 print("  Error: Database port is required")
-                db_port = input("Database Port [required]: ").strip()
+                db_port = input("Database Port (e.g., 1433): ").strip()
 
-            db_name = input("Database Name [required]: ").strip()
+            db_name = input("Database Name (e.g., PhasorPoint): ").strip()
             while not db_name:
                 print("  Error: Database name is required")
-                db_name = input("Database Name [required]: ").strip()
+                db_name = input("Database Name (e.g., PhasorPoint): ").strip()
 
-            db_username = input("Username [required]: ").strip()
+            db_username = input("Username (e.g., phasor_user): ").strip()
             while not db_username:
                 print("  Error: Username is required")
-                db_username = input("Username [required]: ").strip()
+                db_username = input("Username (e.g., phasor_user): ").strip()
 
             # Use getpass for password to hide input
-            db_password = getpass.getpass("Password [required]: ").strip()
+            db_password = getpass.getpass("Password (hidden): ").strip()
             while not db_password:
                 print("  Error: Password is required")
-                db_password = getpass.getpass("Password [required]: ").strip()
+                db_password = getpass.getpass("Password (hidden): ").strip()
 
             # Optional settings
             log_level = input("Log Level [optional, default: INFO]: ").strip() or "INFO"
