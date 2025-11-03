@@ -50,6 +50,7 @@ from .command_router import CommandRouter  # noqa: E402 - placed after environme
 from .config import ConfigurationManager  # noqa: E402 - placed after environment setup
 from .config_paths import ConfigPathManager  # noqa: E402 - placed after environment setup
 from .connection_pool import JDBCConnectionPool  # noqa: E402 - placed after environment setup
+from .constants import CLI_COMMAND_PYTHON  # noqa: E402 - placed after environment setup
 
 
 def setup_logging(verbose=False):
@@ -168,7 +169,7 @@ class PhasorPointCLI:
                 print(f"\n[ERROR] Invalid DB_PORT value: '{env_port}'")
                 print("Port must be a valid number (e.g., 1433, 5432, 3306)")
                 print("\n[FIX] Update your .env file or run:")
-                print("   phasor-cli setup  # to configure database settings")
+                print(f"   {CLI_COMMAND_PYTHON} setup  # to configure database settings")
                 sys.exit(1)
 
         self.database = env_database
@@ -199,7 +200,7 @@ class PhasorPointCLI:
             print("SETUP OPTIONS:")
             print("-" * 70)
             print("\n1. Quick Setup (Recommended):")
-            print("   phasor-cli setup")
+            print(f"   {CLI_COMMAND_PYTHON} setup")
             print("   → Creates config file with interactive prompts")
             print("\n2. Manual Environment Variables:")
             print("   export DB_USERNAME='your_username'")
@@ -214,9 +215,9 @@ class PhasorPointCLI:
             print("   echo 'DB_PORT=1433' >> .env")
             print("   echo 'DB_NAME=your_database' >> .env")
             print("\n4. Specify on command line:")
-            print("   phasor-cli --username USER --password PASS [command]")
+            print(f"   {CLI_COMMAND_PYTHON} --username USER --password PASS [command]")
             print("\n" + "=" * 70)
-            print("For more info: phasor-cli --help")
+            print(f"For more info: {CLI_COMMAND_PYTHON} --help")
             print("=" * 70 + "\n")
             sys.exit(1)
 
@@ -272,8 +273,8 @@ def main():
 
     output = UserOutput(quiet=False)
 
-    # Handle setup, config-path, config-clean, about, and aboot commands early (don't need database connection)
-    if args.command in ("setup", "config-path", "config-clean", "about", "aboot"):
+    # Handle setup, config, about, and aboot commands early (don't need database connection)
+    if args.command in ("setup", "config", "about", "aboot"):
         # Create a minimal router without CLI instance for non-DB commands
         # These commands don't require database access, so CLI instance is optional
         router = CommandRouter(None, logger, output)  # type: ignore[arg-type]
@@ -305,7 +306,7 @@ def main():
         logger.error(f"[ERROR] Specified config file not found: {config_file}")
         print(f"\n[ERROR] Configuration file not found: {config_file}\n")
         print("[SETUP] To create a configuration file, run:")
-        print("   phasor-cli setup")
+        print(f"   {CLI_COMMAND_PYTHON} setup")
         print("\nOr use environment variables for database connection.")
         sys.exit(1)
 

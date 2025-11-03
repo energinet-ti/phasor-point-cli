@@ -2,6 +2,8 @@
 ASCII art banner and about information for PhasorPoint CLI
 """
 
+from .constants import CLI_COMMAND_PYTHON
+
 try:
     from ._version import version as __version__
 except ImportError:
@@ -52,13 +54,13 @@ Features:
   • Custom SQL queries
 
 Quick Start:
-  phasor-cli setup              # Configure database connection
-  phasor-cli list-tables        # List available PMU tables
-  phasor-cli extract --pmu 45020 --hours 1 --output data.parquet
+  {CLI_COMMAND_PYTHON} setup              # Configure database connection
+  {CLI_COMMAND_PYTHON} list-tables        # List available PMU tables
+  {CLI_COMMAND_PYTHON} extract --pmu 45020 --hours 1 --output data.parquet
 
 For help:
-  phasor-cli --help            # Show all commands
-  phasor-cli <command> --help  # Show command-specific help
+  {CLI_COMMAND_PYTHON} --help            # Show all commands
+  {CLI_COMMAND_PYTHON} <command> --help  # Show command-specific help
 """
 
 

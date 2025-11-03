@@ -10,12 +10,12 @@ from __future__ import annotations
 import json
 import logging
 import sys
-from collections.abc import Iterable
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
 from .config_paths import ConfigPathManager
+from .constants import CLI_COMMAND_PYTHON, CONFIG_DIR_NAME
 from .models import DataQualityThresholds, PMUInfo
 
 __all__ = [
@@ -26,7 +26,7 @@ __all__ = [
 _EMBEDDED_DEFAULT_CONFIG: dict[str, Any] = {
     "database": {"driver": "Psymetrix PhasorPoint"},
     "extraction": {
-        "default_resolution": 1,
+        "default_resolution": 50,
         "default_clean": True,
         "timezone_handling": "machine_timezone",
     },
@@ -42,9 +42,9 @@ _EMBEDDED_DEFAULT_CONFIG: dict[str, Any] = {
         "timestamp_display_format": "%Y-%m-%d %H:%M:%S.%f",
         "compression": "snappy",
     },
-    "available_pmus": {"all": []},
+    "available_pmus": [],
     "notes": {
-        "discovery": "PMU list is dynamically populated from database during setup. Use 'phasor-cli setup --refresh-pmus' to update.",
+        "discovery": f"PMU list is dynamically populated from database during setup. Use '{CLI_COMMAND_PYTHON} setup --refresh-pmus' to update.",
         "list_tables": "Use 'list-tables' command to see which PMUs are currently accessible",
     },
 }
@@ -93,7 +93,7 @@ class ConfigurationManager:
                 print("   • Missing commas between items")
                 print("   • Unclosed brackets or braces")
                 print("   • Invalid quotes or escape characters")
-                print("\nOr regenerate with: phasor-cli setup --force\n")
+                print(f"\nOr regenerate with: {CLI_COMMAND_PYTHON} setup --force\n")
                 sys.exit(1)
             except Exception as exc:  # pragma: no cover - defensive logging
                 self.logger.error(f"Error loading config file: {exc}")
@@ -101,7 +101,7 @@ class ConfigurationManager:
                 print(f"Reason: {exc}\n")
                 print("[FIX] You can:")
                 print("   1. Check file permissions")
-                print("   2. Regenerate config: phasor-cli setup --force")
+                print(f"   2. Regenerate config: {CLI_COMMAND_PYTHON} setup --force")
                 print("   3. Use embedded defaults by removing the config file\n")
                 sys.exit(1)
         elif self.config_path:
@@ -111,25 +111,349 @@ class ConfigurationManager:
             config_data = _get_embedded_default_config()
 
         self._config = config_data
+
+        # Validate configuration before building PMU lookup
+        self._validate_config()
+
         self._build_pmu_lookup()
 
     def _build_pmu_lookup(self) -> None:
-        """Create a dictionary indexed by PMU ID for quick lookups."""
+        """
+        Create a dictionary indexed by PMU ID for quick lookups.
+
+        Collects and reports malformed PMU entries with helpful messages.
+        """
         lookup: dict[int, PMUInfo] = {}
-        available = self._config.get("available_pmus", {})
-        if isinstance(available, dict):
-            for region, entries in available.items():
-                if not isinstance(entries, Iterable):
-                    continue
-                for entry in entries:
-                    try:
-                        info = PMUInfo.from_dict(entry, region=region)
-                        lookup[info.id] = info
-                    except (KeyError, TypeError, ValueError):
-                        self.logger.debug(
-                            f"Skipping malformed PMU entry in region {region}: {entry}"
-                        )
+        malformed_entries: list[tuple[Any, str]] = []  # (entry, error_type)
+        duplicate_ids: dict[int, int] = {}  # pmu_id -> count
+
+        available = self._config.get("available_pmus", [])
+
+        if not isinstance(available, list):
+            self.logger.warning(
+                f"available_pmus must be a list, got {type(available).__name__}. "
+                "PMU list will be empty."
+            )
+            self._pmu_lookup = lookup
+            return
+
+        for entry in available:
+            self._process_pmu_entry(entry, lookup, malformed_entries, duplicate_ids)
+
         self._pmu_lookup = lookup
+
+        # Report issues to user if any malformed entries or duplicates found
+        if malformed_entries or duplicate_ids:
+            self._report_pmu_validation_issues(malformed_entries, duplicate_ids, len(lookup))
+
+    def _process_pmu_entry(
+        self,
+        entry: Any,
+        lookup: dict[int, PMUInfo],
+        malformed_entries: list[tuple[Any, str]],
+        duplicate_ids: dict[int, int],
+    ) -> None:
+        """Process a single PMU entry."""
+        try:
+            info = PMUInfo.from_dict(entry)
+
+            # Check for duplicate PMU IDs
+            if info.id in lookup:
+                duplicate_ids[info.id] = duplicate_ids.get(info.id, 1) + 1
+                self.logger.debug(
+                    f"Duplicate PMU ID {info.id}. Later entry will override earlier one."
+                )
+
+            lookup[info.id] = info
+
+        except KeyError as e:
+            field_name = e.args[0] if e.args else str(e)
+            malformed_entries.append((entry, f"missing required field '{field_name}'"))
+            self.logger.debug(f"PMU entry missing required field '{field_name}'")
+        except TypeError as e:
+            malformed_entries.append((entry, f"invalid type: {e}"))
+            self.logger.debug(f"PMU entry has type error: {e}")
+        except ValueError as e:
+            malformed_entries.append((entry, f"invalid value: {e}"))
+            self.logger.debug(f"PMU entry has invalid value: {e}")
+
+    def _report_pmu_validation_issues(
+        self,
+        malformed_entries: list[tuple[Any, str]],
+        duplicate_ids: dict[int, int],
+        valid_count: int,
+    ) -> None:
+        """Report PMU validation issues to the user."""
+        print("\n" + "=" * 70, file=sys.stderr)
+        print("[WARNING] Issues found in PMU configuration", file=sys.stderr)
+        print("=" * 70, file=sys.stderr)
+
+        if malformed_entries:
+            self._report_malformed_entries(malformed_entries)
+
+        if duplicate_ids:
+            self._report_duplicate_ids(duplicate_ids)
+
+        print(f"\n  Successfully loaded {valid_count} valid PMU(s)", file=sys.stderr)
+        print("\n  To refresh PMU list from database:", file=sys.stderr)
+        print(f"    {CLI_COMMAND_PYTHON} setup --refresh-pmus", file=sys.stderr)
+        print("=" * 70 + "\n", file=sys.stderr)
+
+    def _report_malformed_entries(self, malformed_entries: list[tuple[Any, str]]) -> None:
+        """Report malformed PMU entries."""
+        print(f"\n  Skipped {len(malformed_entries)} malformed PMU entries:", file=sys.stderr)
+        for entry, error in malformed_entries[:5]:  # Show first 5
+            entry_str = str(entry)[:50] + "..." if len(str(entry)) > 50 else str(entry)
+            print(f"    • {error}", file=sys.stderr)
+            print(f"      Entry: {entry_str}", file=sys.stderr)
+
+        if len(malformed_entries) > 5:
+            print(f"    ... and {len(malformed_entries) - 5} more", file=sys.stderr)
+
+        print("\n  Correct PMU format:", file=sys.stderr)
+        print('    {"id": 45012, "station_name": "Station Name", "country": "US"}', file=sys.stderr)
+        print("    Required fields: id, station_name", file=sys.stderr)
+
+    def _report_duplicate_ids(self, duplicate_ids: dict[int, int]) -> None:
+        """Report duplicate PMU IDs."""
+        print(f"\n  Found {len(duplicate_ids)} duplicate PMU IDs:", file=sys.stderr)
+        for pmu_id, count in list(duplicate_ids.items())[:5]:
+            print(f"    • PMU ID {pmu_id}: appears {count} times", file=sys.stderr)
+        if len(duplicate_ids) > 5:
+            print(f"    ... and {len(duplicate_ids) - 5} more", file=sys.stderr)
+
+    # --------------------------------------------------------------- Validation
+    def _validate_config(self) -> None:
+        """
+        Validate configuration structure, types, and constraints.
+
+        Performs 3-tier validation:
+        - Tier 1: Structure and types (fails fast)
+        - Tier 2: Logical constraints (fails fast)
+        - Tier 3: PMU data validation (warns, continues)
+        """
+        self._validate_structure()
+        self._validate_types()
+        self._validate_constraints()
+        # PMU validation happens in _build_pmu_lookup with warnings
+
+    def _validate_structure(self) -> None:
+        """Validate that required configuration sections exist and are dictionaries."""
+        required_sections = ("database", "extraction", "data_quality", "output")
+
+        for section in required_sections:
+            if section not in self._config:
+                self._validation_error(
+                    f"Missing required configuration section: '{section}'",
+                    expected="All configuration files must include: database, extraction, data_quality, output",
+                    example=f'"{section}": {{\n      "field": "value"\n    }}',
+                )
+
+            if not isinstance(self._config[section], dict):
+                self._validation_error(
+                    f"Configuration section '{section}' must be a dictionary",
+                    found=f"{type(self._config[section]).__name__}",
+                    expected="dictionary/object",
+                    example=f'"{section}": {{\n      "field": "value"\n    }}',
+                )
+
+    def _validate_types(self) -> None:
+        """Validate data types for all configuration fields."""
+        self._validate_database_types()
+        self._validate_extraction_types()
+        self._validate_data_quality_types()
+        self._validate_output_types()
+
+    def _validate_database_types(self) -> None:
+        """Validate database section types."""
+        db = self._config.get("database", {})
+        if "driver" in db and not isinstance(db["driver"], str):
+            self._validation_error(
+                "database.driver must be a string",
+                found=type(db["driver"]).__name__,
+                expected="string",
+                example='"driver": "Psymetrix PhasorPoint"',
+            )
+
+    def _validate_extraction_types(self) -> None:
+        """Validate extraction section types."""
+        extraction = self._config.get("extraction", {})
+
+        if "default_resolution" in extraction and not isinstance(
+            extraction["default_resolution"], int
+        ):
+            self._validation_error(
+                "extraction.default_resolution must be an integer",
+                found=type(extraction["default_resolution"]).__name__,
+                expected="integer",
+                example='"default_resolution": 50',
+            )
+
+        if "default_clean" in extraction and not isinstance(extraction["default_clean"], bool):
+            self._validation_error(
+                "extraction.default_clean must be a boolean",
+                found=type(extraction["default_clean"]).__name__,
+                expected="boolean (true/false)",
+                example='"default_clean": true',
+            )
+
+        if "timezone_handling" in extraction:
+            if not isinstance(extraction["timezone_handling"], str):
+                self._validation_error(
+                    "extraction.timezone_handling must be a string",
+                    found=type(extraction["timezone_handling"]).__name__,
+                    expected="string",
+                    example='"timezone_handling": "machine_timezone"',
+                )
+            elif extraction["timezone_handling"] not in ("machine_timezone", "utc", "local"):
+                self._validation_error(
+                    f"extraction.timezone_handling has invalid value: '{extraction['timezone_handling']}'",
+                    expected="one of: machine_timezone, utc, local",
+                    example='"timezone_handling": "machine_timezone"',
+                )
+
+    def _validate_data_quality_types(self) -> None:
+        """Validate data_quality section types."""
+        dq = self._config.get("data_quality", {})
+
+        for field in ("frequency_min", "frequency_max", "null_threshold_percent", "gap_multiplier"):
+            if field in dq and not isinstance(dq[field], (int, float)):
+                self._validation_error(
+                    f"data_quality.{field} must be a number",
+                    found=type(dq[field]).__name__,
+                    expected="number (int or float)",
+                    example=f'"{field}": 50',
+                )
+
+    def _validate_output_types(self) -> None:
+        """Validate output section types."""
+        output = self._config.get("output", {})
+
+        if "default_output_dir" in output:
+            if not isinstance(output["default_output_dir"], str):
+                self._validation_error(
+                    "output.default_output_dir must be a string",
+                    found=type(output["default_output_dir"]).__name__,
+                    expected="string",
+                    example='"default_output_dir": "data_exports"',
+                )
+            elif not output["default_output_dir"].strip():
+                self._validation_error(
+                    "output.default_output_dir cannot be empty",
+                    expected="non-empty string",
+                    example='"default_output_dir": "data_exports"',
+                )
+
+        if "compression" in output:
+            if not isinstance(output["compression"], str):
+                self._validation_error(
+                    "output.compression must be a string",
+                    found=type(output["compression"]).__name__,
+                    expected="string",
+                    example='"compression": "snappy"',
+                )
+            elif output["compression"] not in ("snappy", "gzip", "none"):
+                self._validation_error(
+                    f"output.compression has invalid value: '{output['compression']}'",
+                    expected="one of: snappy, gzip, none",
+                    example='"compression": "snappy"',
+                )
+
+    def _validate_constraints(self) -> None:
+        """Validate logical constraints between configuration values."""
+        # Extraction constraints
+        extraction = self._config.get("extraction", {})
+
+        if "default_resolution" in extraction:
+            resolution = extraction["default_resolution"]
+            if resolution <= 0:
+                self._validation_error(
+                    f"extraction.default_resolution must be positive (got {resolution})",
+                    expected="positive integer (e.g., 50, 100)",
+                    example='"default_resolution": 50',
+                )
+            elif resolution > 1000:
+                self.logger.warning(
+                    f"extraction.default_resolution is unusually high ({resolution}). "
+                    "Typical values are 1-1000."
+                )
+
+        # Data quality constraints
+        dq = self._config.get("data_quality", {})
+
+        freq_min = dq.get("frequency_min")
+        freq_max = dq.get("frequency_max")
+
+        if freq_min is not None and freq_max is not None and freq_max <= freq_min:
+            self._validation_error(
+                f"data_quality.frequency_max ({freq_max}) must be greater than frequency_min ({freq_min})",
+                expected="frequency_max > frequency_min",
+                example='"frequency_min": 45, "frequency_max": 65',
+            )
+
+        if freq_min is not None and (freq_min < 0 or freq_min > 100):
+            self._validation_error(
+                f"data_quality.frequency_min ({freq_min}) must be between 0 and 100",
+                expected="value between 0-100 Hz",
+                example='"frequency_min": 45',
+            )
+
+        if freq_max is not None and (freq_max < 0 or freq_max > 100):
+            self._validation_error(
+                f"data_quality.frequency_max ({freq_max}) must be between 0 and 100",
+                expected="value between 0-100 Hz",
+                example='"frequency_max": 65',
+            )
+
+        null_threshold = dq.get("null_threshold_percent")
+        if null_threshold is not None and (null_threshold < 0 or null_threshold > 100):
+            self._validation_error(
+                f"data_quality.null_threshold_percent ({null_threshold}) must be between 0 and 100",
+                expected="percentage value 0-100",
+                example='"null_threshold_percent": 50',
+            )
+
+        gap_multiplier = dq.get("gap_multiplier")
+        if gap_multiplier is not None and gap_multiplier <= 0:
+            self._validation_error(
+                f"data_quality.gap_multiplier ({gap_multiplier}) must be positive",
+                expected="positive number",
+                example='"gap_multiplier": 5',
+            )
+
+    def _validation_error(
+        self, message: str, found: str = "", expected: str = "", example: str = ""
+    ) -> None:
+        """
+        Print a formatted validation error message and exit.
+
+        Args:
+            message: The error message
+            found: What was found (optional)
+            expected: What was expected (optional)
+            example: Example of correct format (optional)
+        """
+        self.logger.error(f"Configuration validation failed: {message}")
+
+        print(f"\n[ERROR] Invalid configuration: {message}")
+
+        if found:
+            print(f"  Found: {found}")
+        if expected:
+            print(f"  Expected: {expected}")
+
+        if example:
+            print("\n  Example:")
+            for line in example.split("\n"):
+                print(f"    {line}")
+
+        config_location = self.config_path or "provided configuration"
+        print(f"\n  Config location: {config_location}")
+        print("\n[FIX] To regenerate a valid configuration:")
+        print(f"   {CLI_COMMAND_PYTHON} setup --force")
+        print()
+
+        sys.exit(1)
 
     # ------------------------------------------------------------------ Helpers
     @property
@@ -184,7 +508,10 @@ class ConfigurationManager:
         self.get_data_quality_thresholds()
 
         if not self._pmu_lookup:
-            self.logger.warning("Configuration does not define any available PMUs")
+            self.logger.warning(
+                "Configuration does not define any available PMUs. "
+                f"Run '{CLI_COMMAND_PYTHON} setup --refresh-pmus' to populate PMU list from database."
+            )
 
     # -------------------------------------------------------------- Setup files
     @staticmethod
@@ -224,7 +551,7 @@ class ConfigurationManager:
         if not conn_manager.is_configured:
             logger.warning("Database credentials not fully configured in .env file")
             logger.info(
-                "PMU list not populated. Run 'phasor-cli setup --refresh-pmus' after configuring credentials."
+                f"PMU list not populated. Run '{CLI_COMMAND_PYTHON} setup --refresh-pmus' after configuring credentials."
             )
             return
 
@@ -242,13 +569,13 @@ class ConfigurationManager:
             # Merge or replace PMU data
             if is_new_config:
                 # New config: replace empty list with fetched PMUs
-                config_data["available_pmus"]["all"] = fetched_pmus
+                config_data["available_pmus"] = fetched_pmus
                 logger.info(f"Populated config with {len(fetched_pmus)} PMUs from database")
             else:
                 # Existing config: merge with existing PMUs
-                existing_pmus = config_data.get("available_pmus", {}).get("all", [])
+                existing_pmus = config_data.get("available_pmus", [])
                 merged_pmus = merge_pmu_metadata(existing_pmus, fetched_pmus)
-                config_data["available_pmus"]["all"] = merged_pmus
+                config_data["available_pmus"] = merged_pmus
                 logger.info(
                     f"Merged PMU metadata: {len(merged_pmus)} total PMUs ({len(fetched_pmus)} fetched)"
                 )
@@ -260,7 +587,7 @@ class ConfigurationManager:
         except Exception as exc:
             logger.warning(f"Could not fetch PMU list from database: {exc}")
             logger.info(
-                "Created config with empty PMU list. Run 'phasor-cli setup --refresh-pmus' to populate PMUs."
+                f"Created config with empty PMU list. Run '{CLI_COMMAND_PYTHON} setup --refresh-pmus' to populate PMUs."
             )
 
     @staticmethod
@@ -368,27 +695,27 @@ DEFAULT_OUTPUT_DIR=data_exports
         print("\n" + "-" * 70)
         print("Next Steps:")
         print("-" * 70)
-        print("\n1. Edit your .env file:")
+        print("\n1. Edit your .env file with actual credentials:")
         print(f"   {env_file}")
-        print("\n   Replace placeholder values with your actual credentials:")
+        print("\n   Replace placeholder values:")
         print("   DB_USERNAME=your_actual_username")
         print("   DB_PASSWORD=your_actual_password")
         print("   DB_HOST=your_database_host")
         print("   DB_PORT=your_database_port")
         print("   DB_NAME=your_database_name")
 
-        print("\n2. Verify your configuration:")
-        print("   phasor-cli config-path")
+        print("\n2. Test your database connection:")
+        print(f"   {CLI_COMMAND_PYTHON} list-tables")
 
-        print("\n3. Test your setup:")
-        print("   phasor-cli list-tables")
+        print("\n3. Extract some data:")
+        print(f"   {CLI_COMMAND_PYTHON} extract --pmu 45022 --hours 1")
 
         print("\n" + "-" * 70)
         print("Configuration Priority:")
         print("-" * 70)
         print("1. Environment variables (highest priority)")
         print("2. Local project config (./config.json, ./.env)")
-        print("3. User config (~/.config/phasor-cli/ or %APPDATA%/phasor-cli/)")
+        print(f"3. User config (~/.config/{CONFIG_DIR_NAME}/ or %APPDATA%/{CONFIG_DIR_NAME}/)")
         print("4. Embedded defaults (lowest priority)")
 
         print("\n" + "-" * 70)
@@ -403,7 +730,7 @@ DEFAULT_OUTPUT_DIR=data_exports
             print("Project-Specific Configuration:")
             print("-" * 70)
             print("To create project-specific configs that override user defaults:")
-            print("   phasor-cli setup --local")
+            print(f"   {CLI_COMMAND_PYTHON} setup --local")
 
     @staticmethod
     def _create_interactive_env_content(logger: logging.Logger | None = None) -> str:
@@ -427,31 +754,31 @@ DEFAULT_OUTPUT_DIR=data_exports
         print("(Press Enter to skip optional fields)\n")
 
         try:
-            db_host = input("Database Host [required]: ").strip()
+            db_host = input("Database Host (e.g., localhost, 10.0.0.5): ").strip()
             while not db_host:
                 print("  Error: Database host is required")
-                db_host = input("Database Host [required]: ").strip()
+                db_host = input("Database Host (e.g., localhost, 10.0.0.5): ").strip()
 
-            db_port = input("Database Port [required]: ").strip()
+            db_port = input("Database Port (e.g., 1433): ").strip()
             while not db_port:
                 print("  Error: Database port is required")
-                db_port = input("Database Port [required]: ").strip()
+                db_port = input("Database Port (e.g., 1433): ").strip()
 
-            db_name = input("Database Name [required]: ").strip()
+            db_name = input("Database Name (e.g., PhasorPoint): ").strip()
             while not db_name:
                 print("  Error: Database name is required")
-                db_name = input("Database Name [required]: ").strip()
+                db_name = input("Database Name (e.g., PhasorPoint): ").strip()
 
-            db_username = input("Username [required]: ").strip()
+            db_username = input("Username (e.g., phasor_user): ").strip()
             while not db_username:
                 print("  Error: Username is required")
-                db_username = input("Username [required]: ").strip()
+                db_username = input("Username (e.g., phasor_user): ").strip()
 
             # Use getpass for password to hide input
-            db_password = getpass.getpass("Password [required]: ").strip()
+            db_password = getpass.getpass("Password (hidden): ").strip()
             while not db_password:
                 print("  Error: Password is required")
-                db_password = getpass.getpass("Password [required]: ").strip()
+                db_password = getpass.getpass("Password (hidden): ").strip()
 
             # Optional settings
             log_level = input("Log Level [optional, default: INFO]: ").strip() or "INFO"
@@ -566,5 +893,5 @@ DEFAULT_OUTPUT_DIR=data_exports
         print("\n" + "-" * 70)
         print("Note: Embedded defaults will still be used by the application.")
         print("To create new configuration files, run:")
-        print("   phasor-cli setup")
+        print(f"   {CLI_COMMAND_PYTHON} setup")
         print("-" * 70)

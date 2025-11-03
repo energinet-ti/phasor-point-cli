@@ -140,8 +140,8 @@ Wait for completion and verify:
 pip install --index-url https://test.pypi.org/simple/ phasor-point-cli
 
 # Test basic functionality
-phasor-cli --version
-phasor-cli --help
+python -m phasor_point_cli --version
+python -m phasor_point_cli --help
 ```
 
 #### Publish to Production PyPI
@@ -159,7 +159,7 @@ Verify publication:
 pip install phasor-point-cli
 
 # Verify version
-phasor-cli --version  # Should show 0.0.1
+python -m phasor_point_cli --version  # Should show 0.0.1
 ```
 
 ### 7. Announce Release

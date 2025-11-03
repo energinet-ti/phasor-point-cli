@@ -22,24 +22,20 @@ def sample_config():
 
     config = Mock()
     config.config = {
-        "available_pmus": {
-            "RegionA": [
-                {"id": 45012, "station_name": "PMU A", "country": "NO"},
-                {"id": 45013, "station_name": "PMU B", "country": "SE"},
-            ]
-        }
+        "available_pmus": [
+            {"id": 45012, "station_name": "PMU A", "country": "NO"},
+            {"id": 45013, "station_name": "PMU B", "country": "SE"},
+        ]
     }
 
     def get_pmu_info(pmu_id):
-        for region, pmus in config.config["available_pmus"].items():
-            for pmu_data in pmus:
-                if pmu_data["id"] == pmu_id:
-                    return PMUInfo(
-                        id=pmu_data["id"],
-                        station_name=pmu_data["station_name"],
-                        region=region,
-                        country=pmu_data.get("country", ""),
-                    )
+        for pmu_data in config.config["available_pmus"]:
+            if pmu_data["id"] == pmu_id:
+                return PMUInfo(
+                    id=pmu_data["id"],
+                    station_name=pmu_data["station_name"],
+                    country=pmu_data.get("country", ""),
+                )
         return None
 
     config.get_pmu_info = get_pmu_info

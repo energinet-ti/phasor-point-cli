@@ -13,6 +13,7 @@ import pandas as pd
 
 from .chunk_strategy import ChunkStrategy
 from .config_paths import ConfigPathManager
+from .constants import CLI_COMMAND_PYTHON
 from .data_extractor import DataExtractor
 from .data_processor import DataProcessor
 from .data_validator import DataValidator
@@ -75,7 +76,14 @@ class ExtractionManager:
     def _get_station_name(self, pmu_id: int) -> str:
         """Get sanitized station name from PMU ID."""
         pmu_info = self.config_manager.get_pmu_info(pmu_id)
-        station_name = pmu_info.station_name if pmu_info else "unknown"
+        if not pmu_info:
+            self.logger.warning(
+                f"PMU {pmu_id} metadata not found in configuration. "
+                f"Consider running '{CLI_COMMAND_PYTHON} setup --refresh-pmus' to update PMU list."
+            )
+            station_name = "unknown"
+        else:
+            station_name = pmu_info.station_name
         return FileUtils.sanitize_filename(station_name)
 
     def _expected_output_path(

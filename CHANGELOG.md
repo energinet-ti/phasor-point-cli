@@ -10,6 +10,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Nothing yet
 
+## [0.4.0] - 2025-11-03
+
+### Added
+- Non-interactive setup mode that generates template configuration files
+- Enhanced validation and error messages for PMU configuration
+
+### Changed
+- Default resolution increased from 1 to 50 for better data extraction accuracy
+- Configuration commands consolidated into single `config` command (replaces `config-path` and `config-clean`)
+- Interactive mode is now the default for setup, prompting securely for credentials
+- PMU configuration structure changed from dictionary to list format
+
 ## [0.3.0] - 2025-10-30
 
 ### Added
@@ -95,7 +107,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI/CD workflows for testing and PyPI publishing
 - Complete documentation and usage examples
 
-[Unreleased]: https://github.com/energinet-ti/phasor-point-cli/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/energinet-ti/phasor-point-cli/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/energinet-ti/phasor-point-cli/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/energinet-ti/phasor-point-cli/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/energinet-ti/phasor-point-cli/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/energinet-ti/phasor-point-cli/compare/v0.0.2...v0.1.0
