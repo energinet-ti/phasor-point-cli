@@ -10,6 +10,17 @@ alwaysApply: true
 - Use type hints where appropriate
 - Keep functions focused and modular
 
+## Python Version Compatibility
+
+- Always check `pyproject.toml` for supported Python versions (currently >=3.8)
+- All code, including tests, must be compatible with Python 3.8+
+- Avoid Python 3.9+ features like `str.removeprefix()` and `str.removesuffix()`
+- Avoid Python 3.10+ features like union type syntax (`str | None`) - use `Optional[str]` instead
+- Avoid Python 3.10+ structural pattern matching (`match`/`case` statements)
+- Use `from __future__ import annotations` in source files for forward compatibility
+- When writing tests with inline class definitions, use `Optional[T]` not `T | None`
+- If you're unsure about a feature's Python version, check the documentation first
+
 ## Documentation
 
 - Keep README files short and concise

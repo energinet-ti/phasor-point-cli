@@ -6,6 +6,7 @@ Tests output formatters (Human and JSON) and the UserOutput orchestrator.
 
 import json
 import warnings
+from typing import Optional
 from unittest.mock import patch
 
 import pandas as pd
@@ -768,13 +769,13 @@ class TestOutputFormatterInterface:
             def section_header(self, title: str) -> str:
                 return f"CUSTOM: {title}"
 
-            def info(self, message: str, tag: str | None = None) -> str:
+            def info(self, message: str, tag: Optional[str] = None) -> str:
                 return f"CUSTOM INFO: {message}"
 
             def warning(self, message: str) -> str:
                 return f"CUSTOM WARNING: {message}"
 
-            def data_summary(self, df: pd.DataFrame, title: str | None = None) -> str:
+            def data_summary(self, df: pd.DataFrame, title: Optional[str] = None) -> str:
                 return f"CUSTOM SUMMARY: {len(df)} rows"
 
             def batch_progress(self, completed: int, total: int, pmu_id: int) -> str:
