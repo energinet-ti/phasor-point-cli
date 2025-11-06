@@ -11,7 +11,7 @@ import logging
 from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import suppress
-from typing import Optional, Tuple
+from typing import Optional
 
 import pandas as pd
 
@@ -93,7 +93,7 @@ class TableManager:
         return conn
 
     # ----------------------------------------------------------- Table Scanning
-    def _check_single_table(self, pmu_id: int, resolution: int) -> Optional[Tuple[int, int]]:
+    def _check_single_table(self, pmu_id: int, resolution: int) -> Optional[tuple[int, int]]:
         """
         Check if a single table exists.
 
