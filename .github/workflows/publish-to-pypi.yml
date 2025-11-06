@@ -1,10 +1,8 @@
 name: "Release: Publish to PyPI"
 
-# This workflow publishes to PyPI when a release is published on GitHub
-# To enable:
-#   1. Create a PyPI account and generate an API token
-#   2. Add the token as a secret in GitHub: Settings > Secrets > PYPI_API_TOKEN
-#   3. Uncomment the 'on' trigger below
+# This workflow publishes to PyPI using trusted publishing (OIDC)
+# Setup: Configure trusted publisher on PyPI with this workflow name
+# See instructions at the bottom of this file
 
 # on:
 #   release:
@@ -23,6 +21,7 @@ on:
           - pypi
 
 permissions:
+  id-token: write  # REQUIRED for trusted publishing
   contents: read
 
 jobs:
@@ -44,7 +43,7 @@ jobs:
       - name: Install build dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install build twine setuptools-scm
+          pip install build setuptools-scm
       
       - name: Verify version detection
         run: |
@@ -58,25 +57,15 @@ jobs:
           echo "Built packages:"
           ls -lh dist/
       
-      - name: Verify package
-        run: |
-          twine check dist/*
-      
       - name: Publish to TestPyPI
         if: github.event.inputs.environment == 'pypi-test'
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-        run: |
-          twine upload --repository testpypi dist/*
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
       
       - name: Publish to PyPI
         if: github.event.inputs.environment == 'pypi'
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-        run: |
-          twine upload dist/*
+        uses: pypa/gh-action-pypi-publish@release/v1
       
       - name: Success summary
         run: |
@@ -90,27 +79,25 @@ jobs:
             echo "📦 Package available at: https://test.pypi.org/project/phasor-point-cli/" >> $GITHUB_STEP_SUMMARY
           fi
 
-# Setup Instructions:
+# Setup Instructions (Trusted Publishing):
 # 
-# 1. Create PyPI Account:
-#    - Production: https://pypi.org/account/register/
-#    - Testing: https://test.pypi.org/account/register/
+# 1. Configure Trusted Publisher on PyPI:
+#    - Go to PyPI project settings > Publishing
+#    - Add a new trusted publisher:
+#      - Owner: energinet-ti
+#      - Repository: phasor-point-cli
+#      - Workflow: publish-to-pypi.yml
+#      - Environment: pypi (or pypi-test for TestPyPI)
 # 
-# 2. Generate API Token:
-#    - Go to Account Settings > API tokens
-#    - Create a token for the phasor-point-cli project
+# 2. Test with Manual Trigger:
+#    - Go to Actions > Release: Publish to PyPI
+#    - Click "Run workflow"
+#    - Select "pypi-test" or "pypi" environment
+#    - First successful run will activate the trusted publisher
 # 
-# 3. Add Secrets to GitHub:
-#    - Go to: Settings > Secrets and variables > Actions
-#    - Add secret: PYPI_API_TOKEN (for production)
-#    - Add secret: TEST_PYPI_API_TOKEN (for testing)
-# 
-# 4. Enable Automatic Publishing:
+# 3. Enable Automatic Publishing (optional):
 #    - Uncomment the 'on: release' trigger at the top
 #    - Comment out the 'on: workflow_dispatch' trigger
+#    - Future releases will auto-publish
 # 
-# 5. Test First:
-#    - Go to Actions > Publish to PyPI
-#    - Click "Run workflow"
-#    - Select "testpypi" environment
-#    - Verify it works before enabling automatic publishing
+# Note: No API tokens needed - uses OpenID Connect (OIDC) authentication
