@@ -37,6 +37,9 @@ build/
 .eggs/
 src/phasor_point_cli/_version.py
 
+# SBOM files
+*-sbom.json
+
 # Jupyter Notebook
 .ipynb_checkpoints
 

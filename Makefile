@@ -1,4 +1,4 @@
-.PHONY: help lint format type-check check test clean install dev coverage build validate-pyproject
+.PHONY: help lint format type-check check test clean install dev coverage build sbom validate-pyproject
 
 help:
 	@echo "Available commands:"
@@ -14,6 +14,7 @@ help:
 	@echo "  make test                - Run tests"
 	@echo "  make coverage            - Run tests with coverage report"
 	@echo "  make build               - Build wheel distribution package"
+	@echo "  make sbom                - Generate SBOM (Software Bill of Materials)"
 	@echo "  make clean               - Remove build artifacts and cache files"
 
 # Run setup script
@@ -70,10 +71,19 @@ coverage:
 	@echo ""
 	@echo "HTML coverage report generated in htmlcov/index.html"
 
+sbom:
+	@echo "Generating SBOM (Software Bill of Materials)..."
+	@mkdir -p dist
+	./venv/bin/cyclonedx-py environment --pyproject pyproject.toml --of JSON -o dist/phasor-point-cli-sbom.json ./venv
+	@echo "SBOM generated: dist/phasor-point-cli-sbom.json"
+
 build:
 	@echo "Building wheel distribution package..."
 	./venv/bin/pip install --upgrade build
 	./venv/bin/python -m build
+	@echo ""
+	@echo "Generating SBOM..."
+	./venv/bin/cyclonedx-py environment --pyproject pyproject.toml --of JSON -o dist/phasor-point-cli-sbom.json ./venv
 	@echo ""
 	@echo "Build complete! Distribution files created in dist/"
 	@ls -lh dist/
