@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Nothing yet
 
+## [0.5.2] - 2025-11-06
+
+### Fixed
+- Internal: Release workflow improvements (SBOM generation, timeout handling, and error handling)
+
 ## [0.5.1] - 2025-11-06
 
 ### Fixed
