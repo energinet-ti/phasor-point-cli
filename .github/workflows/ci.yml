@@ -143,7 +143,7 @@ jobs:
     
     - name: Check package
       run: |
-        twine check dist/*
+        twine check dist/*.whl dist/*.tar.gz
     
     - name: Upload artifacts
       uses: actions/upload-artifact@v4

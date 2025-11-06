@@ -7,8 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-- Nothing yet
+### Fixed
+- Release pipeline error where `twine check` attempted to validate SBOM JSON files as Python distributions
 
 ## [0.5.0] - 2025-11-06
 

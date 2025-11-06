@@ -290,7 +290,7 @@ git push origin v0.0.1
 ```bash
 # Test build locally first
 python -m build
-twine check dist/*
+twine check dist/*.whl dist/*.tar.gz
 ```
 
 ### Wrong Version After Release
