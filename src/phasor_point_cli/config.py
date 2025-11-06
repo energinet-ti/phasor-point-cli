@@ -603,11 +603,11 @@ class ConfigurationManager:
             logger: Optional logger instance.
         """
         log = logger or logging.getLogger("config")
-        
+
         from .config_paths import ConfigPathManager  # noqa: PLC0415 - late import
 
         path_manager = ConfigPathManager()
-        
+
         # Determine target directory
         if local:
             config_dir = Path.cwd()
@@ -622,10 +622,10 @@ class ConfigurationManager:
                 # Fall back to user config directory
                 config_dir = path_manager.get_user_config_dir()
                 location_desc = f"user config directory ({config_dir})"
-        
+
         config_file = config_dir / "config.json"
         env_file = config_dir / ".env"
-        
+
         # Check if config file exists
         if not config_file.exists():
             print("\n" + "=" * 70)
@@ -640,7 +640,7 @@ class ConfigurationManager:
             print("=" * 70 + "\n")
             log.error(f"Config file not found: {config_file}")
             return
-        
+
         print("\n" + "=" * 70)
         print("Refreshing PMU List from Database")
         print("=" * 70)
@@ -648,9 +648,9 @@ class ConfigurationManager:
         print(f"Config: {config_file}")
         print(f"Env:    {env_file}")
         print()
-        
+
         log.info(f"Refreshing PMU list for {location_desc}")
-        
+
         # Call the private fetch method
         ConfigurationManager._fetch_and_populate_pmus(
             config_file=config_file,
@@ -658,7 +658,7 @@ class ConfigurationManager:
             is_new_config=False,  # Always merge when refreshing
             logger=log,
         )
-        
+
         print("\n" + "=" * 70)
         print("PMU List Refresh Complete")
         print("=" * 70)

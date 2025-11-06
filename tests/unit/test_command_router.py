@@ -148,9 +148,7 @@ class TestCommandRouter:
             command_router.handle_setup(args)
 
         # Assert
-        mock_setup.assert_called_once_with(
-            force=False, local=False, interactive=True
-        )
+        mock_setup.assert_called_once_with(force=False, local=False, interactive=True)
 
     def test_handle_setup_with_force(self, command_router):
         """Test handle_setup with force flag."""
@@ -164,9 +162,7 @@ class TestCommandRouter:
             command_router.handle_setup(args)
 
         # Assert
-        mock_setup.assert_called_once_with(
-            force=True, local=False, interactive=True
-        )
+        mock_setup.assert_called_once_with(force=True, local=False, interactive=True)
 
     def test_handle_setup_with_local(self, command_router):
         """Test handle_setup with local flag."""
@@ -180,9 +176,7 @@ class TestCommandRouter:
             command_router.handle_setup(args)
 
         # Assert
-        mock_setup.assert_called_once_with(
-            force=False, local=True, interactive=True
-        )
+        mock_setup.assert_called_once_with(force=False, local=True, interactive=True)
 
     def test_handle_setup_with_force_and_local(self, command_router):
         """Test handle_setup with both force and local flags."""
@@ -196,9 +190,7 @@ class TestCommandRouter:
             command_router.handle_setup(args)
 
         # Assert
-        mock_setup.assert_called_once_with(
-            force=True, local=True, interactive=True
-        )
+        mock_setup.assert_called_once_with(force=True, local=True, interactive=True)
 
     def test_handle_setup_with_interactive(self, command_router):
         """Test handle_setup with interactive flag (explicitly set)."""
@@ -212,9 +204,7 @@ class TestCommandRouter:
             command_router.handle_setup(args)
 
         # Assert
-        mock_setup.assert_called_once_with(
-            force=False, local=False, interactive=True
-        )
+        mock_setup.assert_called_once_with(force=False, local=False, interactive=True)
 
     def test_handle_setup_with_no_interactive(self, command_router):
         """Test handle_setup with --no-interactive flag."""
@@ -228,9 +218,7 @@ class TestCommandRouter:
             command_router.handle_setup(args)
 
         # Assert
-        mock_setup.assert_called_once_with(
-            force=False, local=False, interactive=False
-        )
+        mock_setup.assert_called_once_with(force=False, local=False, interactive=False)
 
     def test_handle_list_tables_default(self, command_router):
         """Test handle_list_tables with default parameters."""
@@ -718,9 +706,7 @@ class TestCommandRouter:
             command_router.handle_config(args)
 
         # Assert
-        mock_refresh.assert_called_once_with(
-            local=False, logger=command_router._logger
-        )
+        mock_refresh.assert_called_once_with(local=False, logger=command_router._logger)
 
     def test_handle_config_with_refresh_pmus_local(self, command_router):
         """Test handle_config with --refresh-pmus and --local flags."""
@@ -734,9 +720,7 @@ class TestCommandRouter:
             command_router.handle_config(args)
 
         # Assert
-        mock_refresh.assert_called_once_with(
-            local=True, logger=command_router._logger
-        )
+        mock_refresh.assert_called_once_with(local=True, logger=command_router._logger)
 
     def test_handle_config_display(self, command_router, capsys):
         """Test handle_config displays configuration paths."""
