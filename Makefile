@@ -1,19 +1,20 @@
-.PHONY: help lint format type-check check test clean install dev coverage build
+.PHONY: help lint format type-check check test clean install dev coverage build validate-pyproject
 
 help:
 	@echo "Available commands:"
-	@echo "  make install     - Install package"
-	@echo "  make setup       - Run setup script"
-	@echo "  make dev         - Install package with dev dependencies"
-	@echo "  make lint        - Run linter (check only)"
-	@echo "  make format      - Auto-format code"
-	@echo "  make type-check  - Run type checker (Pyright)"
-	@echo "  make fix         - Auto-fix linting issues and format code"
-	@echo "  make check       - Run all checks (lint + format + type-check + tests)"
-	@echo "  make test        - Run tests"
-	@echo "  make coverage    - Run tests with coverage report"
-	@echo "  make build       - Build wheel distribution package"
-	@echo "  make clean       - Remove build artifacts and cache files"
+	@echo "  make install             - Install package"
+	@echo "  make setup               - Run setup script"
+	@echo "  make dev                 - Install package with dev dependencies"
+	@echo "  make lint                - Run linter (check only)"
+	@echo "  make format              - Auto-format code"
+	@echo "  make type-check          - Run type checker (Pyright)"
+	@echo "  make validate-pyproject  - Validate pyproject.toml"
+	@echo "  make fix                 - Auto-fix linting issues and format code"
+	@echo "  make check               - Run all checks (lint + format + validate + tests)"
+	@echo "  make test                - Run tests"
+	@echo "  make coverage            - Run tests with coverage report"
+	@echo "  make build               - Build wheel distribution package"
+	@echo "  make clean               - Remove build artifacts and cache files"
 
 # Run setup script
 setup:
@@ -35,16 +36,29 @@ type-check:
 	@echo "Running type checker..."
 	PYRIGHT_PYTHON_FORCE_VERSION=latest ./venv/bin/pyright src/ tests/
 
+validate-pyproject:
+	@echo "Validating pyproject.toml..."
+	./venv/bin/validate-pyproject pyproject.toml
+
 fix:
 	./venv/bin/ruff check --no-cache --fix src/ tests/
 	./venv/bin/ruff format src/ tests/
 
 check:
 	@echo "Running comprehensive checks..."
+	@echo "1. Validating pyproject.toml..."
+	./venv/bin/validate-pyproject pyproject.toml
+	@echo "2. Testing package build with isolated env (matches CI behavior)..."
+	./venv/bin/python -m build --wheel --outdir /tmp/phasor-build-check 2>&1 | tee /tmp/phasor-build.log
+	@rm -rf /tmp/phasor-build-check /tmp/phasor-build.log
+	@echo "3. Running linter..."
 	./venv/bin/ruff check --no-cache src/ tests/
+	@echo "4. Checking code formatting..."
 	./venv/bin/ruff format --check src/ tests/
+	@echo "5. Running tests..."
 	./venv/bin/pytest
 	@echo ""
+	@echo "All checks passed!"
 	@echo "Note: Type checking available with 'make type-check'"
 
 test:

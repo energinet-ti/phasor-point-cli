@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "A comprehensive CLI for extracting, processing, and analyzing PMU data from PhasorPoint databases"
 readme = "README.md"
 requires-python = ">=3.8"
-license = "Apache-2.0"
+license = { text = "Apache-2.0" }
 authors = [
     {name = "Frederik Fast", email = "ffb@energinet.dk"}
 ]
@@ -48,6 +48,7 @@ dev = [
     "pyright>=1.1.0",
     "build>=0.10.0",
     "setuptools-scm>=8.0",
+    "validate-pyproject>=0.15",
 ]
 
 [project.scripts]
