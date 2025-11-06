@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - SBOM (Software Bill of Materials) generation with accurate dependency tracking
 - Version-specific SBOM filenames that match build artifacts
 - GitHub Actions workflow grouping with consistent naming prefixes (CI, Security, Release)
+- AGENTS.md file following the standard agents.md format for multi-IDE AI coding assistant compatibility
 
 ### Changed
 - **RESTORED**: Python 3.8 and 3.9 support (minimum Python version lowered from 3.10 to 3.8)
