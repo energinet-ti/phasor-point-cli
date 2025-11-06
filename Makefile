@@ -74,8 +74,19 @@ coverage:
 sbom:
 	@echo "Generating SBOM (Software Bill of Materials)..."
 	@mkdir -p dist
-	./venv/bin/cyclonedx-py environment --pyproject pyproject.toml --of JSON -o dist/phasor-point-cli-sbom.json ./venv
-	@echo "SBOM generated: dist/phasor-point-cli-sbom.json"
+	@echo "Building package..."
+	./venv/bin/python -m build --wheel --outdir dist
+	@echo "Creating clean environment for SBOM..."
+	$(eval WHEEL := $(shell ls dist/phasor_point_cli-*-py3-none-any.whl | head -n1))
+	$(eval VERSION := $(shell basename $(WHEEL) | sed 's/phasor_point_cli-\(.*\)-py3-none-any.whl/\1/'))
+	python3 -m venv sbom-venv
+	sbom-venv/bin/pip install --upgrade pip --quiet
+	sbom-venv/bin/pip install $(WHEEL) --quiet
+	./venv/bin/cyclonedx-py environment --pyproject pyproject.toml --of JSON -o dist/phasor-point-cli-$(VERSION)-sbom.json sbom-venv
+	@echo "Filtering out environment packages (pip)..."
+	jq 'del(.components[] | select(.name == "pip")) | .dependencies |= map(select(.ref != "pip==25.3")) | .dependencies[] |= (if .dependsOn then .dependsOn |= map(select(. != "pip==25.3")) else . end)' dist/phasor-point-cli-$(VERSION)-sbom.json > dist/phasor-point-cli-$(VERSION)-sbom.json.tmp && mv dist/phasor-point-cli-$(VERSION)-sbom.json.tmp dist/phasor-point-cli-$(VERSION)-sbom.json
+	@rm -rf sbom-venv
+	@echo "SBOM generated: dist/phasor-point-cli-$(VERSION)-sbom.json"
 
 build:
 	@echo "Building wheel distribution package..."
@@ -83,7 +94,16 @@ build:
 	./venv/bin/python -m build
 	@echo ""
 	@echo "Generating SBOM..."
-	./venv/bin/cyclonedx-py environment --pyproject pyproject.toml --of JSON -o dist/phasor-point-cli-sbom.json ./venv
+	@echo "Creating clean environment for SBOM..."
+	$(eval WHEEL := $(shell ls dist/phasor_point_cli-*-py3-none-any.whl | head -n1))
+	$(eval VERSION := $(shell basename $(WHEEL) | sed 's/phasor_point_cli-\(.*\)-py3-none-any.whl/\1/'))
+	python3 -m venv sbom-venv
+	sbom-venv/bin/pip install --upgrade pip --quiet
+	sbom-venv/bin/pip install $(WHEEL) --quiet
+	./venv/bin/cyclonedx-py environment --pyproject pyproject.toml --of JSON -o dist/phasor-point-cli-$(VERSION)-sbom.json sbom-venv
+	@echo "Filtering out environment packages (pip)..."
+	jq 'del(.components[] | select(.name == "pip")) | .dependencies |= map(select(.ref != "pip==25.3")) | .dependencies[] |= (if .dependsOn then .dependsOn |= map(select(. != "pip==25.3")) else . end)' dist/phasor-point-cli-$(VERSION)-sbom.json > dist/phasor-point-cli-$(VERSION)-sbom.json.tmp && mv dist/phasor-point-cli-$(VERSION)-sbom.json.tmp dist/phasor-point-cli-$(VERSION)-sbom.json
+	@rm -rf sbom-venv
 	@echo ""
 	@echo "Build complete! Distribution files created in dist/"
 	@ls -lh dist/
@@ -97,6 +117,7 @@ clean:
 	rm -rf .ruff_cache/
 	rm -rf .coverage
 	rm -f coverage.xml
+	rm -rf sbom-venv/
 	find . -type d -name __pycache__ -exec rm -rf {} +
 	find . -type f -name "*.pyc" -delete
 

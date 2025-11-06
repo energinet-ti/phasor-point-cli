@@ -63,7 +63,13 @@ jobs:
       
       - name: Generate SBOM
         run: |
-          python -m pip freeze --all | cyclonedx-py requirements --pyproject pyproject.toml --of JSON -o dist/phasor-point-cli-${{ steps.version.outputs.version }}-sbom.json -
+          python -m venv sbom-venv
+          sbom-venv/bin/pip install --upgrade pip
+          sbom-venv/bin/pip install dist/phasor_point_cli-${{ steps.version.outputs.version }}-py3-none-any.whl
+          cyclonedx-py environment --pyproject pyproject.toml --of JSON -o dist/phasor-point-cli-${{ steps.version.outputs.version }}-sbom.json sbom-venv
+          echo "Filtering out environment packages (pip)..."
+          jq 'del(.components[] | select(.name == "pip")) | .dependencies |= map(select(.ref | startswith("pip==") | not)) | .dependencies[] |= (if .dependsOn then .dependsOn |= map(select(startswith("pip==") | not)) else . end)' dist/phasor-point-cli-${{ steps.version.outputs.version }}-sbom.json > dist/phasor-point-cli-${{ steps.version.outputs.version }}-sbom.json.tmp && mv dist/phasor-point-cli-${{ steps.version.outputs.version }}-sbom.json.tmp dist/phasor-point-cli-${{ steps.version.outputs.version }}-sbom.json
+          rm -rf sbom-venv
           echo "Generated SBOM:"
           ls -lh dist/*.json
       

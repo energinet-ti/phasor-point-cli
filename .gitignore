@@ -9,6 +9,7 @@ __pycache__/
 venv/
 env/
 ENV/
+sbom-venv/
 
 # Testing
 .pytest_cache/
