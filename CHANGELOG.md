@@ -8,25 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- SBOM (Software Bill of Materials) generation with accurate dependency tracking
-- Version-specific SBOM filenames that match build artifacts
-- GitHub Actions workflow grouping with consistent naming prefixes (CI, Security, Release)
-- AGENTS.md file following the standard agents.md format for multi-IDE AI coding assistant compatibility
+- Nothing yet
+
+## [0.5.0] - 2025-11-06
 
 ### Changed
 - **RESTORED**: Python 3.8 and 3.9 support (minimum Python version lowered from 3.10 to 3.8)
-- CI workflow now tests Python 3.8 and 3.11 on feature branches, comprehensive testing (3.8-3.13) on main branch
-- PyPI publishing workflow migrated to trusted publishing (OIDC) - no API tokens required
 - `--refresh-pmus` flag moved from `setup` command to `config` command for better usability
-- SBOM generation now uses isolated environment to exclude dev dependencies
-- SBOM filtering to remove environment packages (pip) from distribution artifacts
-- Makefile `clean` target now removes temporary SBOM build environments
 
 ### Fixed
 - Issue where `--refresh-pmus` could not be run independently without triggering full setup process
-- `--no-interactive` flag in setup no longer incorrectly forces interactive mode when refreshing PMUs
-- SBOM generation consistency between local builds and CI/CD pipeline
-- SBOM filename references in GitHub release notes
 
 ## [0.4.0] - 2025-11-03
 
@@ -125,7 +116,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI/CD workflows for testing and PyPI publishing
 - Complete documentation and usage examples
 
-[Unreleased]: https://github.com/energinet-ti/phasor-point-cli/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/energinet-ti/phasor-point-cli/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/energinet-ti/phasor-point-cli/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/energinet-ti/phasor-point-cli/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/energinet-ti/phasor-point-cli/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/energinet-ti/phasor-point-cli/compare/v0.1.0...v0.2.0
