@@ -12,6 +12,7 @@ import logging
 import os
 from collections.abc import Iterable, Sequence
 from datetime import datetime
+from typing import Optional
 
 import pandas as pd
 import pytz
@@ -27,9 +28,9 @@ class DataProcessor:
 
     def __init__(
         self,
-        config_manager: ConfigurationManager | None = None,
-        logger: logging.Logger | None = None,
-        validator: DataValidator | None = None,
+        config_manager: Optional[ConfigurationManager] = None,
+        logger: Optional[logging.Logger] = None,
+        validator: Optional[DataValidator] = None,
         output=None,
     ) -> None:
         self.logger = logger or logging.getLogger("phasor_cli")
@@ -57,7 +58,7 @@ class DataProcessor:
     @staticmethod
     def drop_empty_columns(
         df: pd.DataFrame,
-        extraction_log: dict | None = None,
+        extraction_log: Optional[dict] = None,
         output=None,
     ) -> pd.DataFrame:
         """Drop columns that are completely null/empty."""
@@ -78,7 +79,7 @@ class DataProcessor:
         return df
 
     @staticmethod
-    def get_local_timezone() -> datetime.tzinfo | None:
+    def get_local_timezone() -> Optional[datetime.tzinfo]:
         """Detect local timezone, preferring ``TZ`` environment variable."""
         tz_env = os.environ.get("TZ")
         if tz_env:
@@ -121,8 +122,8 @@ class DataProcessor:
     @staticmethod
     def convert_columns_to_numeric(
         df: pd.DataFrame,
-        extraction_log: dict | None = None,
-        logger: logging.Logger | None = None,
+        extraction_log: Optional[dict] = None,
+        logger: Optional[logging.Logger] = None,
         output=None,
     ) -> pd.DataFrame:
         non_ts_cols = [column for column in df.columns if column not in ["ts", "ts_local"]]
@@ -185,7 +186,7 @@ class DataProcessor:
     def apply_timezone_conversion(
         cls,
         df: pd.DataFrame,
-        extraction_log: dict | None = None,
+        extraction_log: Optional[dict] = None,
         timezone_factory=None,
         output=None,
     ) -> pd.DataFrame:
@@ -281,8 +282,8 @@ class DataProcessor:
 
     # ----------------------------------------------------------- Public Interface ---
     def clean_and_convert_types(
-        self, df: pd.DataFrame | None, extraction_log: dict | None = None
-    ) -> pd.DataFrame | None:
+        self, df: Optional[pd.DataFrame], extraction_log: Optional[dict] = None
+    ) -> Optional[pd.DataFrame]:
         if df is None or len(df) == 0:
             if self.logger:
                 self.logger.warning("No data to clean")
@@ -304,8 +305,8 @@ class DataProcessor:
 
     def process(
         self,
-        df: pd.DataFrame | None,
-        extraction_log: dict | None = None,
+        df: Optional[pd.DataFrame],
+        extraction_log: Optional[dict] = None,
         *,
         clean: bool = True,
         validate: bool = True,

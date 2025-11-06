@@ -9,6 +9,7 @@ import time
 import warnings
 from collections.abc import Iterable, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Optional
 
 import pandas as pd
 
@@ -24,7 +25,7 @@ class DataExtractor:
         self,
         connection_pool,
         logger,
-        chunk_strategy: ChunkStrategy | None = None,
+        chunk_strategy: Optional[ChunkStrategy] = None,
         extraction_history=None,
     ):
         self.connection_pool = connection_pool
@@ -41,7 +42,7 @@ class DataExtractor:
         )
         return self.chunk_strategy
 
-    def _read_dataframe(self, conn, query: str) -> pd.DataFrame | None:
+    def _read_dataframe(self, conn, query: str) -> Optional[pd.DataFrame]:
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", message="pandas only supports SQLAlchemy")
             return pd.read_sql(query, conn)
@@ -57,7 +58,7 @@ class DataExtractor:
     # ---------------------------------------------------------- Public methods
     def extract_single(
         self, table_name: str, start_date: str, end_date: str
-    ) -> pd.DataFrame | None:
+    ) -> Optional[pd.DataFrame]:
         """Extract data using a single query."""
         conn = self.connection_pool.get_connection()
         if not conn:
@@ -253,7 +254,7 @@ class DataExtractor:
                         progress_tracker.update_chunk_progress(idx, 0)
         return results
 
-    def combine_chunks(self, chunks: Iterable) -> pd.DataFrame | None:
+    def combine_chunks(self, chunks: Iterable) -> Optional[pd.DataFrame]:
         """Combine chunk dataframes into a single dataframe."""
         chunk_list = [chunk for chunk in chunks if chunk is not None]
         if not chunk_list:
@@ -286,9 +287,9 @@ class DataExtractor:
         self,
         request: ExtractionRequest,
         *,
-        chunk_strategy: ChunkStrategy | None = None,
+        chunk_strategy: Optional[ChunkStrategy] = None,
         progress_tracker=None,
-    ) -> pd.DataFrame | None:
+    ) -> Optional[pd.DataFrame]:
         """
         Main entry point that accepts an ``ExtractionRequest`` and returns a dataframe.
         """

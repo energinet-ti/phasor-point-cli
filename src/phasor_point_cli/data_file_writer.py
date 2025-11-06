@@ -8,6 +8,7 @@ formats including Parquet and CSV.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Optional, Union
 
 import pandas as pd
 
@@ -29,8 +30,8 @@ class DataFileWriter:
     def write(
         self,
         df: pd.DataFrame,
-        output_file: str | Path,
-        format: str | None = None,
+        output_file: Union[str, Path],
+        format: Optional[str] = None,
     ) -> WriteResult:
         """
         Write dataframe to file in specified format.
@@ -122,7 +123,7 @@ class DataFileWriter:
                 error=str(exc),
             )
 
-    def write_parquet(self, df: pd.DataFrame, output_file: str | Path) -> None:
+    def write_parquet(self, df: pd.DataFrame, output_file: Union[str, Path]) -> None:
         """
         Write dataframe to Parquet file.
 
@@ -137,7 +138,7 @@ class DataFileWriter:
         df.to_parquet(output_path, index=False)
         self.logger.debug("Wrote Parquet file: %s", output_path)
 
-    def write_csv(self, df: pd.DataFrame, output_file: str | Path) -> None:
+    def write_csv(self, df: pd.DataFrame, output_file: Union[str, Path]) -> None:
         """
         Write dataframe to CSV file.
 

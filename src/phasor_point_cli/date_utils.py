@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 import warnings
 from datetime import datetime, timedelta
+from typing import Optional
 
 import pandas as pd
 import pytz
@@ -129,7 +130,7 @@ class DateRangeCalculator:
             return "+00:00"
 
     @staticmethod
-    def calculate(args, reference_time: datetime | None = None) -> DateRange:
+    def calculate(args, reference_time: Optional[datetime] = None) -> DateRange:
         """
         Calculate start and end dates based on command arguments.
 
@@ -181,7 +182,7 @@ class DateRangeCalculator:
 
     @staticmethod
     def calculate_from_duration(
-        duration_minutes: int, reference_time: datetime | None = None
+        duration_minutes: int, reference_time: Optional[datetime] = None
     ) -> DateRange:
         """
         Calculate date range from duration in minutes.

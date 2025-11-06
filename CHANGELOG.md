@@ -7,8 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-- Nothing yet
+### Changed
+- **RESTORED**: Python 3.8 and 3.9 support (minimum Python version lowered from 3.10 to 3.8)
+- CI workflow now tests Python 3.8 and 3.11 on feature branches, comprehensive testing (3.8-3.13) on main branch
 
 ## [0.4.0] - 2025-11-03
 

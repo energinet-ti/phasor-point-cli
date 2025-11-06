@@ -8,7 +8,7 @@ names) from the pmu_data_statistics table and merge it with existing configurati
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
     from .connection_pool import JDBCConnectionPool
@@ -17,7 +17,7 @@ __all__ = ["fetch_pmu_metadata_from_database", "merge_pmu_metadata"]
 
 
 def fetch_pmu_metadata_from_database(
-    connection_pool: JDBCConnectionPool, logger: logging.Logger | None = None
+    connection_pool: JDBCConnectionPool, logger: Optional[logging.Logger] = None
 ) -> list[dict[str, Any]]:
     """
     Fetch PMU metadata (IDs and station names) from the pmu_data_statistics table.

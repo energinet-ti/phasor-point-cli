@@ -10,6 +10,7 @@ connection concerns.
 from __future__ import annotations
 
 import os
+from typing import Optional
 
 from .config import ConfigurationManager
 from .connection_pool import JDBCConnectionPool
@@ -22,17 +23,19 @@ class ConnectionManager:
         self.config_manager = config_manager
         self.logger = logger
 
-        self.username: str | None = None
-        self.password: str | None = None
-        self.host: str | None = None
-        self.port: int | None = None
-        self.database: str | None = None
+        self.username: Optional[str] = None
+        self.password: Optional[str] = None
+        self.host: Optional[str] = None
+        self.port: Optional[int] = None
+        self.database: Optional[str] = None
 
         database_cfg = self.config_manager.get_database_config()
         self.driver = database_cfg.get("driver", "Psymetrix PhasorPoint")
 
     # ------------------------------------------------------------------ Set up
-    def setup_credentials(self, username: str | None = None, password: str | None = None) -> None:
+    def setup_credentials(
+        self, username: Optional[str] = None, password: Optional[str] = None
+    ) -> None:
         """
         Populate credentials from CLI arguments or environment variables.
 

@@ -8,6 +8,7 @@ import json
 import time
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 import pandas as pd
 
@@ -34,10 +35,10 @@ class ExtractionManager:
         logger,
         *,
         output=None,
-        data_extractor: DataExtractor | None = None,
-        data_processor: DataProcessor | None = None,
-        power_calculator: PowerCalculator | None = None,
-        extraction_history: ExtractionHistory | None = None,
+        data_extractor: Optional[DataExtractor] = None,
+        data_processor: Optional[DataProcessor] = None,
+        power_calculator: Optional[PowerCalculator] = None,
+        extraction_history: Optional[ExtractionHistory] = None,
         verbose_timing: bool = False,
     ) -> None:
         self.connection_pool = connection_pool
@@ -87,7 +88,7 @@ class ExtractionManager:
         return FileUtils.sanitize_filename(station_name)
 
     def _expected_output_path(
-        self, request: ExtractionRequest, output_dir: Path | None = None
+        self, request: ExtractionRequest, output_dir: Optional[Path] = None
     ) -> Path:
         """
         Build expected output path using user-provided time window strings.
@@ -108,7 +109,7 @@ class ExtractionManager:
         return Path(filename)
 
     def _resolve_output_path(
-        self, request: ExtractionRequest, output_dir: Path | None = None
+        self, request: ExtractionRequest, output_dir: Optional[Path] = None
     ) -> Path:
         """Resolve output path from explicit file or expected path."""
         if request.output_file:
@@ -130,7 +131,7 @@ class ExtractionManager:
         with log_file.open("w", encoding="utf-8") as handle:
             json.dump(log_data, handle, indent=2, ensure_ascii=False)
 
-    def _read_extraction_log(self, output_path: Path) -> dict | None:
+    def _read_extraction_log(self, output_path: Path) -> Optional[dict]:
         """Read extraction log if it exists."""
         log_file = output_path.with_name(output_path.stem + "_extraction_log.json")
         if not log_file.exists():
@@ -204,7 +205,7 @@ class ExtractionManager:
         request: ExtractionRequest,
         df: pd.DataFrame,
         extraction_log: dict,
-        output_dir: Path | None = None,
+        output_dir: Optional[Path] = None,
     ) -> PersistResult:
         # Use expected path based on user-provided time window
         output_path = self._resolve_output_path(request, output_dir)
@@ -233,7 +234,7 @@ class ExtractionManager:
         request: ExtractionRequest,
         df: pd.DataFrame,
         extraction_log: dict,
-        output_dir: Path | None = None,
+        output_dir: Optional[Path] = None,
     ) -> PersistResult:
         return self._persist_dataframe(request, df, extraction_log, output_dir)
 
@@ -253,7 +254,7 @@ class ExtractionManager:
 
     def _handle_skip_existing_file(
         self, request: ExtractionRequest, output_path: Path, start_clock: float
-    ) -> ExtractionResult | None:
+    ) -> Optional[ExtractionResult]:
         """
         Check if extraction should be skipped due to existing file.
 
@@ -299,8 +300,8 @@ class ExtractionManager:
         )
 
     def _setup_progress_tracker(
-        self, request: ExtractionRequest, chunk_strategy: ChunkStrategy | None
-    ) -> tuple[ProgressTracker | None, ChunkStrategy, bool]:
+        self, request: ExtractionRequest, chunk_strategy: Optional[ChunkStrategy]
+    ) -> tuple[Optional[ProgressTracker], ChunkStrategy, bool]:
         """
         Setup progress tracker for chunked extractions.
 
@@ -335,7 +336,7 @@ class ExtractionManager:
         request: ExtractionRequest,
         extraction_log: dict,
         start_clock: float,
-    ) -> tuple[pd.DataFrame | None, ExtractionResult | None]:
+    ) -> tuple[Optional[pd.DataFrame], Optional[ExtractionResult]]:
         """
         Process data and calculate power values.
 
@@ -343,7 +344,7 @@ class ExtractionManager:
             Tuple of (processed_df, failure_result).
             If failure_result is not None, extraction should return early.
         """
-        result_df: pd.DataFrame | None = df
+        result_df: Optional[pd.DataFrame] = df
         if request.clean or request.processed:
             result_df, _ = self.data_processor.process(
                 df,
@@ -369,7 +370,7 @@ class ExtractionManager:
 
         return result_df, None
 
-    def _resolve_batch_output_dir(self, output_dir: Path | None) -> Path:
+    def _resolve_batch_output_dir(self, output_dir: Optional[Path]) -> Path:
         """Resolve and create output directory for batch extraction."""
         if output_dir:
             resolved_dir = Path(output_dir)
@@ -480,8 +481,8 @@ class ExtractionManager:
         self,
         request: ExtractionRequest,
         *,
-        chunk_strategy: ChunkStrategy | None = None,
-        output_dir: Path | None = None,
+        chunk_strategy: Optional[ChunkStrategy] = None,
+        output_dir: Optional[Path] = None,
     ) -> ExtractionResult:
         start_clock = time.monotonic()
         request.validate()
@@ -569,9 +570,9 @@ class ExtractionManager:
     def batch_extract(
         self,
         requests: list[ExtractionRequest],
-        output_dir: Path | None = None,
+        output_dir: Optional[Path] = None,
         *,
-        chunk_strategy: ChunkStrategy | None = None,
+        chunk_strategy: Optional[ChunkStrategy] = None,
     ) -> BatchExtractionResult:
         """
         Extract data from multiple PMUs with consistent timeframe.

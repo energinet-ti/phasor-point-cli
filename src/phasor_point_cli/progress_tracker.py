@@ -10,7 +10,7 @@ from __future__ import annotations
 import sys
 import threading
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from .spinner import Spinner
 
@@ -23,7 +23,7 @@ class ProgressTracker:
 
     def __init__(
         self,
-        extraction_history: ExtractionHistory | None = None,
+        extraction_history: Optional[ExtractionHistory] = None,
         verbose_timing: bool = False,
         logger=None,
         output=None,
@@ -53,11 +53,11 @@ class ProgressTracker:
         self._total_pmus = 0
         self._completed_pmus = 0
         self._batch_start_time = 0.0
-        self._current_pmu_id: int | None = None
+        self._current_pmu_id: Optional[int] = None
 
         # Spinner and display thread
         self._spinner = Spinner()
-        self._display_thread: threading.Thread | None = None
+        self._display_thread: Optional[threading.Thread] = None
         self._display_running = False
         self._display_paused = False
         self._display_lock = threading.Lock()
@@ -67,7 +67,7 @@ class ProgressTracker:
         self._is_tty = sys.stdout.isatty()
 
     def start_extraction(
-        self, total_chunks: int, pmu_id: int | None = None, estimated_rows: int = 0
+        self, total_chunks: int, pmu_id: Optional[int] = None, estimated_rows: int = 0
     ) -> None:
         """
         Start tracking a new extraction.
@@ -369,7 +369,7 @@ class ScanProgressTracker:
         """Initialize scan progress tracker."""
         self._spinner = Spinner()
         self._start_time = 0.0
-        self._display_thread: threading.Thread | None = None
+        self._display_thread: Optional[threading.Thread] = None
         self._display_running = False
         self._display_lock = threading.Lock()
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 import sys
 import threading
 import time
+from typing import Optional
 
 
 class Spinner:
@@ -21,7 +22,7 @@ class Spinner:
     # ASCII fallback for terminals that don't support Unicode
     FRAMES_ASCII = ["|", "/", "-", "\\"]
 
-    def __init__(self, *, use_unicode: bool | None = None):
+    def __init__(self, *, use_unicode: Optional[bool] = None):
         """
         Initialize the spinner.
 
@@ -30,7 +31,7 @@ class Spinner:
         """
         self._frame_index = 0
         self._running = False
-        self._thread: threading.Thread | None = None
+        self._thread: Optional[threading.Thread] = None
         self._lock = threading.Lock()
 
         # Auto-detect Unicode support if not specified

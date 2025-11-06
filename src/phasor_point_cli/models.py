@@ -17,17 +17,17 @@ from collections.abc import Iterable, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import pandas as pd
 
 
-def _serialise_optional_datetime(value: datetime | None) -> str | None:
+def _serialise_optional_datetime(value: Optional[datetime]) -> Optional[str]:
     """Serialise datetimes using ISO format for deterministic comparisons."""
     return value.isoformat() if isinstance(value, datetime) else None
 
 
-@dataclass(slots=True)
+@dataclass
 class PMUInfo:
     """Metadata describing an individual PMU."""
 
@@ -57,7 +57,7 @@ class PMUInfo:
         )
 
 
-@dataclass(slots=True)
+@dataclass
 class DataQualityThresholds:
     """Threshold configuration used by validation logic."""
 
@@ -85,15 +85,15 @@ class DataQualityThresholds:
         }
 
 
-@dataclass(slots=True)
+@dataclass
 class TableStatistics:
     """Summary statistics captured while inspecting a PMU table."""
 
     row_count: int
     column_count: int
-    start_time: datetime | None = None
-    end_time: datetime | None = None
-    bytes_estimate: int | None = None
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    bytes_estimate: Optional[int] = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialise statistics for logging or JSON output."""
@@ -106,14 +106,14 @@ class TableStatistics:
         }
 
     @property
-    def duration(self) -> timedelta | None:
+    def duration(self) -> Optional[timedelta]:
         """Return duration covered by table rows if timestamps available."""
         if self.start_time and self.end_time:
             return self.end_time - self.start_time
         return None
 
 
-@dataclass(slots=True)
+@dataclass
 class TableDiscoveryResult:
     """Outcome from attempting to locate a PMU table."""
 
@@ -121,7 +121,7 @@ class TableDiscoveryResult:
     pmu_id: int
     resolution: int
     found: bool
-    error: str | None = None
+    error: Optional[str] = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -133,16 +133,16 @@ class TableDiscoveryResult:
         }
 
 
-@dataclass(slots=True)
+@dataclass
 class TableInfo:
     """Combined information about a PMU table after discovery."""
 
     pmu_id: int
     resolution: int
     table_name: str
-    statistics: TableStatistics | None = None
-    pmu_info: PMUInfo | None = None
-    sample_data: pd.DataFrame | None = None
+    statistics: Optional[TableStatistics] = None
+    pmu_info: Optional[PMUInfo] = None
+    sample_data: Optional[pd.DataFrame] = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialise to primitive types, DataFrame converted to records."""
@@ -160,7 +160,7 @@ class TableInfo:
         return payload
 
 
-@dataclass(slots=True)
+@dataclass
 class TableListResult:
     """Result of listing available PMU tables."""
 
@@ -262,13 +262,13 @@ class DateRange:
         return str(local_tz) if local_tz else "UTC"
 
 
-@dataclass(slots=True)
+@dataclass
 class ExtractionRequest:
     """Parameters describing a single extraction run."""
 
     pmu_id: int
     date_range: DateRange
-    output_file: Path | None = None
+    output_file: Optional[Path] = None
     resolution: int = 1
     processed: bool = True
     clean: bool = True
@@ -308,7 +308,7 @@ class ExtractionRequest:
         return payload
 
 
-@dataclass(slots=True)
+@dataclass
 class ChunkResult:
     """Record of a single chunk extraction attempt."""
 
@@ -317,7 +317,7 @@ class ChunkResult:
     end: datetime
     rows: int
     duration_seconds: float
-    error: str | None = None
+    error: Optional[str] = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -330,26 +330,26 @@ class ChunkResult:
         }
 
 
-@dataclass(slots=True)
+@dataclass
 class PersistResult:
     """Result of persisting a DataFrame to disk."""
 
     output_path: Path
     file_size_mb: float
-    skip_result: ExtractionResult | None = None
+    skip_result: Optional[ExtractionResult] = None
 
 
-@dataclass(slots=True)
+@dataclass
 class ExtractionResult:
     """Outcome of attempting a single extraction."""
 
     request: ExtractionRequest
     success: bool
-    output_file: Path | None
+    output_file: Optional[Path]
     rows_extracted: int
     extraction_time_seconds: float
-    file_size_mb: float | None = None
-    error: str | None = None
+    file_size_mb: Optional[float] = None
+    error: Optional[str] = None
     chunk_results: Sequence[ChunkResult] = field(default_factory=tuple)
 
     def to_dict(self) -> dict[str, Any]:
@@ -368,14 +368,14 @@ class ExtractionResult:
         return not self.success or any(chunk.error for chunk in self.chunk_results)
 
 
-@dataclass(slots=True)
+@dataclass
 class BatchExtractionResult:
     """Aggregated outcome for a batch extraction session."""
 
     batch_id: str
     results: Sequence[ExtractionResult] = field(default_factory=tuple)
-    started_at: datetime | None = None
-    finished_at: datetime | None = None
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
 
     def successful_results(self) -> list[ExtractionResult]:
         return [result for result in self.results if result.success]
@@ -392,25 +392,25 @@ class BatchExtractionResult:
         }
 
 
-@dataclass(slots=True)
+@dataclass
 class ValidationCheck:
     """Represents an individual validation rule result."""
 
     name: str
     passed: bool
-    details: str | None = None
+    details: Optional[str] = None
 
     def to_dict(self) -> dict[str, Any]:
         return {"name": self.name, "passed": bool(self.passed), "details": self.details}
 
 
-@dataclass(slots=True)
+@dataclass
 class ValidationResult:
     """Aggregate validation outcome for a dataset."""
 
     checks: Sequence[ValidationCheck]
-    started_at: datetime | None = None
-    finished_at: datetime | None = None
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
 
     @property
     def is_successful(self) -> bool:
@@ -425,7 +425,7 @@ class ValidationResult:
         }
 
 
-@dataclass(slots=True)
+@dataclass
 class PhasorColumnMap:
     """Describes the per-phase column selections used for phasor calculations."""
 
@@ -449,15 +449,15 @@ class PhasorColumnMap:
         return columns
 
 
-@dataclass(slots=True)
+@dataclass
 class QueryResult:
     """Outcome of executing an ad-hoc query command."""
 
     success: bool
     rows_returned: int
     duration_seconds: float
-    output_file: Path | None = None
-    error: str | None = None
+    output_file: Optional[Path] = None
+    error: Optional[str] = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -479,7 +479,7 @@ class WriteResult:
     row_count: int
     column_count: int
     format: str
-    error: str | None = None
+    error: Optional[str] = None
 
     def to_dict(self) -> dict[str, Any]:
         return {

@@ -8,6 +8,7 @@ sanitization, directory management, and file size calculations.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Union
 
 
 class FileUtils:
@@ -65,7 +66,7 @@ class FileUtils:
         return sanitized
 
     @staticmethod
-    def ensure_directory_exists(path: str | Path) -> Path:
+    def ensure_directory_exists(path: Union[str, Path]) -> Path:
         """
         Ensure a directory exists, creating it if necessary.
 
@@ -89,7 +90,7 @@ class FileUtils:
         return path
 
     @staticmethod
-    def get_file_size_mb(path: str | Path) -> float:
+    def get_file_size_mb(path: Union[str, Path]) -> float:
         """
         Get file size in megabytes.
 
@@ -113,7 +114,7 @@ class FileUtils:
         return round(size_mb, 2)
 
     @staticmethod
-    def get_file_size_bytes(path: str | Path) -> int:
+    def get_file_size_bytes(path: Union[str, Path]) -> int:
         """
         Get file size in bytes.
 

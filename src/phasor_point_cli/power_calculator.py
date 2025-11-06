@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Iterable, Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 import numpy as np
 import pandas as pd
@@ -26,7 +26,7 @@ class PowerCalculator:
     """Compute power metrics from voltage and current phasor measurements."""
 
     def __init__(
-        self, logger: logging.Logger | None = None, output: UserOutput | None = None
+        self, logger: Optional[logging.Logger] = None, output: Optional[UserOutput] = None
     ) -> None:
         self.logger = logger or logging.getLogger("phasor_cli")
         self.output = output
@@ -172,7 +172,9 @@ class PowerCalculator:
         return required
 
     @staticmethod
-    def log_power_calculations(extraction_log: dict | None, calculated_cols: Iterable[str]) -> None:
+    def log_power_calculations(
+        extraction_log: Optional[dict], calculated_cols: Iterable[str]
+    ) -> None:
         if extraction_log is None:
             return
         for column in calculated_cols:
@@ -218,7 +220,7 @@ class PowerCalculator:
         self,
         df: pd.DataFrame,
         column_map: PhasorColumnMap,
-        extraction_log: dict | None = None,
+        extraction_log: Optional[dict] = None,
     ) -> pd.DataFrame:
         required_phases = ("va", "vb", "vc")
 
@@ -301,7 +303,7 @@ class PowerCalculator:
         self,
         df: pd.DataFrame,
         *,
-        extraction_log: dict | None = None,
+        extraction_log: Optional[dict] = None,
     ) -> tuple[pd.DataFrame, PhasorColumnMap]:
         """
         Apply power-related transformations.
@@ -330,19 +332,19 @@ class PowerCalculator:
 
 # --------------------------------------------------------------- Helper Functions --
 def detect_phasor_columns(
-    df: pd.DataFrame, logger: logging.Logger | None = None
+    df: pd.DataFrame, logger: Optional[logging.Logger] = None
 ) -> PhasorColumnMap:
     return PowerCalculator(logger=logger).detect_columns(df)
 
 
 def apply_voltage_corrections(
-    df: pd.DataFrame, column_map: PhasorColumnMap, logger: logging.Logger | None = None
+    df: pd.DataFrame, column_map: PhasorColumnMap, logger: Optional[logging.Logger] = None
 ) -> pd.DataFrame:
     return PowerCalculator(logger=logger).apply_voltage_corrections(df, column_map)
 
 
 def convert_angles_to_degrees(
-    df: pd.DataFrame, column_map: PhasorColumnMap, logger: logging.Logger | None = None
+    df: pd.DataFrame, column_map: PhasorColumnMap, logger: Optional[logging.Logger] = None
 ) -> pd.DataFrame:
     return PowerCalculator(logger=logger).convert_angles_to_degrees(df, column_map)
 
@@ -359,6 +361,6 @@ def calculate_power_values(
     df: pd.DataFrame,
     column_map: PhasorColumnMap,
     extraction_log=None,
-    logger: logging.Logger | None = None,
+    logger: Optional[logging.Logger] = None,
 ) -> pd.DataFrame:
     return PowerCalculator(logger=logger).calculate_power_values(df, column_map, extraction_log)
