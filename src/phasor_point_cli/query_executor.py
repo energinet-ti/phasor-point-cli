@@ -9,6 +9,7 @@ import warnings
 from collections.abc import Sequence
 from contextlib import suppress
 from pathlib import Path
+from typing import Optional
 
 import pandas as pd
 
@@ -26,8 +27,8 @@ class QueryExecutor:
         self,
         query: str,
         *,
-        params: Sequence | None = None,
-        output_file: str | None = None,
+        params: Optional[Sequence] = None,
+        output_file: Optional[str] = None,
         output_format: str = "parquet",
         preview_rows: int = 5,
     ) -> QueryResult:

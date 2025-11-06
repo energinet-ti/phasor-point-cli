@@ -6,10 +6,12 @@ separate in log files. Supports multiple output formats (human-readable, JSON)
 for future extensibility.
 """
 
+from __future__ import annotations
+
 import json
 import sys
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, Optional
 
 import pandas as pd
 
@@ -22,7 +24,7 @@ class OutputFormatter(ABC):
         """Format a section header."""
 
     @abstractmethod
-    def info(self, message: str, tag: str | None = None) -> str:
+    def info(self, message: str, tag: Optional[str] = None) -> str:
         """Format an info message with optional tag."""
 
     @abstractmethod
@@ -30,7 +32,7 @@ class OutputFormatter(ABC):
         """Format a warning message."""
 
     @abstractmethod
-    def data_summary(self, df: pd.DataFrame, title: str | None = None) -> str:
+    def data_summary(self, df: pd.DataFrame, title: Optional[str] = None) -> str:
         """Format a data summary from a DataFrame."""
 
     @abstractmethod
@@ -56,7 +58,7 @@ class HumanFormatter(OutputFormatter):
         separator = "=" * 70
         return f"\n{separator}\n{title}\n{separator}"
 
-    def info(self, message: str, tag: str | None = None) -> str:
+    def info(self, message: str, tag: Optional[str] = None) -> str:
         """Format an info message with optional tag."""
         if tag:
             return f"[{tag}] {message}"
@@ -66,7 +68,7 @@ class HumanFormatter(OutputFormatter):
         """Format a warning message."""
         return f"[WARNING] {message}"
 
-    def data_summary(self, df: pd.DataFrame, title: str | None = None) -> str:
+    def data_summary(self, df: pd.DataFrame, title: Optional[str] = None) -> str:
         """Format a data summary from a DataFrame."""
         lines = []
 
@@ -141,7 +143,7 @@ class JsonFormatter(OutputFormatter):
         """Format a section header as JSON."""
         return self._to_json({"type": "section_header", "title": title})
 
-    def info(self, message: str, tag: str | None = None) -> str:
+    def info(self, message: str, tag: Optional[str] = None) -> str:
         """Format an info message as JSON."""
         data: dict[str, Any] = {"type": "info", "message": message}
         if tag:
@@ -152,7 +154,7 @@ class JsonFormatter(OutputFormatter):
         """Format a warning message as JSON."""
         return self._to_json({"type": "warning", "message": message})
 
-    def data_summary(self, df: pd.DataFrame, title: str | None = None) -> str:
+    def data_summary(self, df: pd.DataFrame, title: Optional[str] = None) -> str:
         """Format a data summary as JSON."""
         data: dict[str, Any] = {
             "type": "data_summary",
@@ -227,7 +229,7 @@ class UserOutput:
     Delegates formatting to the provided formatter (HumanFormatter by default).
     """
 
-    def __init__(self, formatter: OutputFormatter | None = None, quiet: bool = False):
+    def __init__(self, formatter: Optional[OutputFormatter] = None, quiet: bool = False):
         """
         Initialize UserOutput.
 
@@ -248,7 +250,7 @@ class UserOutput:
         """Print a section header."""
         self._print(self.formatter.section_header(title))
 
-    def info(self, message: str, tag: str | None = None) -> None:
+    def info(self, message: str, tag: Optional[str] = None) -> None:
         """Print an info message with optional tag."""
         self._print(self.formatter.info(message, tag))
 
@@ -256,7 +258,7 @@ class UserOutput:
         """Print a warning message."""
         self._print(self.formatter.warning(message))
 
-    def data_summary(self, df: pd.DataFrame, title: str | None = None) -> None:
+    def data_summary(self, df: pd.DataFrame, title: Optional[str] = None) -> None:
         """Print a data summary from a DataFrame."""
         self._print(self.formatter.data_summary(df, title))
 

@@ -10,7 +10,7 @@ import json
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 
 @dataclass
@@ -61,7 +61,7 @@ class ExtractionHistory:
         """
         self.config_path_manager = config_path_manager
         self.logger = logger
-        self._history_file: Path | None = None
+        self._history_file: Optional[Path] = None
         self._extractions: list[ExtractionMetrics] = []
         self._save_counter = 0
         self._save_frequency = 1  # Save every N additions to reduce disk I/O
@@ -168,7 +168,7 @@ class ExtractionHistory:
             self.save_history()
             self._save_counter = 0
 
-    def get_average_rows_per_sec(self, recent_n: int = 10) -> float | None:
+    def get_average_rows_per_sec(self, recent_n: int = 10) -> Optional[float]:
         """
         Get average rows per second from recent extractions.
 
@@ -188,7 +188,7 @@ class ExtractionHistory:
         total_rows_per_sec = sum(e.rows_per_sec for e in recent)
         return total_rows_per_sec / len(recent)
 
-    def estimate_duration(self, estimated_rows: int) -> float | None:
+    def estimate_duration(self, estimated_rows: int) -> Optional[float]:
         """
         Estimate extraction duration based on historical performance.
 

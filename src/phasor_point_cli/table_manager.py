@@ -11,6 +11,7 @@ import logging
 from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import suppress
+from typing import Optional, Tuple
 
 import pandas as pd
 
@@ -27,12 +28,12 @@ class TableManager:
     DEFAULT_RESOLUTIONS: tuple[int, ...] = (1, 10, 25, 50)
 
     def __init__(
-        self, connection_pool, config_manager, logger: logging.Logger | None = None
+        self, connection_pool, config_manager, logger: Optional[logging.Logger] = None
     ) -> None:
         self.connection_pool = connection_pool
         self._config_manager = config_manager
         self.logger = logger or logging.getLogger("phasor_cli")
-        self._pmu_lookup: dict[int, PMUInfo] | None = None
+        self._pmu_lookup: Optional[dict[int, PMUInfo]] = None
 
     # ------------------------------------------------------------------ Helpers
     def _get_config(self) -> dict:
@@ -61,9 +62,9 @@ class TableManager:
     # ------------------------------------------------------------ PMU Selection
     def determine_pmus_to_scan(
         self,
-        pmu_ids: Sequence[int] | None,
-        max_pmus: int | None,
-    ) -> list[int] | None:
+        pmu_ids: Optional[Sequence[int]],
+        max_pmus: Optional[int],
+    ) -> Optional[list[int]]:
         if pmu_ids is not None:
             return list(pmu_ids)
 
@@ -92,7 +93,7 @@ class TableManager:
         return conn
 
     # ----------------------------------------------------------- Table Scanning
-    def _check_single_table(self, pmu_id: int, resolution: int) -> tuple[int, int] | None:
+    def _check_single_table(self, pmu_id: int, resolution: int) -> Optional[Tuple[int, int]]:
         """
         Check if a single table exists.
 
@@ -122,11 +123,11 @@ class TableManager:
 
     def list_available_tables(  # noqa: PLR0912, PLR0915
         self,
-        pmu_ids: Sequence[int] | None = None,
-        resolutions: Sequence[int] | None = None,
-        max_pmus: int | None = 10,
+        pmu_ids: Optional[Sequence[int]] = None,
+        resolutions: Optional[Sequence[int]] = None,
+        max_pmus: Optional[int] = 10,
         parallel: bool = True,
-        progress_callback: Callable[[int, int, int], None] | None = None,
+        progress_callback: Optional[Callable[[int, int, int], None]] = None,
     ) -> TableListResult:
         """
         List available PMU tables by checking existence of combinations.
@@ -398,7 +399,7 @@ class TableManager:
         resolution: int,
         *,
         sample_limit: int = 5,
-    ) -> TableInfo | None:
+    ) -> Optional[TableInfo]:
         table_name = f"pmu_{pmu_id}_{resolution}"
 
         if not self.test_table_access(table_name):

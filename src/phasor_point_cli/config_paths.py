@@ -6,11 +6,13 @@ Provides standardized configuration directory locations following OS conventions
 - Windows: %APPDATA%/phasor-cli/
 """
 
+from __future__ import annotations
+
 import os
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from .constants import CONFIG_DIR_NAME
 
@@ -25,7 +27,7 @@ class ConfigPathManager:
 
     def __init__(self):
         """Initialize the configuration path manager."""
-        self._user_config_dir: Path | None = None
+        self._user_config_dir: Optional[Path] = None
 
     def get_user_config_dir(self) -> Path:
         """
@@ -79,7 +81,7 @@ class ConfigPathManager:
         """Get the path to the local project .env file."""
         return Path.cwd() / ".env"
 
-    def find_config_file(self, config_arg: str | None = None) -> Path | None:
+    def find_config_file(self, config_arg: Optional[str] = None) -> Optional[Path]:
         """
         Find the configuration file using priority order.
 
@@ -115,7 +117,7 @@ class ConfigPathManager:
         # Priority 4: None (will use embedded defaults)
         return None
 
-    def find_env_file(self) -> Path | None:
+    def find_env_file(self) -> Optional[Path]:
         """
         Find the .env file using priority order.
 
@@ -169,7 +171,7 @@ class ConfigPathManager:
         log_dir.mkdir(parents=True, exist_ok=True)
         return log_dir
 
-    def get_latest_log_file(self) -> Path | None:
+    def get_latest_log_file(self) -> Optional[Path]:
         """
         Get the most recently created log file.
 

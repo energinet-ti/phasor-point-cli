@@ -9,7 +9,7 @@ appropriate.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Union
 
 import pandas as pd
 
@@ -24,9 +24,9 @@ class DataValidator:
 
     def __init__(
         self,
-        thresholds: DataQualityThresholds | dict | None = None,
+        thresholds: Union[DataQualityThresholds, dict, None] = None,
         logger=None,
-        output: UserOutput | None = None,
+        output: Optional[UserOutput] = None,
     ) -> None:
         if thresholds is None:
             thresholds = DataQualityThresholds(
@@ -50,7 +50,7 @@ class DataValidator:
 
     # --------------------------------------------------------------- Checkers --
     def check_empty_columns(
-        self, df: pd.DataFrame, extraction_log: dict | None = None
+        self, df: pd.DataFrame, extraction_log: Optional[dict] = None
     ) -> tuple[pd.DataFrame, list[str]]:
         issues: list[str] = []
         try:
@@ -85,8 +85,8 @@ class DataValidator:
     def check_null_percentages(
         self,
         df: pd.DataFrame,
-        null_threshold: float | None = None,
-        extraction_log: dict | None = None,
+        null_threshold: Optional[float] = None,
+        extraction_log: Optional[dict] = None,
     ) -> list[str]:
         issues: list[str] = []
         threshold = (
@@ -129,8 +129,8 @@ class DataValidator:
     def check_time_continuity(
         self,
         df: pd.DataFrame,
-        gap_multiplier: float | None = None,
-        extraction_log: dict | None = None,
+        gap_multiplier: Optional[float] = None,
+        extraction_log: Optional[dict] = None,
     ) -> list[str]:
         issues: list[str] = []
         multiplier = (
@@ -186,9 +186,9 @@ class DataValidator:
     def check_frequency_ranges(
         self,
         df: pd.DataFrame,
-        freq_min: float | None = None,
-        freq_max: float | None = None,
-        extraction_log: dict | None = None,
+        freq_min: Optional[float] = None,
+        freq_max: Optional[float] = None,
+        extraction_log: Optional[dict] = None,
     ) -> list[str]:
         issues: list[str] = []
         minimum = freq_min if freq_min is not None else self.thresholds.frequency_min
@@ -238,7 +238,7 @@ class DataValidator:
     def validate(
         self,
         df: pd.DataFrame,
-        extraction_log: dict | None = None,
+        extraction_log: Optional[dict] = None,
     ) -> tuple[pd.DataFrame, list[str]]:
         if df is None or len(df) == 0:
             if self.logger:

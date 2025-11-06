@@ -12,7 +12,7 @@ import logging
 import sys
 from copy import deepcopy
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from .config_paths import ConfigPathManager
 from .constants import CLI_COMMAND_PYTHON, CONFIG_DIR_NAME
@@ -60,9 +60,9 @@ class ConfigurationManager:
 
     def __init__(
         self,
-        config_file: str | None = None,
-        logger: logging.Logger | None = None,
-        config_data: dict[str, Any] | None = None,
+        config_file: Optional[str] = None,
+        logger: Optional[logging.Logger] = None,
+        config_data: Optional[dict[str, Any]] = None,
     ) -> None:
         self.logger = logger or logging.getLogger("phasor_cli")
         self.config_path = Path(config_file) if config_file else None
@@ -74,7 +74,7 @@ class ConfigurationManager:
     # ------------------------------------------------------------------ Loading
     def _load(self) -> None:
         """Load configuration from provided dict, file or defaults."""
-        config_data: dict[str, Any] | None = None
+        config_data: Optional[dict[str, Any]] = None
 
         if self._provided_config is not None:
             config_data = deepcopy(self._provided_config)
@@ -491,7 +491,7 @@ class ConfigurationManager:
         thresholds.validate()
         return thresholds
 
-    def get_pmu_info(self, pmu_id: int) -> PMUInfo | None:
+    def get_pmu_info(self, pmu_id: int) -> Optional[PMUInfo]:
         return self._pmu_lookup.get(int(pmu_id))
 
     def get_all_pmu_ids(self) -> list[int]:
@@ -597,7 +597,7 @@ class ConfigurationManager:
         force: bool = False,
         interactive: bool = False,
         refresh_pmus: bool = False,
-        logger: logging.Logger | None = None,
+        logger: Optional[logging.Logger] = None,
     ) -> None:
         """
         Create or refresh configuration files.
@@ -733,7 +733,7 @@ DEFAULT_OUTPUT_DIR=data_exports
             print(f"   {CLI_COMMAND_PYTHON} setup --local")
 
     @staticmethod
-    def _create_interactive_env_content(logger: logging.Logger | None = None) -> str:
+    def _create_interactive_env_content(logger: Optional[logging.Logger] = None) -> str:
         """
         Interactively prompt user for database credentials.
 
@@ -826,7 +826,7 @@ DEFAULT_OUTPUT_DIR=data_exports
         local: bool = False,
         *,
         all_locations: bool = False,
-        logger: logging.Logger | None = None,
+        logger: Optional[logging.Logger] = None,
     ) -> None:
         """
         Remove configuration files.
