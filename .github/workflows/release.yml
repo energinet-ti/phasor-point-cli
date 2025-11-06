@@ -115,7 +115,7 @@ jobs:
           echo "" >> release_notes.md
           echo "- \`phasor_point_cli-${{ steps.version.outputs.version }}-py3-none-any.whl\` - Python wheel (recommended)" >> release_notes.md
           echo "- \`phasor_point_cli-${{ steps.version.outputs.version }}.tar.gz\` - Source distribution" >> release_notes.md
-          echo "- \`phasor_point_cli-${{ steps.version.outputs.version }}-sbom.json\` - Software Bill of Materials (SBOM)" >> release_notes.md
+          echo "- \`phasor-point-cli-${{ steps.version.outputs.version }}-sbom.json\` - Software Bill of Materials (SBOM)" >> release_notes.md
           echo "" >> release_notes.md
           echo "## Security" >> release_notes.md
           echo "" >> release_notes.md
