@@ -149,7 +149,7 @@ class TestCommandRouter:
 
         # Assert
         mock_setup.assert_called_once_with(
-            force=False, local=False, interactive=True, refresh_pmus=False
+            force=False, local=False, interactive=True
         )
 
     def test_handle_setup_with_force(self, command_router):
@@ -165,7 +165,7 @@ class TestCommandRouter:
 
         # Assert
         mock_setup.assert_called_once_with(
-            force=True, local=False, interactive=True, refresh_pmus=False
+            force=True, local=False, interactive=True
         )
 
     def test_handle_setup_with_local(self, command_router):
@@ -181,7 +181,7 @@ class TestCommandRouter:
 
         # Assert
         mock_setup.assert_called_once_with(
-            force=False, local=True, interactive=True, refresh_pmus=False
+            force=False, local=True, interactive=True
         )
 
     def test_handle_setup_with_force_and_local(self, command_router):
@@ -197,7 +197,7 @@ class TestCommandRouter:
 
         # Assert
         mock_setup.assert_called_once_with(
-            force=True, local=True, interactive=True, refresh_pmus=False
+            force=True, local=True, interactive=True
         )
 
     def test_handle_setup_with_interactive(self, command_router):
@@ -213,7 +213,7 @@ class TestCommandRouter:
 
         # Assert
         mock_setup.assert_called_once_with(
-            force=False, local=False, interactive=True, refresh_pmus=False
+            force=False, local=False, interactive=True
         )
 
     def test_handle_setup_with_no_interactive(self, command_router):
@@ -229,7 +229,7 @@ class TestCommandRouter:
 
         # Assert
         mock_setup.assert_called_once_with(
-            force=False, local=False, interactive=False, refresh_pmus=False
+            force=False, local=False, interactive=False
         )
 
     def test_handle_list_tables_default(self, command_router):
@@ -704,22 +704,38 @@ class TestCommandRouter:
         captured = capsys.readouterr()
         assert "[WARNING] PMU 45012 not found in configuration" in captured.out
         assert "No PMUs loaded in configuration (0 PMUs total)" in captured.out
-        assert f"{CLI_COMMAND_PYTHON} setup --refresh-pmus" in captured.out
+        assert f"{CLI_COMMAND_PYTHON} config --refresh-pmus" in captured.out
 
-    def test_handle_setup_with_refresh_pmus(self, command_router):
-        """Test handle_setup with --refresh-pmus flag."""
+    def test_handle_config_with_refresh_pmus(self, command_router):
+        """Test handle_config with --refresh-pmus flag."""
         # Arrange
-        args = argparse.Namespace(force=False, local=False, interactive=True, refresh_pmus=True)
+        args = argparse.Namespace(refresh_pmus=True, local=False, clean=False, all=False)
 
         # Act
         with patch(
-            "phasor_point_cli.command_router.ConfigurationManager.setup_configuration_files"
-        ) as mock_setup:
-            command_router.handle_setup(args)
+            "phasor_point_cli.command_router.ConfigurationManager.refresh_pmu_list"
+        ) as mock_refresh:
+            command_router.handle_config(args)
 
         # Assert
-        mock_setup.assert_called_once_with(
-            force=False, local=False, interactive=True, refresh_pmus=True
+        mock_refresh.assert_called_once_with(
+            local=False, logger=command_router._logger
+        )
+
+    def test_handle_config_with_refresh_pmus_local(self, command_router):
+        """Test handle_config with --refresh-pmus and --local flags."""
+        # Arrange
+        args = argparse.Namespace(refresh_pmus=True, local=True, clean=False, all=False)
+
+        # Act
+        with patch(
+            "phasor_point_cli.command_router.ConfigurationManager.refresh_pmu_list"
+        ) as mock_refresh:
+            command_router.handle_config(args)
+
+        # Assert
+        mock_refresh.assert_called_once_with(
+            local=True, logger=command_router._logger
         )
 
     def test_handle_config_display(self, command_router, capsys):
@@ -870,7 +886,7 @@ class TestCommandRouter:
         captured = capsys.readouterr()
         assert "WARNING: No PMU Tables Found" in captured.out
         assert "PMU metadata not loaded in configuration (0 PMUs in config)" in captured.out
-        assert f"{CLI_COMMAND_PYTHON} setup --refresh-pmus" in captured.out
+        assert f"{CLI_COMMAND_PYTHON} config --refresh-pmus" in captured.out
 
     def test_handle_list_tables_with_unknown_pmus(self, command_router, mock_cli, capsys):
         """Test handle_list_tables displays warning for unknown PMUs."""
@@ -921,7 +937,7 @@ class TestCommandRouter:
         command_router._logger.error.assert_called_once()
         captured = capsys.readouterr()
         assert "[ERROR] Table pmu_45012_1 not found or not accessible" in captured.out
-        assert f"{CLI_COMMAND_PYTHON} setup --refresh-pmus" in captured.out
+        assert f"{CLI_COMMAND_PYTHON} config --refresh-pmus" in captured.out
 
     def test_handle_table_info_with_country(self, command_router, capsys):
         """Test handle_table_info displays country information."""
@@ -1014,7 +1030,7 @@ class TestCommandRouter:
         # Assert
         captured = capsys.readouterr()
         assert "No PMUs loaded in configuration" in captured.out
-        assert f"{CLI_COMMAND_PYTHON} setup --refresh-pmus" in captured.out
+        assert f"{CLI_COMMAND_PYTHON} config --refresh-pmus" in captured.out
 
     def test_handle_batch_extract_updates_connection_pool(self, command_router, mock_cli):
         """Test handle_batch_extract updates connection pool size when needed."""

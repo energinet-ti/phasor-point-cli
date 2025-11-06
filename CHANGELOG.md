@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **RESTORED**: Python 3.8 and 3.9 support (minimum Python version lowered from 3.10 to 3.8)
 - CI workflow now tests Python 3.8 and 3.11 on feature branches, comprehensive testing (3.8-3.13) on main branch
+- `--refresh-pmus` flag moved from `setup` command to `config` command for better usability
+
+### Fixed
+- Issue where `--refresh-pmus` could not be run independently without triggering full setup process
+- `--no-interactive` flag in setup no longer incorrectly forces interactive mode when refreshing PMUs
 
 ## [0.4.0] - 2025-11-03
 

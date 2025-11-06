@@ -510,7 +510,7 @@ class TestValidationWarnings:
 
         # Assert
         assert any("does not define any available PMUs" in rec.message for rec in caplog.records)
-        assert any("setup --refresh-pmus" in rec.message for rec in caplog.records)
+        assert any("config --refresh-pmus" in rec.message for rec in caplog.records)
 
 
 # ============================================================================

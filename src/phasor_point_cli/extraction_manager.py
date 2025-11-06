@@ -80,7 +80,7 @@ class ExtractionManager:
         if not pmu_info:
             self.logger.warning(
                 f"PMU {pmu_id} metadata not found in configuration. "
-                f"Consider running '{CLI_COMMAND_PYTHON} setup --refresh-pmus' to update PMU list."
+                f"Consider running '{CLI_COMMAND_PYTHON} config --refresh-pmus' to update PMU list."
             )
             station_name = "unknown"
         else:

@@ -161,12 +161,6 @@ Use --local flag to create project-specific configuration in the current directo
         )
         setup_parser.set_defaults(interactive=True)
 
-        setup_parser.add_argument(
-            "--refresh-pmus",
-            action="store_true",
-            help="Fetch and update PMU list from database",
-        )
-
     def _add_config_command(self, subparsers) -> None:
         """Add config command parser (combines config-path and config-clean functionality)."""
         config_parser = subparsers.add_parser(
@@ -178,7 +172,8 @@ Manage and inspect configuration files.
 By default, displays all configuration file locations, their priority order,
 and which ones are currently active.
 
-Use --clean flag to remove configuration files instead.
+Use --clean flag to remove configuration files.
+Use --refresh-pmus flag to fetch and update PMU list from database.
             """,
         )
         config_parser.add_argument(
@@ -197,6 +192,11 @@ Use --clean flag to remove configuration files instead.
             "-a",
             action="store_true",
             help="Target all config locations (both user and local)",
+        )
+        config_parser.add_argument(
+            "--refresh-pmus",
+            action="store_true",
+            help="Fetch and update PMU list from database",
         )
 
     def _add_about_command(self, subparsers) -> None:
