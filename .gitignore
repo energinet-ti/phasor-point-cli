@@ -9,6 +9,7 @@ __pycache__/
 venv/
 env/
 ENV/
+sbom-venv/
 
 # Testing
 .pytest_cache/
@@ -36,6 +37,9 @@ build/
 *.egg-info/
 .eggs/
 src/phasor_point_cli/_version.py
+
+# SBOM files
+*-sbom.json
 
 # Jupyter Notebook
 .ipynb_checkpoints

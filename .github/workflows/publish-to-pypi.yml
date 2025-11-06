@@ -1,4 +1,4 @@
-name: Publish to PyPI
+name: "Release: Publish to PyPI"
 
 # This workflow publishes to PyPI when a release is published on GitHub
 # To enable:
