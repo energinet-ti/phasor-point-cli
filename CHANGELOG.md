@@ -7,9 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- SBOM (Software Bill of Materials) generation with accurate dependency tracking
+- Version-specific SBOM filenames that match build artifacts
+- GitHub Actions workflow grouping with consistent naming prefixes (CI, Security, Release)
+
 ### Changed
 - **RESTORED**: Python 3.8 and 3.9 support (minimum Python version lowered from 3.10 to 3.8)
 - CI workflow now tests Python 3.8 and 3.11 on feature branches, comprehensive testing (3.8-3.13) on main branch
+- SBOM generation now uses isolated environment to exclude dev dependencies
+- SBOM filtering to remove environment packages (pip) from distribution artifacts
+- Makefile `clean` target now removes temporary SBOM build environments
+
+### Fixed
+- SBOM generation consistency between local builds and CI/CD pipeline
+- SBOM filename references in GitHub release notes
 
 ## [0.4.0] - 2025-11-03
 

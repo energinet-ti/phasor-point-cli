@@ -1,4 +1,4 @@
-name: Release
+name: "Release: Build and Publish"
 
 on:
   push:
@@ -13,6 +13,8 @@ on:
 
 permissions:
   contents: write  # Required for creating releases
+  id-token: write  # Required for SBOM attestations
+  attestations: write  # Required for SBOM attestations
 
 jobs:
   build-and-release:
@@ -32,7 +34,7 @@ jobs:
       - name: Install build dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install build twine
+          pip install build twine cyclonedx-bom
       
       - name: Extract version from tag
         id: version
@@ -59,9 +61,38 @@ jobs:
           echo "Built packages:"
           ls -lh dist/
       
+      - name: Generate SBOM
+        run: |
+          python -m venv sbom-venv
+          sbom-venv/bin/pip install --upgrade pip
+          sbom-venv/bin/pip install dist/phasor_point_cli-${{ steps.version.outputs.version }}-py3-none-any.whl
+          cyclonedx-py environment --pyproject pyproject.toml --of JSON -o dist/phasor-point-cli-${{ steps.version.outputs.version }}-sbom.json sbom-venv
+          echo "Filtering out environment packages (pip)..."
+          jq 'del(.components[] | select(.name == "pip")) | .dependencies |= map(select(.ref | startswith("pip==") | not)) | .dependencies[] |= (if .dependsOn then .dependsOn |= map(select(startswith("pip==") | not)) else . end)' dist/phasor-point-cli-${{ steps.version.outputs.version }}-sbom.json > dist/phasor-point-cli-${{ steps.version.outputs.version }}-sbom.json.tmp && mv dist/phasor-point-cli-${{ steps.version.outputs.version }}-sbom.json.tmp dist/phasor-point-cli-${{ steps.version.outputs.version }}-sbom.json
+          rm -rf sbom-venv
+          echo "Generated SBOM:"
+          ls -lh dist/*.json
+      
       - name: Verify package integrity
         run: |
           twine check dist/*
+      
+      - name: Submit SBOM to Dependency Graph
+        uses: evryfs/sbom-dependency-submission-action@v0.0.14
+        with:
+          sbom-files: dist/phasor-point-cli-${{ steps.version.outputs.version }}-sbom.json
+      
+      - name: Generate SBOM attestation for wheel
+        uses: actions/attest-sbom@v2
+        with:
+          subject-path: dist/phasor_point_cli-${{ steps.version.outputs.version }}-py3-none-any.whl
+          sbom-path: dist/phasor-point-cli-${{ steps.version.outputs.version }}-sbom.json
+      
+      - name: Generate SBOM attestation for source distribution
+        uses: actions/attest-sbom@v2
+        with:
+          subject-path: dist/phasor_point_cli-${{ steps.version.outputs.version }}.tar.gz
+          sbom-path: dist/phasor-point-cli-${{ steps.version.outputs.version }}-sbom.json
       
       - name: Generate release notes
         id: release_notes
@@ -84,6 +115,16 @@ jobs:
           echo "" >> release_notes.md
           echo "- \`phasor_point_cli-${{ steps.version.outputs.version }}-py3-none-any.whl\` - Python wheel (recommended)" >> release_notes.md
           echo "- \`phasor_point_cli-${{ steps.version.outputs.version }}.tar.gz\` - Source distribution" >> release_notes.md
+          echo "- \`phasor-point-cli-${{ steps.version.outputs.version }}-sbom.json\` - Software Bill of Materials (SBOM)" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "## Security" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "All artifacts include signed SBOM attestations for supply chain verification." >> release_notes.md
+          echo "" >> release_notes.md
+          echo "To verify an artifact:" >> release_notes.md
+          echo '```bash' >> release_notes.md
+          echo "gh attestation verify phasor_point_cli-${{ steps.version.outputs.version }}-py3-none-any.whl -R ${{ github.repository }}" >> release_notes.md
+          echo '```' >> release_notes.md
       
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -91,6 +132,7 @@ jobs:
           files: |
             dist/*.whl
             dist/*.tar.gz
+            dist/*-sbom.json
           body_path: release_notes.md
           draft: false
           prerelease: false

@@ -49,6 +49,7 @@ dev = [
     "build>=0.10.0",
     "setuptools-scm>=8.0",
     "validate-pyproject>=0.15",
+    "cyclonedx-bom>=4.0.0",
 ]
 
 [project.scripts]
