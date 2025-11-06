@@ -4,12 +4,7 @@ on:
   push:
     tags:
       - 'v*'  # Trigger on version tags (v1.0.0, v1.0.1, etc.)
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version to release (e.g., 1.0.0)'
-        required: false
-        type: string
+  workflow_dispatch:  # Allow manual trigger
 
 permissions:
   contents: write  # Required for creating releases
@@ -19,6 +14,7 @@ permissions:
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     
     steps:
       - name: Checkout code
@@ -66,9 +62,12 @@ jobs:
           python -m venv sbom-venv
           sbom-venv/bin/pip install --upgrade pip
           sbom-venv/bin/pip install dist/phasor_point_cli-${{ steps.version.outputs.version }}-py3-none-any.whl
-          cyclonedx-py environment --pyproject pyproject.toml --of JSON -o dist/phasor-point-cli-${{ steps.version.outputs.version }}-sbom.json sbom-venv
+          # Generate SBOM from installed package in venv
+          # Note: --pyproject flag removed as it's not supported by cyclonedx-py environment command
+          # Metadata is captured from the installed package instead
+          cyclonedx-py environment --of JSON -o dist/phasor-point-cli-${{ steps.version.outputs.version }}-sbom.json sbom-venv
           echo "Filtering out environment packages (pip)..."
-          jq 'del(.components[] | select(.name == "pip")) | .dependencies |= map(select(.ref | startswith("pip==") | not)) | .dependencies[] |= (if .dependsOn then .dependsOn |= map(select(startswith("pip==") | not)) else . end)' dist/phasor-point-cli-${{ steps.version.outputs.version }}-sbom.json > dist/phasor-point-cli-${{ steps.version.outputs.version }}-sbom.json.tmp && mv dist/phasor-point-cli-${{ steps.version.outputs.version }}-sbom.json.tmp dist/phasor-point-cli-${{ steps.version.outputs.version }}-sbom.json
+          jq 'del(.components[]? | select(.name == "pip")) | .dependencies |= map(select(.ref | startswith("pip==") | not)) | .dependencies[]? |= (if .dependsOn then .dependsOn |= map(select(startswith("pip==") | not)) else . end)' dist/phasor-point-cli-${{ steps.version.outputs.version }}-sbom.json > dist/phasor-point-cli-${{ steps.version.outputs.version }}-sbom.json.tmp && mv dist/phasor-point-cli-${{ steps.version.outputs.version }}-sbom.json.tmp dist/phasor-point-cli-${{ steps.version.outputs.version }}-sbom.json
           rm -rf sbom-venv
           echo "Generated SBOM:"
           ls -lh dist/*.json
@@ -76,11 +75,6 @@ jobs:
       - name: Verify package integrity
         run: |
           twine check dist/*.whl dist/*.tar.gz
-      
-      - name: Submit SBOM to Dependency Graph
-        uses: evryfs/sbom-dependency-submission-action@v0.0.14
-        with:
-          sbom-files: dist/phasor-point-cli-${{ steps.version.outputs.version }}-sbom.json
       
       - name: Generate SBOM attestation for wheel
         uses: actions/attest-sbom@v2
@@ -99,7 +93,12 @@ jobs:
         run: |
           echo "## What's Changed" > release_notes.md
           echo "" >> release_notes.md
-          echo "See the [CHANGELOG](https://github.com/${{ github.repository }}/compare/$(git describe --tags --abbrev=0 HEAD^)...${{ steps.version.outputs.tag }}) for detailed changes." >> release_notes.md
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            echo "See the [CHANGELOG](https://github.com/${{ github.repository }}/compare/${PREV_TAG}...${{ steps.version.outputs.tag }}) for detailed changes." >> release_notes.md
+          else
+            echo "Initial release." >> release_notes.md
+          fi
           echo "" >> release_notes.md
           echo "## Installation" >> release_notes.md
           echo "" >> release_notes.md
