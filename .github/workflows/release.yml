@@ -75,7 +75,7 @@ jobs:
       
       - name: Verify package integrity
         run: |
-          twine check dist/*
+          twine check dist/*.whl dist/*.tar.gz
       
       - name: Submit SBOM to Dependency Graph
         uses: evryfs/sbom-dependency-submission-action@v0.0.14
