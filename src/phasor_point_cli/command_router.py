@@ -109,7 +109,7 @@ class CommandRouter:
             print("   • No PMUs loaded in configuration (0 PMUs total)")
             print("\n[SOLUTION]")
             print("   1. Refresh PMU list from database:")
-            print(f"      {CLI_COMMAND_PYTHON} setup --refresh-pmus")
+            print(f"      {CLI_COMMAND_PYTHON} config --refresh-pmus")
             print("\n   This will fetch and load all available PMUs from your database.")
         else:
             print("\n[STATUS]")
@@ -120,7 +120,7 @@ class CommandRouter:
             print("   • PMU was recently added to database")
             print("   • Incorrect PMU ID")
             print("\n[RECOMMENDED ACTIONS]")
-            print(f"   1. Refresh PMU list: {CLI_COMMAND_PYTHON} setup --refresh-pmus")
+            print(f"   1. Refresh PMU list: {CLI_COMMAND_PYTHON} config --refresh-pmus")
             print(f"   2. Check available PMUs: {CLI_COMMAND_PYTHON} list-tables")
             print(f"   3. Verify PMU ID {pmu_id} is correct")
 
@@ -142,7 +142,7 @@ class CommandRouter:
             print("   • PMU metadata not loaded in configuration (0 PMUs in config)")
             print("\n[SOLUTION]")
             print("   1. Refresh PMU list from database:")
-            print(f"      {CLI_COMMAND_PYTHON} setup --refresh-pmus")
+            print(f"      {CLI_COMMAND_PYTHON} config --refresh-pmus")
             print("\n   This will fetch and load all available PMUs from your database.")
         else:
             # PMU list exists but no tables found - different issue
@@ -156,7 +156,7 @@ class CommandRouter:
             print("   • Wrong database selected")
             print("\n[RECOMMENDED ACTIONS]")
             print("   1. Check connection: Verify DB_HOST, DB_PORT, DB_NAME are correct")
-            print(f"   2. Refresh PMU list: {CLI_COMMAND_PYTHON} setup --refresh-pmus")
+            print(f"   2. Refresh PMU list: {CLI_COMMAND_PYTHON} config --refresh-pmus")
             print(f"   3. Try specific PMU: {CLI_COMMAND_PYTHON} list-tables --pmu 45020")
             print("   4. Check permissions: Ensure user can read PMU tables")
 
@@ -176,7 +176,6 @@ class CommandRouter:
             force=getattr(args, "force", False),
             local=getattr(args, "local", False),
             interactive=getattr(args, "interactive", True),
-            refresh_pmus=getattr(args, "refresh_pmus", False),
         )
 
     def handle_config(self, args: argparse.Namespace) -> None:  # noqa: PLR0912, PLR0915
@@ -186,6 +185,14 @@ class CommandRouter:
         Args:
             args: Parsed command-line arguments
         """
+        # If --refresh-pmus flag is set, refresh PMU list from database
+        if getattr(args, "refresh_pmus", False):
+            ConfigurationManager.refresh_pmu_list(
+                local=getattr(args, "local", False),
+                logger=self._logger,
+            )
+            return
+
         # If --clean flag is set, remove configuration files
         if getattr(args, "clean", False):
             ConfigurationManager.cleanup_configuration_files(
@@ -379,7 +386,7 @@ class CommandRouter:
             print(
                 f"\n[NOTE] {len(unknown_pmus)} PMU(s) show as 'Unknown' - metadata not in configuration"
             )
-            print(f"   To get PMU names: {CLI_COMMAND_PYTHON} setup --refresh-pmus")
+            print(f"   To get PMU names: {CLI_COMMAND_PYTHON} config --refresh-pmus")
 
         if result.found_pmus:
             example_pmu = sorted(result.found_pmus.keys())[0]
@@ -410,7 +417,7 @@ class CommandRouter:
             print("   • PMU does not exist in database")
             print("   • Insufficient permissions to access this table")
             print("\n[RECOMMENDED ACTIONS]")
-            print(f"   1. Refresh PMU list: {CLI_COMMAND_PYTHON} setup --refresh-pmus")
+            print(f"   1. Refresh PMU list: {CLI_COMMAND_PYTHON} config --refresh-pmus")
             print(f"   2. List available PMUs: {CLI_COMMAND_PYTHON} list-tables")
             print("   3. Check different resolution if PMU exists")
             return
@@ -557,14 +564,14 @@ class CommandRouter:
                 print("\n[ROOT CAUSE]")
                 print("   • No PMUs loaded in configuration")
                 print("\n[SOLUTION]")
-                print(f"   Refresh PMU list: {CLI_COMMAND_PYTHON} setup --refresh-pmus")
+                print(f"   Refresh PMU list: {CLI_COMMAND_PYTHON} config --refresh-pmus")
                 print()
                 return
 
             print("\n[STATUS]")
             print(f"   • Configuration has {pmu_count} PMU(s) but not these {len(missing_pmus)}")
             print("\n[RECOMMENDED ACTION]")
-            print(f"   Refresh PMU list: {CLI_COMMAND_PYTHON} setup --refresh-pmus")
+            print(f"   Refresh PMU list: {CLI_COMMAND_PYTHON} config --refresh-pmus")
             print(
                 "\n[NOTE] Batch extraction will continue with all PMUs but may fail for missing ones\n"
             )

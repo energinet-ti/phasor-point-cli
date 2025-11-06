@@ -21,7 +21,7 @@
   },
   "available_pmus": [],
   "notes": {
-    "discovery": "PMU list is dynamically populated from database during setup. Use 'python -m phasor_point_cli setup --refresh-pmus' to update.",
+    "discovery": "PMU list is dynamically populated from database during setup. Use 'python -m phasor_point_cli config --refresh-pmus' to update.",
     "list_tables": "Use 'list-tables' command to see which PMUs are currently accessible"
   }
 }
