@@ -44,7 +44,7 @@ _EMBEDDED_DEFAULT_CONFIG: dict[str, Any] = {
     },
     "available_pmus": [],
     "notes": {
-        "discovery": f"PMU list is dynamically populated from database during setup. Use '{CLI_COMMAND_PYTHON} setup --refresh-pmus' to update.",
+        "discovery": f"PMU list is dynamically populated from database during setup. Use '{CLI_COMMAND_PYTHON} config --refresh-pmus' to update.",
         "list_tables": "Use 'list-tables' command to see which PMUs are currently accessible",
     },
 }
@@ -196,7 +196,7 @@ class ConfigurationManager:
 
         print(f"\n  Successfully loaded {valid_count} valid PMU(s)", file=sys.stderr)
         print("\n  To refresh PMU list from database:", file=sys.stderr)
-        print(f"    {CLI_COMMAND_PYTHON} setup --refresh-pmus", file=sys.stderr)
+        print(f"    {CLI_COMMAND_PYTHON} config --refresh-pmus", file=sys.stderr)
         print("=" * 70 + "\n", file=sys.stderr)
 
     def _report_malformed_entries(self, malformed_entries: list[tuple[Any, str]]) -> None:
@@ -510,7 +510,7 @@ class ConfigurationManager:
         if not self._pmu_lookup:
             self.logger.warning(
                 "Configuration does not define any available PMUs. "
-                f"Run '{CLI_COMMAND_PYTHON} setup --refresh-pmus' to populate PMU list from database."
+                f"Run '{CLI_COMMAND_PYTHON} config --refresh-pmus' to populate PMU list from database."
             )
 
     # -------------------------------------------------------------- Setup files
@@ -551,7 +551,7 @@ class ConfigurationManager:
         if not conn_manager.is_configured:
             logger.warning("Database credentials not fully configured in .env file")
             logger.info(
-                f"PMU list not populated. Run '{CLI_COMMAND_PYTHON} setup --refresh-pmus' after configuring credentials."
+                f"PMU list not populated. Run '{CLI_COMMAND_PYTHON} config --refresh-pmus' after configuring credentials."
             )
             return
 
@@ -587,8 +587,84 @@ class ConfigurationManager:
         except Exception as exc:
             logger.warning(f"Could not fetch PMU list from database: {exc}")
             logger.info(
-                f"Created config with empty PMU list. Run '{CLI_COMMAND_PYTHON} setup --refresh-pmus' to populate PMUs."
+                f"Created config with empty PMU list. Run '{CLI_COMMAND_PYTHON} config --refresh-pmus' to populate PMUs."
             )
+
+    @staticmethod
+    def refresh_pmu_list(
+        local: bool = False,
+        logger: Optional[logging.Logger] = None,
+    ) -> None:
+        """
+        Refresh PMU list from database in existing configuration file.
+
+        Args:
+            local: If True, target local config in current directory. If False, target user config.
+            logger: Optional logger instance.
+        """
+        log = logger or logging.getLogger("config")
+
+        from .config_paths import ConfigPathManager  # noqa: PLC0415 - late import
+
+        path_manager = ConfigPathManager()
+
+        # Determine target directory
+        if local:
+            config_dir = Path.cwd()
+            location_desc = "local (current directory)"
+        else:
+            # Find active config using priority order
+            config_file_path = path_manager.find_config_file()
+            if config_file_path:
+                config_dir = config_file_path.parent
+                location_desc = f"active configuration ({config_dir})"
+            else:
+                # Fall back to user config directory
+                config_dir = path_manager.get_user_config_dir()
+                location_desc = f"user config directory ({config_dir})"
+
+        config_file = config_dir / "config.json"
+        env_file = config_dir / ".env"
+
+        # Check if config file exists
+        if not config_file.exists():
+            print("\n" + "=" * 70)
+            print("ERROR: Configuration File Not Found")
+            print("=" * 70)
+            print(f"\nNo config.json found at: {config_file}")
+            print("\nPlease run setup first:")
+            print(f"   {CLI_COMMAND_PYTHON} setup")
+            if local:
+                print("   or")
+                print(f"   {CLI_COMMAND_PYTHON} setup --local")
+            print("=" * 70 + "\n")
+            log.error(f"Config file not found: {config_file}")
+            return
+
+        print("\n" + "=" * 70)
+        print("Refreshing PMU List from Database")
+        print("=" * 70)
+        print(f"\nTarget: {location_desc}")
+        print(f"Config: {config_file}")
+        print(f"Env:    {env_file}")
+        print()
+
+        log.info(f"Refreshing PMU list for {location_desc}")
+
+        # Call the private fetch method
+        ConfigurationManager._fetch_and_populate_pmus(
+            config_file=config_file,
+            env_file=env_file,
+            is_new_config=False,  # Always merge when refreshing
+            logger=log,
+        )
+
+        print("\n" + "=" * 70)
+        print("PMU List Refresh Complete")
+        print("=" * 70)
+        print(f"\nUpdated: {config_file}")
+        print("\nYou can now use the updated PMU list in your extractions.")
+        print("=" * 70 + "\n")
 
     @staticmethod
     def setup_configuration_files(  # noqa: PLR0912, PLR0915
@@ -596,7 +672,6 @@ class ConfigurationManager:
         *,
         force: bool = False,
         interactive: bool = False,
-        refresh_pmus: bool = False,
         logger: Optional[logging.Logger] = None,
     ) -> None:
         """
@@ -606,8 +681,10 @@ class ConfigurationManager:
             local: If True, create files in current directory. If False, create in user config directory.
             force: If True, overwrite existing files.
             interactive: If True, prompt user for credentials interactively.
-            refresh_pmus: If True, fetch and update PMU list from database. Automatically True for new configs.
             logger: Optional logger instance.
+
+        Note:
+            PMU list is automatically refreshed for new configurations. Use 'config --refresh-pmus' to update existing configs.
         """
         log = logger or logging.getLogger("setup")
         log.info("Setting up configuration files...")
@@ -668,9 +745,8 @@ DEFAULT_OUTPUT_DIR=data_exports
                 log.error(f"Error creating config.json file: {exc}")
                 return
 
-        # Fetch PMUs from database if this is a new config or refresh is requested
-        should_refresh_pmus = config_is_new or refresh_pmus
-        if should_refresh_pmus:
+        # Fetch PMUs from database if this is a new config
+        if config_is_new:
             ConfigurationManager._fetch_and_populate_pmus(config_file, env_file, config_is_new, log)
 
         print("\n" + "=" * 70)
