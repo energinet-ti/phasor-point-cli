@@ -1,4 +1,4 @@
-.PHONY: help lint format type-check check test clean install dev coverage build sbom validate-pyproject
+.PHONY: help lint format type-check check test clean install dev coverage build sbom validate-pyproject security-audit
 
 help:
 	@echo "Available commands:"
@@ -13,6 +13,7 @@ help:
 	@echo "  make check               - Run all checks (lint + format + validate + tests)"
 	@echo "  make test                - Run tests"
 	@echo "  make coverage            - Run tests with coverage report"
+	@echo "  make security-audit      - Run security audit on dependencies"
 	@echo "  make build               - Build wheel distribution package"
 	@echo "  make sbom                - Generate SBOM (Software Bill of Materials)"
 	@echo "  make clean               - Remove build artifacts and cache files"
@@ -70,6 +71,10 @@ coverage:
 	./venv/bin/pytest --cov=src/phasor_point_cli --cov-report=term-missing --cov-report=html
 	@echo ""
 	@echo "HTML coverage report generated in htmlcov/index.html"
+
+security-audit:
+	@echo "Running security audit on dependencies..."
+	./venv/bin/pip-audit --desc
 
 sbom:
 	@echo "Generating SBOM (Software Bill of Materials)..."

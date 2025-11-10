@@ -50,6 +50,7 @@ dev = [
     "setuptools-scm>=8.0",
     "validate-pyproject>=0.15",
     "cyclonedx-bom>=4.0.0",
+    "pip-audit>=2.6.0",
 ]
 
 [project.scripts]
